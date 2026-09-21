@@ -52,6 +52,21 @@ function App() {
   const go = (p: string) => { window.location.hash = p }
   const { t } = useLang()
 
+  // écran de login : PLEIN ÉCRAN, pas de sidebar ni de menus
+  if (!authed) {
+    return (
+      <>
+        <Login onLogin={() => { setAuthed(true); go('dashboard') }} />
+        <Toaster
+          position="bottom-right"
+          toastOptions={{
+            style: { background: '#1B2336', border: '1px solid #2E3A54', color: '#F8FAFC' },
+          }}
+        />
+      </>
+    )
+  }
+
   return (
     <div className="flex min-h-screen">
       {/* sidebar */}
@@ -93,9 +108,7 @@ function App() {
             exit={{ opacity: 0, y: -4 }}
             transition={{ duration: 0.15 }}
           >
-            {!authed
-              ? <Login onLogin={() => { setAuthed(true); go('dashboard') }} />
-              : page === 'agents' ? <Agents />
+            {page === 'agents' ? <Agents />
               : page === 'vaults' ? <Vaults />
               : page === 'secrets' ? <Secrets />
               : page === 'grants' ? <Grants />

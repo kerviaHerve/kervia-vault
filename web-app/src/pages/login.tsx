@@ -1,10 +1,12 @@
 import * as React from 'react'
 import { motion } from 'framer-motion'
 import { LoaderCircle } from 'lucide-react'
+import { useLang } from '@/i18n'
 import emblem from '@/assets/emblem-dark.png'
 import { Button, Input, Field } from '@/components/ui'
 
 export default function Login({ onLogin }: { onLogin: () => void }) {
+  const { t } = useLang()
   const [pw, setPw] = React.useState('')
   const [err, setErr] = React.useState(false)
   const [busy, setBusy] = React.useState(false)
@@ -35,20 +37,20 @@ export default function Login({ onLogin }: { onLogin: () => void }) {
           <img src={emblem} alt="Kervia-vault" className="w-16 h-16" />
           <div className="text-center">
             <div className="font-bold text-xl tracking-tight text-accent">Kervia-vault</div>
-            <div className="text-xs text-fg-2">Coffre multi-agents</div>
+            <div className="text-xs text-fg-2">{String(t.loginTitle)}</div>
           </div>
         </div>
         <form onSubmit={submit}>
-          <Field label="Mot de passe administrateur">
+          <Field label={String(t.loginLabel)}>
             <Input
               type="password" value={pw} autoFocus autoComplete="current-password"
               onChange={e => { setPw(e.target.value); setErr(false) }}
               className={err ? 'border-danger' : ''}
             />
           </Field>
-          {err && <p className="text-xs text-danger font-medium -mt-2 mb-4">Identifiants invalides.</p>}
+          {err && <p className="text-xs text-danger font-medium -mt-2 mb-4">{String(t.loginError)}</p>}
           <Button variant="primary" className="w-full" type="submit" disabled={!pw || busy}>
-            {busy ? <LoaderCircle size={16} className="animate-spin" /> : 'Se connecter'}
+            {busy ? <LoaderCircle size={16} className="animate-spin" /> : String(t.loginBtn)}
           </Button>
         </form>
       </motion.div>

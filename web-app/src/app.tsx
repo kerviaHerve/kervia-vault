@@ -6,6 +6,9 @@ import { LayoutDashboard, Bot, Archive, KeyRound, Shield, ScrollText, Settings a
 import { cn } from '@/lib/utils'
 import '@/index.css'
 import emblem from '@/assets/emblem-dark.png'
+import { LangProvider } from '@/i18n'
+import { LangSwitch } from '@/i18n/LangSwitch'
+import { useLang } from '@/i18n'
 
 import Dashboard from '@/pages/dashboard'
 import Agents from '@/pages/agents'
@@ -17,13 +20,13 @@ import Settings from '@/pages/settings'
 import Login from '@/pages/login'
 
 const NAV = [
-  { id: 'dashboard', label: "Vue d'ensemble", icon: LayoutDashboard },
-  { id: 'agents', label: 'Agents', icon: Bot },
-  { id: 'vaults', label: 'Vaults', icon: Archive },
-  { id: 'secrets', label: 'Secrets', icon: KeyRound },
-  { id: 'grants', label: 'Permissions', icon: Shield },
-  { id: 'audit', label: 'Audit', icon: ScrollText },
-  { id: 'settings', label: 'Paramètres', icon: SettingsIcon },
+  { id: 'dashboard', label: 'overview', icon: LayoutDashboard },
+  { id: 'agents', label: 'agents', icon: Bot },
+  { id: 'vaults', label: 'vaults', icon: Archive },
+  { id: 'secrets', label: 'secrets', icon: KeyRound },
+  { id: 'grants', label: 'permissions', icon: Shield },
+  { id: 'audit', label: 'audit', icon: ScrollText },
+  { id: 'settings', label: 'settings', icon: SettingsIcon },
 ] as const
 
 type PageId = (typeof NAV)[number]['id'] | 'login'
@@ -47,6 +50,7 @@ function App() {
   }
 
   const go = (p: string) => { window.location.hash = p }
+  const { t } = useLang()
 
   return (
     <div className="flex min-h-screen">
@@ -67,12 +71,15 @@ function App() {
               )}
             >
               <Icon size={16} />
-              {label}
+              {String(t[label])}
             </button>
           ))}
         </nav>
+        <div className="px-3 pb-2">
+          <LangSwitch />
+        </div>
         <div className="px-4 py-3 border-t border-border text-[10px] text-fg-3 leading-relaxed">
-          Kervia-vault v1.0 · AGPL-3.0<br />chiffré AES-256-GCM
+          Kervia-vault v1.0 · AGPL-3.0<br />{String(t.footer)}
         </div>
       </aside>
 
@@ -109,4 +116,4 @@ function App() {
   )
 }
 
-createRoot(document.getElementById('root')!).render(<App />)
+createRoot(document.getElementById('root')!).render(<LangProvider><App /></LangProvider>)

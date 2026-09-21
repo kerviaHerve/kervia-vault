@@ -1,11 +1,13 @@
 import * as React from 'react'
 import { motion } from 'framer-motion'
 import { Bot, Archive, KeyRound, Activity } from 'lucide-react'
+import { useLang } from '@/i18n'
 import { api } from '@/lib/api'
 import { Badge } from '@/components/ui'
 import { fmtDateTime } from '@/lib/utils'
 
 export default function Dashboard({ go }: { go: (p: string) => void }) {
+  const { t } = useLang()
   const [data, setData] = React.useState<{ agents: any[]; vaults: any[]; audit: any[]; secrets: number } | null>(null)
 
   React.useEffect(() => {
@@ -25,10 +27,10 @@ export default function Dashboard({ go }: { go: (p: string) => void }) {
   const active = data.agents.filter(a => !a.revoked_at).length
 
   const stats = [
-    { label: 'Agents actifs', value: active, icon: Bot },
-    { label: 'Vaults', value: data.vaults.length, icon: Archive },
-    { label: 'Secrets', value: data.secrets, icon: KeyRound },
-    { label: 'Activité récente', value: data.audit.length, icon: Activity },
+    { label: String(t.statActiveAgents), value: active, icon: Bot },
+    { label: String(t.statVaults), value: data.vaults.length, icon: Archive },
+    { label: String(t.statSecrets), value: data.secrets, icon: KeyRound },
+    { label: String(t.statActivity), value: data.audit.length, icon: Activity },
   ]
 
   const badge = (a: string) =>
@@ -36,8 +38,8 @@ export default function Dashboard({ go }: { go: (p: string) => void }) {
 
   return (
     <div>
-      <h1 className="text-xl font-bold tracking-tight mb-1">Vue d'ensemble</h1>
-      <p className="text-sm text-fg-2 mb-6">Votre coffre multi-agents, en temps réel.</p>
+      <h1 className="text-xl font-bold tracking-tight mb-1">{String(t.dashTitle)}</h1>
+      <p className="text-sm text-fg-2 mb-6">{String(t.dashSub)}</p>
 
       <div className="grid grid-cols-4 gap-4 mb-6">
         {stats.map(({ label, value, icon: Icon }, i) => (
@@ -59,7 +61,7 @@ export default function Dashboard({ go }: { go: (p: string) => void }) {
       </div>
 
       <div className="bg-card border border-border rounded-xl overflow-hidden">
-        <div className="px-5 py-3.5 border-b border-border text-sm font-semibold">Dernière activité</div>
+        <div className="px-5 py-3.5 border-b border-border text-sm font-semibold">{String(t.lastActivity)}</div>
         <table className="w-full text-sm">
           <tbody>
             {data.audit.map((e: any) => (

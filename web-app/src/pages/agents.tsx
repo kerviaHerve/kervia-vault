@@ -2,11 +2,13 @@ import * as React from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { Plus, Copy, Ban, Trash2, LoaderCircle, Bot } from 'lucide-react'
 import { toast } from 'sonner'
+import { useLang } from '@/i18n'
 import { api } from '@/lib/api'
 import { Button, Badge, Dialog, DialogContent, Input, Field } from '@/components/ui'
 import { fmtDateTime } from '@/lib/utils'
 
 export default function Agents() {
+  const { t } = useLang()
   const [agents, setAgents] = React.useState<any[] | null>(null)
   const [open, setOpen] = React.useState(false)
   const [name, setName] = React.useState('')
@@ -29,17 +31,17 @@ export default function Agents() {
   }
 
   const revoke = async (id: string, name: string) => {
-    if (!confirm(`Révoquer ${name} ? Son accès cessera immédiatement.`)) return
+    if (!confirm(t.revokeConfirm(name))) return
     await api('POST', `/admin/agents/${id}/revoke`)
-    toast.success(`${name} révoqué`)
+    toast.success(t.revokedToast(name))
     load()
   }
 
   const purge = async (id: string, name: string) => {
-    if (!confirm(`Supprimer définitivement ${name} ? Cette action est irréversible.`)) return
+    if (!confirm(t.purgeConfirm(name))) return
     try {
       await api('DELETE', `/admin/agents/${id}`)
-      toast.success(`${name} supprimé`)
+      toast.success(t.purgedToast(name))
       load()
     } catch (e: any) { toast.error(e.message === 'not_revoked' ? 'Révoquez d\'abord l\'agent' : e.message) }
   }
@@ -51,16 +53,16 @@ export default function Agents() {
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-xl font-bold tracking-tight mb-1">Agents</h1>
-          <p className="text-sm text-fg-2">Une clé API par agent — révocable à tout moment.</p>
+          <p className="text-sm text-fg-2">{String(t.agentsSub)}</p>
         </div>
-        <Button variant="primary" onClick={() => setOpen(true)}><Plus size={16} /> Nouvel agent</Button>
+        <Button variant="primary" onClick={() => setOpen(true)}><Plus size={16} /> {String(t.newAgent)}</Button>
       </div>
 
       <div className="bg-card border border-border rounded-xl overflow-hidden">
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-border text-fg-3">
-              {['Nom', 'Clé', 'Statut', 'Dernier accès', 'Créé', ''].map(h => (
+              {[t.agents ? 'Nom' : '', t.key ? 'Key' : '', 'Statut', 'Dernier accès', 'Créé', ''].map(h => (
                 <th key={h} className="px-5 py-3 text-left text-[11px] font-semibold uppercase tracking-wider">{h}</th>
               ))}
             </tr>
@@ -72,22 +74,22 @@ export default function Agents() {
                 <td className="px-5 py-3 font-mono text-xs text-fg-2">{a.key_prefix}…</td>
                 <td className="px-5 py-3">
                   <Badge variant={a.revoked_at ? 'danger' : 'ok'}>
-                    {a.revoked_at ? 'révoqué' : 'actif'}
+                    {a.revoked_at ? String(t.revoked) : String(t.active)}
                   </Badge>
                 </td>
                 <td className="px-5 py-3 text-fg-2 text-xs">{fmtDateTime(a.last_used)}</td>
                 <td className="px-5 py-3 text-fg-2 text-xs">{fmtDateTime(a.created_at)}</td>
                 <td className="px-5 py-3 text-right">
                   {!a.revoked_at
-                  ? <Button variant="destructive" size="sm" onClick={() => revoke(a.id, a.name)}><Ban size={13} /> Révoquer</Button>
-                  : <Button variant="destructive" size="sm" onClick={() => purge(a.id, a.name)}><Trash2 size={13} /> Supprimer</Button>}
+                  ? <Button variant="destructive" size="sm" onClick={() => revoke(a.id, a.name)}><Ban size={13} /> {String(t.revoke)}</Button>
+                  : <Button variant="destructive" size="sm" onClick={() => purge(a.id, a.name)}><Trash2 size={13} /> {String(t.delete)}</Button>}
                 </td>
               </tr>
             ))}
             {agents.length === 0 && (
               <tr><td colSpan={6} className="py-14 text-center text-fg-3">
                 <Bot className="mx-auto mb-3 opacity-50" size={32} />
-                Aucun agent. Créez le premier pour donner accès à un coffre.
+                {String(t.noAgents)}
               </td></tr>
             )}
           </tbody>
@@ -96,14 +98,14 @@ export default function Agents() {
 
       <Dialog open={open} onOpenChange={setOpen}>
         {open && <DialogContent title="Nouvel agent">
-          <Field label="Nom de l'agent" help="ex : rita, ci-runner, hermes-1…">
+          <Field label={String(t.agentName)} help={String(t.agentNameHelp)}>
             <Input value={name} autoFocus onChange={e => setName(e.target.value)}
               onKeyDown={e => e.key === 'Enter' && create()} />
           </Field>
           <div className="flex justify-end gap-2">
-            <Button onClick={() => setOpen(false)}>Annuler</Button>
+            <Button onClick={() => setOpen(false)}>{String(t.cancel)}</Button>
             <Button variant="primary" onClick={create} disabled={!name.trim() || busy}>
-              {busy ? <LoaderCircle size={15} className="animate-spin" /> : 'Créer'}
+              {busy ? <LoaderCircle size={15} className="animate-spin" /> : String(t.create)}
             </Button>
           </div>
         </DialogContent>}
@@ -125,7 +127,7 @@ export default function Agents() {
               className="w-[440px] bg-card border border-accent/40 rounded-2xl overflow-hidden shadow-2xl"
             >
               <div className="px-6 py-4 border-b border-border font-semibold flex items-center gap-2">
-                <Bot size={16} className="text-accent" /> Clé API créée — {keyModal.name}
+                <Bot size={16} className="text-accent" /> {String(t.keyCreatedTitle(keyModal.name))}
               </div>
               <div className="p-6">
                 <motion.div
@@ -137,17 +139,17 @@ export default function Agents() {
                   {keyModal.key}
                 </motion.div>
                 <div className="flex items-center gap-3 mt-4">
-                  <Button onClick={() => { navigator.clipboard.writeText(keyModal.key); toast.success('Clé copiée') }}>
+                  <Button onClick={() => { navigator.clipboard.writeText(keyModal.key); toast.success(String(t.keyCopied)) }}>
                     <Copy size={14} /> Copier
                   </Button>
-                  <span className="text-xs text-fg-2">À coller dans KERVIA_VAULT_API_KEY</span>
+                  <span className="text-xs text-fg-2">{String(t.keyUsage)}</span>
                 </div>
                 <div className="mt-4 bg-warn/10 text-warn rounded-lg px-3.5 py-2.5 text-xs font-semibold flex items-center gap-2">
-                  ⚠ Cette clé ne sera <b>jamais</b> ré-affichée. Copiez-la maintenant.
+                  ⚠ {String(t.keyWarning)}
                 </div>
               </div>
               <div className="px-6 py-4 border-t border-border flex justify-end">
-                <Button variant="primary" onClick={() => setKeyModal(null)}>J'ai copié la clé</Button>
+                <Button variant="primary" onClick={() => setKeyModal(null)}>{String(t.keyCopiedConfirm)}</Button>
               </div>
             </motion.div>
           </motion.div>

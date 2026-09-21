@@ -1,8 +1,10 @@
 import * as React from 'react'
 import { toast } from 'sonner'
 import { api } from '@/lib/api'
+import { useLang } from '@/i18n'
 
 export default function Grants() {
+  const { t } = useLang()
   const [agents, setAgents] = React.useState<any[]>([])
   const [vaults, setVaults] = React.useState<any[]>([])
   const [grants, setGrants] = React.useState<any[]>([])
@@ -29,13 +31,13 @@ export default function Grants() {
   return (
     <div>
       <h1 className="text-xl font-bold tracking-tight mb-1">Permissions</h1>
-      <p className="text-sm text-fg-2 mb-6">Cliquez sur une case : rien → lecture → lecture+écriture → rien.</p>
+      <p className="text-sm text-fg-2 mb-6">{String(t.grantsSub)}</p>
 
       <div className="bg-card border border-border rounded-xl overflow-hidden overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-border">
-              <th className="px-5 py-3 text-left text-[11px] font-semibold uppercase tracking-wider text-fg-3">Agent ↓ / Vault →</th>
+              <th className="px-5 py-3 text-left text-[11px] font-semibold uppercase tracking-wider text-fg-3">{String(t.agentVault)}</th>
               {vaults.map(v => (
                 <th key={v.id} className="px-3 py-3 text-[11px] font-semibold text-fg-3">{v.name}</th>
               ))}

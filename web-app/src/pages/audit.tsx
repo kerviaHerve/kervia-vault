@@ -2,10 +2,12 @@ import * as React from 'react'
 import { motion } from 'framer-motion'
 import { ScrollText, Globe, Monitor, Bot } from 'lucide-react'
 import { api } from '@/lib/api'
+import { useLang } from '@/i18n'
 import { Badge } from '@/components/ui'
 import { fmtDateTime, cn } from '@/lib/utils'
 
 export default function Audit() {
+  const { t } = useLang()
   const [entries, setEntries] = React.useState<any[] | null>(null)
   const [filter, setFilter] = React.useState<'all' | 'agent' | 'webui'>('all')
   React.useEffect(() => { api('GET', '/admin/audit?limit=100').then(setEntries) }, [])
@@ -25,7 +27,7 @@ export default function Audit() {
           <p className="text-sm text-fg-2">Tous les accès agents et webui — conservés 90 jours.</p>
         </div>
         <div className="flex gap-1.5">
-          {([['all', 'Tout'], ['agent', 'Agents'], ['webui', 'Webui']] as const).map(([id, label]) => (
+          {([['all', String(t.all)], ['agent', String(t.agents)], ['webui', 'Webui']] as const).map(([id, label]) => (
             <button key={id} onClick={() => setFilter(id)}
               className={cn(
                 'h-8 px-3 rounded-lg text-xs font-medium cursor-pointer transition-colors border',
@@ -41,7 +43,7 @@ export default function Audit() {
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-border text-fg-3">
-              {['Quand', 'Source', 'Qui', 'Action', 'Ressource', 'IP', 'Statut'].map(h => (
+              {[String(t.when), 'Source', String(t.who), String(t.action), String(t.resource), 'IP', 'Statut'].map(h => (
                 <th key={h} className="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-wider whitespace-nowrap">{h}</th>
               ))}
             </tr>
@@ -73,7 +75,7 @@ export default function Audit() {
             ))}
             {shown.length === 0 && (
               <tr><td colSpan={7} className="py-14 text-center text-fg-3">
-                <ScrollText className="mx-auto mb-3 opacity-50" size={32} />Aucune entrée {filter !== 'all' ? `(${filter})` : ''}.</td></tr>
+                <ScrollText className="mx-auto mb-3 opacity-50" size={32} />{String(t.noEntries)}</td></tr>
             )}
           </tbody>
         </table>

@@ -2,6 +2,7 @@ import * as React from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { Plus, Copy, Eye, EyeOff, Trash2, KeyRound, LoaderCircle, Pencil } from 'lucide-react'
 import { toast } from 'sonner'
+import { useLang } from '@/i18n'
 import { api } from '@/lib/api'
 import { Button, Badge, Dialog, DialogContent, Input, Field } from '@/components/ui'
 import { cn, fmtDateTime } from '@/lib/utils'
@@ -12,6 +13,7 @@ interface Template {
 }
 
 export default function Secrets() {
+  const { t } = useLang()
   const [vaults, setVaults] = React.useState<any[]>([])
   const [vault, setVault] = React.useState('')
   const [secrets, setSecrets] = React.useState<any[] | null>(null)
@@ -32,9 +34,9 @@ export default function Secrets() {
     setRevealed(r => ({ ...r, [id]: v }))
   }
   const del = async (id: string, key: string) => {
-    if (!confirm(`Supprimer ${key} ?`)) return
+    if (!confirm(t.deleteConfirm(key))) return
     await api('POST', `/admin/secrets/${id}/delete`)
-    toast.success('Supprimé'); load()
+    toast.success(String(t.secretDeleted)); load()
   }
 
   const [edit, setEdit] = React.useState<any | null>(null)
@@ -50,7 +52,7 @@ export default function Secrets() {
   }
   const saveEdit = async () => {
     if (!edit || editBusy) return
-    if (!editKey.trim()) { toast.error('Le nom ne peut pas être vide'); return }
+    if (!editKey.trim()) { toast.error('String(t.nameRequired)'); return }
     setEditBusy(true)
     try {
       const body: any = {}
@@ -58,16 +60,16 @@ export default function Secrets() {
       if (editVal !== '' && editVal !== undefined) body.value = editVal
       if (!body.key && body.value === undefined) { setEdit(null); setEditBusy(false); return }
       await api('PATCH', `/admin/secrets/${edit.id}`, body)
-      toast.success('Secret mis à jour')
+      toast.success(String(t.secretUpdated))
       setEdit(null); load()
-    } catch (e: any) { toast.error(e.message === 'already_exists' ? 'Ce nom existe déjà' : e.message) }
+    } catch (e: any) { toast.error(e.message === 'already_exists' ? String(t.nameExists) : e.message) }
     setEditBusy(false)
   }
 
   if (!vaults.length) return (
     <div>
       <h1 className="text-xl font-bold tracking-tight mb-6">Secrets</h1>
-      <p className="text-fg-3">Créez d'abord un vault.</p>
+      <p className="text-fg-3">{String(t.noVaults)}</p>
     </div>
   )
 
@@ -76,7 +78,7 @@ export default function Secrets() {
       <div className="flex items-center justify-between mb-6 gap-4">
         <div>
           <h1 className="text-xl font-bold tracking-tight mb-1">Secrets</h1>
-          <p className="text-sm text-fg-2">Les valeurs ne s'affichent que sur clic.</p>
+          <p className="text-sm text-fg-2">{String(t.secretsSub)}</p>
         </div>
         <div className="flex gap-1.5">
           {vaults.map(v => (
@@ -88,7 +90,7 @@ export default function Secrets() {
               {v.name}
             </button>
           ))}
-          <Button variant="primary" onClick={() => setOpen(true)} className="ml-2"><Plus size={16} /> Nouveau</Button>
+          <Button variant="primary" onClick={() => setOpen(true)} className="ml-2"><Plus size={16} /> {String(t.newSecret)}</Button>
         </div>
       </div>
 
@@ -96,7 +98,7 @@ export default function Secrets() {
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-border text-fg-3">
-              {['Clé', 'Type', 'Valeur', 'Version', 'MàJ', ''].map(h => (
+              {[String(t.key), 'Type', String(t.value), 'Version', 'MàJ', ''].map(h => (
                 <th key={h} className="px-5 py-3 text-left text-[11px] font-semibold uppercase tracking-wider">{h}</th>
               ))}
             </tr>
@@ -114,7 +116,7 @@ export default function Secrets() {
                 >
                   <td className="px-5 py-3"><span className="font-semibold">{s.key}</span></td>
                   <td className="px-5 py-3">
-                    <Badge variant={s.template ? 'accent' : 'neutral'}>{s.template || 'libre'}</Badge>
+                    <Badge variant={s.template ? 'accent' : 'neutral'}>{s.template || String(t.free)}</Badge>
                   </td>
                   <td className="px-5 py-3 max-w-72">
                     {revealed[s.id] !== undefined ? (
@@ -133,7 +135,7 @@ export default function Secrets() {
                       {revealed[s.id] !== undefined ? <EyeOff size={15} /> : <Eye size={15} />}
                     </Button>
                     {revealed[s.id] !== undefined && (
-                      <Button variant="ghost" size="icon" onClick={() => { navigator.clipboard.writeText(revealed[s.id]); toast.success('Copié') }}>
+                      <Button variant="ghost" size="icon" onClick={() => { navigator.clipboard.writeText(revealed[s.id]); toast.success(String(t.copied)) }}>
                         <Copy size={15} />
                       </Button>
                     )}
@@ -150,7 +152,7 @@ export default function Secrets() {
             {secrets?.length === 0 && (
               <tr><td colSpan={6} className="py-14 text-center text-fg-3">
                 <KeyRound className="mx-auto mb-3 opacity-50" size={32} />
-                Vault vide. Créez un secret (avec template si possible).</td></tr>
+                {String(t.emptyVault)}</td></tr>
             )}
           </tbody>
         </table>
@@ -159,17 +161,17 @@ export default function Secrets() {
       {/* edit dialog */}
       <Dialog open={!!edit} onOpenChange={o => { if (!o) setEdit(null) }}>
         {edit && (
-          <DialogContent title={`Modifier « ${edit.key} »`}>
-            <Field label="Nom du secret (KEY)">
+          <DialogContent title={String(t.editTitle(edit.key))}>
+            <Field label={String(t.secretKey)}>
               <Input value={editKey} onChange={e => setEditKey(e.target.value)} className="font-mono" />
             </Field>
-            <Field label="Valeur" help="Modifiée = nouvelle version (l'historique est conservé).">
+            <Field label="Valeur" help={String(t.valueHelp)}>
               <Input value={editVal} onChange={e => setEditVal(e.target.value)} className="font-mono" />
             </Field>
             <div className="flex justify-end gap-2">
-              <Button onClick={() => setEdit(null)}>Annuler</Button>
+              <Button onClick={() => setEdit(null)}>{String(t.cancel)}</Button>
               <Button variant="primary" onClick={saveEdit} disabled={editBusy}>
-                {editBusy ? <LoaderCircle size={15} className="animate-spin" /> : 'Enregistrer'}
+                {editBusy ? <LoaderCircle size={15} className="animate-spin" /> : String(t.save)}
               </Button>
             </div>
           </DialogContent>
@@ -188,6 +190,7 @@ function CreateDialog({ open, setOpen, vault, templates, onCreated }: {
   open: boolean; setOpen: (b: boolean) => void; vault: string
   templates: Template[]; onCreated: () => void
 }) {
+  const { t } = useLang()
   const [tplKey, setTplKey] = React.useState('')
   const [key, setKey] = React.useState('')
   const [value, setValue] = React.useState('')
@@ -202,13 +205,13 @@ function CreateDialog({ open, setOpen, vault, templates, onCreated }: {
       body.template = tplKey
       body.values = Object.fromEntries(Object.entries(vals).filter(([, v]) => v !== ''))
       const missing = tpl.fields.filter(f => f.required && !body.values[f.name])
-      if (missing.length) { toast.error(`Champs requis manquants : ${missing.map(f => f.label).join(', ')}`); return }
+      if (missing.length) { toast.error(String(t.missingFields) + missing.map(f => f.label).join(', ')); return }
     } else {
-      if (!value) { toast.error('Valeur requise'); return }
+      if (!value) { toast.error(String(t.value) + ' ?'); return }
       body.value = value
     }
     setBusy(true)
-    try { await api('POST', '/admin/secrets', body); toast.success('Secret créé'); onCreated(); setKey(''); setValue(''); setVals({}) }
+    try { await api('POST', '/admin/secrets', body); toast.success(String(t.secretCreated)); onCreated(); setKey(''); setValue(''); setVals({}) }
     catch (e: any) { toast.error(e.message) }
     setBusy(false)
   }
@@ -217,12 +220,12 @@ function CreateDialog({ open, setOpen, vault, templates, onCreated }: {
     <Dialog open={open} onOpenChange={setOpen}>
       {open && (
         <DialogContent title={`Nouveau secret dans « ${vault} »`} className="max-w-lg max-h-[85vh] overflow-y-auto">
-          <Field label="Type de credential" help="Les templates valident les champs (openai, postgres, smtp…).">
+          <Field label={String(t.credentialType)} help={String(t.templateHelp)}>
             <select
               value={tplKey} onChange={e => { setTplKey(e.target.value); setVals({}) }}
               className="w-full h-9 bg-bg border border-border rounded-lg px-3 text-sm cursor-pointer focus:border-accent outline-none"
             >
-              <option value="">— Valeur libre —</option>
+              <option value="">{String(t.freeValue)}</option>
               {templates.map(t => <option key={t.key} value={t.key}>{t.name} ({t.category})</option>)}
             </select>
           </Field>
@@ -250,22 +253,22 @@ function CreateDialog({ open, setOpen, vault, templates, onCreated }: {
             )}
           </AnimatePresence>
 
-          <Field label="Nom du secret (KEY)">
+          <Field label={String(t.secretKey)}>
             <Input value={key} onChange={e => setKey(e.target.value)} className="font-mono"
               placeholder="PROD_DB, OPENAI_KEY…" onKeyDown={e => e.key === 'Enter' && submit()} />
           </Field>
 
           {!tpl && (
-            <Field label="Valeur">
+            <Field label={String(t.value)}>
               <Input value={value} onChange={e => setValue(e.target.value)} className="font-mono"
                 placeholder="le secret lui-même" onKeyDown={e => e.key === 'Enter' && submit()} />
             </Field>
           )}
 
           <div className="flex justify-end gap-2 mt-2">
-            <Button onClick={() => setOpen(false)}>Annuler</Button>
+            <Button onClick={() => setOpen(false)}>{String(t.cancel)}</Button>
             <Button variant="primary" onClick={submit} disabled={!key.trim() || busy}>
-              {busy ? <LoaderCircle size={15} className="animate-spin" /> : 'Créer'}
+              {busy ? <LoaderCircle size={15} className="animate-spin" /> : String(t.create)}
             </Button>
           </div>
         </DialogContent>

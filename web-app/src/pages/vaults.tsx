@@ -2,11 +2,13 @@ import * as React from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { Plus, Archive, Users, Check, Trash2, Settings2, LoaderCircle } from 'lucide-react'
 import { toast } from 'sonner'
+import { useLang } from '@/i18n'
 import { api } from '@/lib/api'
 import { Button, Badge, Dialog, DialogContent, Input, Field } from '@/components/ui'
 import { cn, fmtDate } from '@/lib/utils'
 
 export default function Vaults() {
+  const { t } = useLang()
   const [vaults, setVaults] = React.useState<any[] | null>(null)
   const [grants, setGrants] = React.useState<any[]>([])
   const [agents, setAgents] = React.useState<any[]>([])
@@ -43,7 +45,7 @@ export default function Vaults() {
       await Promise.all(targets.map(a =>
         api('POST', '/admin/grants', { agent_id: a.id, vault_id: vault.id, can_write: canWrite })
       ))
-      toast.success(`Vault « ${vault.name} » créé — accès donné à ${targets.length} agent${targets.length > 1 ? 's' : ''}`)
+      toast.success(t.vaultCreated(vault.name) + ' — ' + t.accessGrantedTo(targets.length))
       setOpen(false); setName(''); setSelected({}); setAccess('all')
       load()
     } catch (e: any) { toast.error(e.message) }
@@ -51,13 +53,13 @@ export default function Vaults() {
   }
 
   const del = async (v: any) => {
-    if (!confirm(`Supprimer le vault « ${v.name} » ? (seulement possible s'il est vide)`)) return
+    if (!confirm(t.vaultDeleteConfirm(v.name))) return
     try {
       await api('DELETE', `/admin/vaults/${v.id}`)
-      toast.success('Vault supprimé')
+      toast.success(String(t.vaultDeleted))
       load()
     } catch (e: any) {
-      toast.error(e.message === 'vault_not_empty' ? "Le vault contient des secrets — supprimez-les d'abord" : e.message)
+      toast.error(e.message === 'vault_not_empty' ? String(t.vaultNotEmpty) : e.message)
     }
   }
 
@@ -68,9 +70,9 @@ export default function Vaults() {
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-xl font-bold tracking-tight mb-1">Vaults</h1>
-          <p className="text-sm text-fg-2">Un vault par agent ou par usage — les permissions se gèrent aussi dans l'onglet Permissions.</p>
+          <p className="text-sm text-fg-2">{String(t.vaultsSub)}</p>
         </div>
-        <Button variant="primary" onClick={() => setOpen(true)}><Plus size={16} /> Nouveau vault</Button>
+        <Button variant="primary" onClick={() => setOpen(true)}><Plus size={16} /> {String(t.newVault)}</Button>
       </div>
 
       <div className="bg-card border border-border rounded-xl overflow-hidden">
@@ -91,7 +93,7 @@ export default function Vaults() {
                   <span className="text-fg-2">
                     {grants.filter(g => g.vault_id === v.id).length > 0
                       ? grants.filter(g => g.vault_id === v.id).length
-                      : <span className="text-danger font-medium">personne</span>}
+                      : <span className="text-danger font-medium">{String(t.nobody)}</span>}
                   </span>
                 </td>
                 <td className="px-5 py-3 text-fg-2 text-xs">{fmtDate(v.created_at)}</td>
@@ -107,7 +109,7 @@ export default function Vaults() {
             ))}
             {vaults.length === 0 && (
               <tr><td colSpan={5} className="py-14 text-center text-fg-3">
-                <Archive className="mx-auto mb-3 opacity-50" size={32} />Aucun vault.</td></tr>
+                <Archive className="mx-auto mb-3 opacity-50" size={32} />{String(t.noVaults)}</td></tr>
             )}
           </tbody>
         </table>
@@ -117,11 +119,11 @@ export default function Vaults() {
       <Dialog open={open} onOpenChange={setOpen}>
         {open && (
           <DialogContent title="Nouveau vault" className="max-w-md max-h-[85vh] overflow-y-auto">
-            <Field label="Nom du vault" help="ex : rita, ci, commun…">
+            <Field label={String(t.vaultName)} help={String(t.vaultNameHelp)}>
               <Input value={name} autoFocus onChange={e => setName(e.target.value)} />
             </Field>
             <div className="mb-4">
-              <p className="text-xs font-semibold text-fg-2 mb-2">Accès au vault</p>
+              <p className="text-xs font-semibold text-fg-2 mb-2">{String(t.accessToVault)}</p>
               <div className="grid grid-cols-2 gap-2 mb-3">
                 <button onClick={() => setAccess('all')}
                   className={cn('h-10 rounded-lg text-[13px] font-medium cursor-pointer transition-colors border flex items-center justify-center gap-2',
@@ -131,14 +133,14 @@ export default function Vaults() {
                 <button onClick={() => setAccess('select')}
                   className={cn('h-10 rounded-lg text-[13px] font-medium cursor-pointer transition-colors border',
                     access === 'select' ? 'bg-accent/12 border-accent text-accent' : 'bg-card-2 border-border text-fg-2 hover:text-fg')}>
-                  Agents spécifiques…
+                  {String(t.specificAgents)}
                 </button>
               </div>
               <motion.div initial={false}
                 animate={{ height: access === 'select' ? 'auto' : 0, opacity: access === 'select' ? 1 : 0 }}
                 className="overflow-hidden">
                 <div className="space-y-1 mb-3 max-h-44 overflow-y-auto">
-                  {agents.length === 0 && <p className="text-xs text-fg-3 py-2">Aucun agent actif — créez-en un d'abord.</p>}
+                  {agents.length === 0 && <p className="text-xs text-fg-3 py-2">{String(t.noActiveAgents)}</p>}
                   {agents.map(a => (
                     <button key={a.id}
                       onClick={() => setSelected(s => ({ ...s, [a.id]: !s[a.id] }))}
@@ -150,22 +152,22 @@ export default function Vaults() {
                   ))}
                 </div>
               </motion.div>
-              <p className="text-xs font-semibold text-fg-2 mb-2">Niveau d'accès</p>
+              <p className="text-xs font-semibold text-fg-2 mb-2">{String(t.accessLevel)}</p>
               <div className="grid grid-cols-2 gap-2">
                 <button onClick={() => setCanWrite(true)}
                   className={cn('h-9 rounded-lg text-xs font-semibold cursor-pointer transition-colors border',
                     canWrite ? 'bg-accent/12 border-accent text-accent' : 'bg-card-2 border-border text-fg-2')}>
-                  Lecture + écriture
+                  {String(t.readWrite)}
                 </button>
                 <button onClick={() => setCanWrite(false)}
                   className={cn('h-9 rounded-lg text-xs font-semibold cursor-pointer transition-colors border',
                     !canWrite ? 'bg-accent/12 border-accent text-accent' : 'bg-card-2 border-border text-fg-2')}>
-                  Lecture seule
+                  {String(t.readOnly)}
                 </button>
               </div>
             </div>
             <div className="flex justify-end gap-2">
-              <Button onClick={() => setOpen(false)}>Annuler</Button>
+              <Button onClick={() => setOpen(false)}>{String(t.cancel)}</Button>
               <Button variant="primary" onClick={create} disabled={!name.trim() || busy
                 || (access === 'select' && agents.length > 0 && !Object.values(selected).some(Boolean))}>
                 Créer
@@ -177,14 +179,14 @@ export default function Vaults() {
 
       {/* manage-access dialog */}
       <Dialog open={!!manage} onOpenChange={o => { if (!o) setManage(null) }}>
-        {manage && <ManageAccess vault={manage} grants={grants} agents={agents} onClose={() => { setManage(null); load() }} />}
+        {manage && <ManageAccessInner vault={manage} grants={grants} agents={agents} t={t} onClose={() => { setManage(null); load() }} />}
       </Dialog>
     </div>
   )
 }
 
-function ManageAccess({ vault, grants, agents, onClose }: {
-  vault: any; grants: any[]; agents: any[]; onClose: () => void
+function ManageAccessInner({ vault, grants, agents, onClose, t }: {
+  vault: any; grants: any[]; agents: any[]; onClose: () => void; t: any
 }) {
   const [busy, setBusy] = React.useState(false)
   const [newAgent, setNewAgent] = React.useState('')
@@ -200,7 +202,7 @@ function ManageAccess({ vault, grants, agents, onClose }: {
     setBusy(false)
   }
   const revoke = async (agentId: string, name: string) => {
-    if (!confirm(`Retirer l'accès de ${name} à « ${vault.name} » ?`)) return
+    if (!confirm(t.removeAccess(name, vault.name))) return
     setBusy(true)
     try { await api('DELETE', '/admin/grants', { agent_id: agentId, vault_id: vault.id }); onClose() }
     catch (e: any) { toast.error(e.message) }
@@ -213,7 +215,7 @@ function ManageAccess({ vault, grants, agents, onClose }: {
 
   return (
     <DialogContent title={`Accès à « ${vault.name} »`} className="max-w-md max-h-[80vh] overflow-y-auto">
-      {mine.length === 0 && <p className="text-sm text-fg-2 mb-4">Aucun agent n'a accès à ce vault.</p>}
+      {mine.length === 0 && <p className="text-sm text-fg-2 mb-4">{String(t.nobody)}</p>}
       <div className="space-y-1.5 mb-5">
         {mine.map(g => {
           const a = agentById[g.agent_id]
@@ -238,11 +240,11 @@ function ManageAccess({ vault, grants, agents, onClose }: {
       </div>
       {available.length > 0 && (
         <div>
-          <p className="text-xs font-semibold text-fg-2 mb-2">Donner l'accès à…</p>
+          <p className="text-xs font-semibold text-fg-2 mb-2">{String(t.grantAccess)}</p>
           <div className="flex gap-2">
             <select value={newAgent} onChange={e => setNewAgent(e.target.value)}
               className="flex-1 h-9 bg-bg border border-border rounded-lg px-3 text-sm cursor-pointer focus:border-accent outline-none">
-              <option value="">— choisir un agent —</option>
+              <option value="">{String(t.chooseAgent)}</option>
               {available.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
             </select>
             <Button variant="primary" onClick={grantNew} disabled={!newAgent || busy}>

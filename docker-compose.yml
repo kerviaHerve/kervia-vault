@@ -1,0 +1,38 @@
+# Kervia-vault — production compose.
+# The master key and admin hash are required (fail-closed).
+# Generate:  openssl rand -hex 32
+# Admin hash: docker run --rm kervia-vault hashpw   (see README)
+#
+# SPDX-License-Identifier: AGPL-3.0
+
+name: kervia-vault
+
+networks:
+  proxy:
+    name: proxy
+    external: true
+
+volumes:
+  data: {}
+
+services:
+  kervia-vault:
+    build: .
+    # image: ghcr.io/kervia/kervia-vault:latest
+    container_name: kervia-vault
+    restart: unless-stopped
+    environment:
+      KERVIA_VAULT_LISTEN: 0.0.0.0:8321
+      KERVIA_VAULT_DB: /data/kervia-vault.db
+      KERVIA_VAULT_MASTER_KEY: ${KERVIA_VAULT_MASTER_KEY}
+      KERVIA_VAULT_ADMIN_HASH: ${KERVIA_VAULT_ADMIN_HASH}
+      KERVIA_VAULT_RATE_PER_MIN: "60"
+    volumes:
+      - data:/data
+    networks:
+      - proxy
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true

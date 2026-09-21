@@ -139,8 +139,9 @@ func (s *Server) AttachAdmin(adminMux *http.ServeMux) {
 				}
 			}
 		}
+		resp, _ := json.Marshal(map[string]string{"value": display})
 		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"value":` + string(mustJSONBytes([]byte(display))) + `}`))
+		_, _ = w.Write(resp)
 	})
 	adminMux.HandleFunc("POST /admin/secrets/{id}/delete", func(w http.ResponseWriter, r *http.Request) {
 		id := r.PathValue("id")
@@ -154,7 +155,8 @@ func (s *Server) AttachAdmin(adminMux *http.ServeMux) {
 	})
 }
 
-func mustJSONBytes(b []byte) []byte {
-	out, _ := json.Marshal(string(b))
-	return out
+// RenderAgentsForTest renders the agents page to a string (XSS regression tests).
+func (s *Server) RenderAgentsForTest() string {
+	_, data, _ := s.agents(nil, nil)
+	return string(data.(template.HTML))
 }

@@ -7,6 +7,7 @@ package web
 
 import (
 	"fmt"
+	"html"
 	"html/template"
 	"net/http"
 	"strings"
@@ -14,7 +15,20 @@ import (
 	"github.com/kerviaHerve/kervia-vault/internal/model"
 )
 
-func raw(s string) template.HTML { return template.HTML(s) }
+
+
+// esc escapes a dynamic value for safe HTML interpolation.
+// ALL user-controlled DB values (names, keys, details) must go through this.
+// Enforced by TestXSSAgentName (regression).
+func esc(s string) string { return html.EscapeString(s) }
+
+// raw wraps trusted, server-generated HTML for html/template.
+// Static markup only: dynamic values MUST already be esc()'d.
+// Flagged by gosec:G203 by design — the single injection point,
+// gated by esc() + XSS regression tests.
+func rawTrusted(s string) template.HTML {
+	return template.HTML(s) // #nosec G203
+}
 
 func (s *Server) dashboard(w http.ResponseWriter, r *http.Request) (string, any, error) {
 	agents, _ := s.store.ListAgents()
@@ -54,7 +68,7 @@ func (s *Server) dashboard(w http.ResponseWriter, r *http.Request) (string, any,
 			e.TS.Format("02 Jan 15:04"), e.AgentID, e.Action, e.Resource)
 	}
 	b.WriteString(`</tbody></table></div>`)
-	return "dashboard", raw(b.String()), nil
+	return "dashboard", rawTrusted(b.String()), nil
 }
 
 func (s *Server) agents(w http.ResponseWriter, r *http.Request) (string, any, error) {
@@ -85,9 +99,9 @@ func (s *Server) agents(w http.ResponseWriter, r *http.Request) (string, any, er
 <td>%s</td>
 <td class="t2">%s</td>
 <td class="t2">%s</td>
-<td>`, a.Name, a.KeyPrefix, status, last, a.CreatedAt.Format("02 Jan 2006"))
+<td>`, esc(a.Name), esc(a.KeyPrefix), status, last, a.CreatedAt.Format("02 Jan 2006"))
 		if a.RevokedAt == nil {
-			fmt.Fprintf(&b, `<button class="btn small danger" onclick="ui.revokeAgent('%s','%s')">Révoquer</button>`, a.ID, a.Name)
+			fmt.Fprintf(&b, `<button class="btn small danger" onclick="ui.revokeAgent('%s','%s')">Révoquer</button>`, a.ID, esc(a.Name))
 		}
 		b.WriteString(`</td></tr>`)
 	}
@@ -95,7 +109,7 @@ func (s *Server) agents(w http.ResponseWriter, r *http.Request) (string, any, er
 		b.WriteString(`<tr><td colspan="6"><div class="empty"><div class="big">◆</div>Aucun agent. Créez le premier pour donner accès à un coffre.</div></td></tr>`)
 	}
 	b.WriteString(`</tbody></table></div>`)
-	return "agents", raw(b.String()), nil
+	return "agents", rawTrusted(b.String()), nil
 }
 
 func (s *Server) vaults(w http.ResponseWriter, r *http.Request) (string, any, error) {
@@ -121,13 +135,13 @@ func (s *Server) vaults(w http.ResponseWriter, r *http.Request) (string, any, er
 			}
 		}
 		fmt.Fprintf(&b, `<tr><td><strong>%s</strong></td><td>%d</td><td>%d</td><td class="t2">%s</td></tr>`,
-			v.Name, len(secrets), count, v.CreatedAt.Format("02 Jan 2006"))
+			esc(v.Name), len(secrets), count, v.CreatedAt.Format("02 Jan 2006"))
 	}
 	if len(vaults) == 0 {
 		b.WriteString(`<tr><td colspan="4"><div class="empty"><div class="big">▤</div>Aucun vault. Ex : « rita », « ci », « commun ».</div></td></tr>`)
 	}
 	b.WriteString(`</tbody></table></div>`)
-	return "vaults", raw(b.String()), nil
+	return "vaults", rawTrusted(b.String()), nil
 }
 
 func (s *Server) secrets(w http.ResponseWriter, r *http.Request) (string, any, error) {
@@ -147,7 +161,7 @@ func (s *Server) secrets(w http.ResponseWriter, r *http.Request) (string, any, e
 		if v.Name == selected {
 			cls = "btn primary"
 		}
-		fmt.Fprintf(&b, `<a href="/ui/secrets?vault=%s" class="%s">%s</a>`, v.Name, cls, v.Name)
+		fmt.Fprintf(&b, `<a href="/ui/secrets?vault=%s" class="%s">%s</a>`, esc(v.Name), cls, esc(v.Name))
 	}
 	b.WriteString(`</div>
 <button class="btn primary" onclick="ui.newSecret()">＋ Nouveau secret</button>
@@ -164,7 +178,7 @@ func (s *Server) secrets(w http.ResponseWriter, r *http.Request) (string, any, e
 		for _, sec := range secrets {
 			tpl := `<span class="badge neutral">libre</span>`
 			if sec.Template != "" {
-				tpl = fmt.Sprintf(`<span class="badge accent">%s</span>`, sec.Template)
+				tpl = fmt.Sprintf(`<span class="badge accent">%s</span>`, esc(sec.Template))
 			}
 			fmt.Fprintf(&b, `<tr>
 <td><strong>%s</strong></td>
@@ -174,7 +188,7 @@ func (s *Server) secrets(w http.ResponseWriter, r *http.Request) (string, any, e
 <td class="t2">v%d</td>
 <td class="t2">%s</td>
 <td><button class="btn small danger" onclick="ui.delSecret('%s','%s')">✕</button></td>
-</tr>`, sec.Key, tpl, sec.ID, sec.ID, sec.Version, sec.UpdatedAt.Format("02 Jan 15:04"), sec.ID, sec.Key)
+</tr>`, esc(sec.Key), tpl, sec.ID, sec.ID, sec.Version, sec.UpdatedAt.Format("02 Jan 15:04"), sec.ID, esc(sec.Key))
 		}
 		if len(secrets) == 0 {
 			b.WriteString(`<tr><td colspan="6"><div class="empty"><div class="big">✦</div>Vault vide. Créez un secret (avec template si possible).</div></td></tr>`)
@@ -186,9 +200,9 @@ func (s *Server) secrets(w http.ResponseWriter, r *http.Request) (string, any, e
 	for _, t := range templateOptions() {
 		fmt.Fprintf(&opts, `<option value="%s">%s</option>`, t.key, t.label)
 	}
-	fmt.Fprintf(&b, `<div id="page-data" data-vault="%s" data-templates='%s' style="display:none"></div>`,
-		selected, templateJSON())
-	return "secrets", raw(b.String()), nil
+	fmt.Fprintf(&b, `<div id="page-data" data-vault="%s" data-templates="%s" style="display:none"></div>`,
+		esc(selected), esc(templateJSON()))
+	return "secrets", rawTrusted(b.String()), nil
 }
 
 func (s *Server) grants(w http.ResponseWriter, r *http.Request) (string, any, error) {
@@ -215,14 +229,14 @@ func (s *Server) grants(w http.ResponseWriter, r *http.Request) (string, any, er
 <div class="card"><table class="matrix">
 <thead><tr><th>Agent ↓ / Vault →</th>`)
 	for _, v := range vaults {
-		fmt.Fprintf(&b, `<th>%s</th>`, v.Name)
+		fmt.Fprintf(&b, `<th>%s</th>`, esc(v.Name))
 	}
 	b.WriteString(`</tr></thead><tbody>`)
 	for _, a := range agents {
 		if a.RevokedAt != nil {
 			continue
 		}
-		fmt.Fprintf(&b, `<tr><td><strong>%s</strong></td>`, a.Name)
+		fmt.Fprintf(&b, `<tr><td><strong>%s</strong></td>`, esc(a.Name))
 		for _, v := range vaults {
 			e := m[a.ID+"|"+v.ID]
 			cls, label, next := "none", "—", "ro"
@@ -237,7 +251,7 @@ func (s *Server) grants(w http.ResponseWriter, r *http.Request) (string, any, er
 		b.WriteString(`</tr>`)
 	}
 	b.WriteString(`</tbody></table></div>`)
-	return "grants", raw(b.String()), nil
+	return "grants", rawTrusted(b.String()), nil
 }
 
 func (s *Server) audit(w http.ResponseWriter, r *http.Request) (string, any, error) {
@@ -267,7 +281,7 @@ func (s *Server) audit(w http.ResponseWriter, r *http.Request) (string, any, err
 		}
 		detail := `<span class="t2">—</span>`
 		if e.Detail != "" {
-			detail = fmt.Sprintf(`<span class="t2 small">%s</span>`, e.Detail)
+			detail = fmt.Sprintf(`<span class="t2 small">%s</span>`, esc(e.Detail))
 		}
 		fmt.Fprintf(&b, `<tr>
 <td class="t2" style="white-space:nowrap">%s</td>
@@ -275,11 +289,11 @@ func (s *Server) audit(w http.ResponseWriter, r *http.Request) (string, any, err
 <td><span class="badge %s">%s</span></td>
 <td class="mono t2">%s</td>
 <td>%s</td></tr>`,
-			e.TS.Format("2006-01-02 15:04:05"), e.AgentID, cls, e.Action, e.Resource, detail)
+			e.TS.Format("2006-01-02 15:04:05"), esc(e.AgentID), cls, esc(e.Action), esc(e.Resource), detail)
 	}
 	if len(entries) == 0 {
 		b.WriteString(`<tr><td colspan="5"><div class="empty">Aucune activité pour l'instant.</div></td></tr>`)
 	}
 	b.WriteString(`</tbody></table></div>`)
-	return "audit", raw(b.String()), nil
+	return "audit", rawTrusted(b.String()), nil
 }

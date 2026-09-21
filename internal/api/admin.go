@@ -324,3 +324,128 @@ func (a *AdminServer) ChangePassword(w http.ResponseWriter, r *http.Request) {
 		store.RequestInfo{Source: "webui", IP: clientIP(r), UserAgent: ua(r), Method: r.Method, Status: 200, Path: "/admin/password"})
 	writeJSON(w, 200, map[string]string{"status": "updated"})
 }
+
+// ---- pro management endpoints ----
+
+// DeleteVault removes an EMPTY vault (grants cascade).
+func (a *AdminServer) DeleteVault(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	if id == "" || len(id) > 64 {
+		writeErr(w, 400, "invalid_id", "")
+		return
+	}
+	if err := a.store.DeleteVault(id); err != nil {
+		if err.Error() == "vault_not_empty" {
+			n, _ := a.store.CountSecretsByVault(id)
+			writeErr(w, 409, "vault_not_empty", "supprimez d'abord les secrets de ce vault")
+			_ = a.store.AppendAuditDetail("admin", "vault_delete_denied", "vault/"+id,
+				"not_empty:"+strconv.Itoa(n), store.RequestInfo{Source: "webui", IP: clientIP(r), UserAgent: ua(r), Method: r.Method, Status: 409, Path: r.URL.Path})
+			return
+		}
+		if errors.Is(err, store.ErrNotFound) {
+			writeErr(w, 404, "not_found", "")
+			return
+		}
+		writeErr(w, 500, "internal", "")
+		return
+	}
+	_ = a.store.AppendAuditDetail("admin", "vault_delete", "vault/"+id, "",
+		store.RequestInfo{Source: "webui", IP: clientIP(r), UserAgent: ua(r), Method: r.Method, Status: 200, Path: r.URL.Path})
+	writeJSON(w, 200, map[string]string{"status": "deleted"})
+}
+
+// PurgeAgent hard-deletes a REVOKED agent (grants cascade).
+func (a *AdminServer) PurgeAgent(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	if id == "" || len(id) > 64 {
+		writeErr(w, 400, "invalid_id", "")
+		return
+	}
+	if err := a.store.PurgeAgent(id); err != nil {
+		if err.Error() == "agent_not_revoked" {
+			writeErr(w, 409, "not_revoked", "révoquez d'abord l'agent")
+			return
+		}
+		if errors.Is(err, store.ErrNotFound) {
+			writeErr(w, 404, "not_found", "")
+			return
+		}
+		writeErr(w, 500, "internal", "")
+		return
+	}
+	_ = a.store.AppendAuditDetail("admin", "agent_purge", "agent/"+id, "",
+		store.RequestInfo{Source: "webui", IP: clientIP(r), UserAgent: ua(r), Method: r.Method, Status: 200, Path: r.URL.Path})
+	writeJSON(w, 200, map[string]string{"status": "purged"})
+}
+
+// UpdateSecret edits a secret: rename the key and/or update the value
+// (value update = new version, history preserved).
+func (a *AdminServer) UpdateSecret(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	if id == "" || len(id) > 64 {
+		writeErr(w, 400, "invalid_id", "")
+		return
+	}
+	var req struct {
+		Key   string `json:"key,omitempty"`
+		Value string `json:"value,omitempty"`
+	}
+	if err := jsonBody(r, &req); err != nil || (req.Key == "" && req.Value == "") {
+		writeErr(w, 400, "invalid_request", "key and/or value required")
+		return
+	}
+	// rename
+	if req.Key != "" {
+		if err := a.store.UpdateSecretKey(id, req.Key); err != nil {
+			if errors.Is(err, store.ErrConflict) {
+				writeErr(w, 409, "already_exists", "ce nom existe déjà dans le vault")
+				return
+			}
+			if errors.Is(err, store.ErrNotFound) {
+				writeErr(w, 404, "not_found", "")
+				return
+			}
+			writeErr(w, 500, "internal", "")
+			return
+		}
+	}
+	// value → new version
+	if req.Value != "" {
+		nonce, ct, err := a.enc.Encrypt([]byte(req.Value))
+		if err != nil {
+			writeErr(w, 500, "internal", "")
+			return
+		}
+		if err := a.store.UpdateSecretValue(id, nonce, ct, "admin", uuid.NewString()); err != nil {
+			if errors.Is(err, store.ErrNotFound) {
+				writeErr(w, 404, "not_found", "")
+				return
+			}
+			writeErr(w, 500, "internal", "")
+			return
+		}
+	}
+	_ = a.store.AppendAuditDetail("admin", model.AuditUpdate, "secret/"+id, "",
+		store.RequestInfo{Source: "webui", IP: clientIP(r), UserAgent: ua(r), Method: r.Method, Status: 200, Path: r.URL.Path})
+	writeJSON(w, 200, map[string]string{"status": "updated"})
+}
+
+// DeleteVaultByGrantAdmin removes a grant (dedicated to the vault detail view).
+func (a *AdminServer) RevokeGrant(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		AgentID string `json:"agent_id"`
+		VaultID string `json:"vault_id"`
+	}
+	if err := jsonBody(r, &req); err != nil || req.AgentID == "" || req.VaultID == "" {
+		writeErr(w, 400, "invalid_request", "")
+		return
+	}
+	if err := a.store.RemoveGrant(req.AgentID, req.VaultID); err != nil {
+		writeErr(w, 500, "internal", "")
+		return
+	}
+	_ = a.store.AppendAuditDetail("admin", model.AuditGrantRevoke,
+		"agent/"+req.AgentID+"/vault/"+req.VaultID, "",
+		store.RequestInfo{Source: "webui", IP: clientIP(r), UserAgent: ua(r), Method: r.Method, Status: 200, Path: r.URL.Path})
+	writeJSON(w, 200, map[string]string{"status": "revoked"})
+}

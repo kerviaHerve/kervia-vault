@@ -1,6 +1,6 @@
 import * as React from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
-import { Plus, Copy, Eye, EyeOff, Trash2, KeyRound, LoaderCircle } from 'lucide-react'
+import { Plus, Copy, Eye, EyeOff, Trash2, KeyRound, LoaderCircle, Pencil } from 'lucide-react'
 import { toast } from 'sonner'
 import { api } from '@/lib/api'
 import { Button, Badge, Dialog, DialogContent, Input, Field } from '@/components/ui'
@@ -35,6 +35,33 @@ export default function Secrets() {
     if (!confirm(`Supprimer ${key} ?`)) return
     await api('POST', `/admin/secrets/${id}/delete`)
     toast.success('Supprimé'); load()
+  }
+
+  const [edit, setEdit] = React.useState<any | null>(null)
+  const [editKey, setEditKey] = React.useState('')
+  const [editVal, setEditVal] = React.useState('')
+  const [editBusy, setEditBusy] = React.useState(false)
+  const openEdit = async (s: any) => {
+    setEdit(s); setEditKey(s.key); setEditVal('')
+    try {
+      const d = await api('GET', `/admin/secrets/reveal?id=${s.id}`)
+      setEditVal(d.value)
+    } catch { /* leave empty = no value change */ }
+  }
+  const saveEdit = async () => {
+    if (!edit || editBusy) return
+    if (!editKey.trim()) { toast.error('Le nom ne peut pas être vide'); return }
+    setEditBusy(true)
+    try {
+      const body: any = {}
+      if (editKey.trim() !== edit.key) body.key = editKey.trim()
+      if (editVal !== '' && editVal !== undefined) body.value = editVal
+      if (!body.key && body.value === undefined) { setEdit(null); setEditBusy(false); return }
+      await api('PATCH', `/admin/secrets/${edit.id}`, body)
+      toast.success('Secret mis à jour')
+      setEdit(null); load()
+    } catch (e: any) { toast.error(e.message === 'already_exists' ? 'Ce nom existe déjà' : e.message) }
+    setEditBusy(false)
   }
 
   if (!vaults.length) return (
@@ -110,6 +137,9 @@ export default function Secrets() {
                         <Copy size={15} />
                       </Button>
                     )}
+                    <Button variant="ghost" size="icon" onClick={() => openEdit(s)}>
+                      <Pencil size={15} />
+                    </Button>
                     <Button variant="ghost" size="icon" className="text-danger hover:bg-danger/10" onClick={() => del(s.id, s.key)}>
                       <Trash2 size={15} />
                     </Button>
@@ -125,6 +155,26 @@ export default function Secrets() {
           </tbody>
         </table>
       </div>
+
+      {/* edit dialog */}
+      <Dialog open={!!edit} onOpenChange={o => { if (!o) setEdit(null) }}>
+        {edit && (
+          <DialogContent title={`Modifier « ${edit.key} »`}>
+            <Field label="Nom du secret (KEY)">
+              <Input value={editKey} onChange={e => setEditKey(e.target.value)} className="font-mono" />
+            </Field>
+            <Field label="Valeur" help="Modifiée = nouvelle version (l'historique est conservé).">
+              <Input value={editVal} onChange={e => setEditVal(e.target.value)} className="font-mono" />
+            </Field>
+            <div className="flex justify-end gap-2">
+              <Button onClick={() => setEdit(null)}>Annuler</Button>
+              <Button variant="primary" onClick={saveEdit} disabled={editBusy}>
+                {editBusy ? <LoaderCircle size={15} className="animate-spin" /> : 'Enregistrer'}
+              </Button>
+            </div>
+          </DialogContent>
+        )}
+      </Dialog>
 
       <CreateDialog
         open={open} setOpen={setOpen} vault={vault} templates={templates}

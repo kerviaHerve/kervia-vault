@@ -1,6 +1,6 @@
 import * as React from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
-import { Plus, Copy, Ban, LoaderCircle, Bot } from 'lucide-react'
+import { Plus, Copy, Ban, Trash2, LoaderCircle, Bot } from 'lucide-react'
 import { toast } from 'sonner'
 import { api } from '@/lib/api'
 import { Button, Badge, Dialog, DialogContent, Input, Field } from '@/components/ui'
@@ -33,6 +33,15 @@ export default function Agents() {
     await api('POST', `/admin/agents/${id}/revoke`)
     toast.success(`${name} révoqué`)
     load()
+  }
+
+  const purge = async (id: string, name: string) => {
+    if (!confirm(`Supprimer définitivement ${name} ? Cette action est irréversible.`)) return
+    try {
+      await api('DELETE', `/admin/agents/${id}`)
+      toast.success(`${name} supprimé`)
+      load()
+    } catch (e: any) { toast.error(e.message === 'not_revoked' ? 'Révoquez d\'abord l\'agent' : e.message) }
   }
 
   if (!agents) return null
@@ -69,11 +78,9 @@ export default function Agents() {
                 <td className="px-5 py-3 text-fg-2 text-xs">{fmtDateTime(a.last_used)}</td>
                 <td className="px-5 py-3 text-fg-2 text-xs">{fmtDateTime(a.created_at)}</td>
                 <td className="px-5 py-3 text-right">
-                  {!a.revoked_at && (
-                    <Button variant="destructive" size="sm" onClick={() => revoke(a.id, a.name)}>
-                      <Ban size={13} /> Révoquer
-                    </Button>
-                  )}
+                  {!a.revoked_at
+                  ? <Button variant="destructive" size="sm" onClick={() => revoke(a.id, a.name)}><Ban size={13} /> Révoquer</Button>
+                  : <Button variant="destructive" size="sm" onClick={() => purge(a.id, a.name)}><Trash2 size={13} /> Supprimer</Button>}
                 </td>
               </tr>
             ))}

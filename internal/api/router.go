@@ -45,6 +45,9 @@ func (s *Server) Router(authSvc *auth.Service, admin *AdminServer, adminExtender
 	adminMux.HandleFunc("POST /admin/secrets", admin.CreateSecret)
 	adminMux.HandleFunc("GET /admin/secrets", admin.ListSecrets)
 	adminMux.HandleFunc("GET /admin/audit", admin.Audit)
+	adminMux.HandleFunc("DELETE /admin/vaults/{id}", admin.DeleteVault)
+	adminMux.HandleFunc("DELETE /admin/agents/{id}", admin.PurgeAgent)
+	adminMux.HandleFunc("PATCH /admin/secrets/{id}", admin.UpdateSecret)
 	adminMux.HandleFunc("GET /admin/versions/{id}", admin.versionsHandler)
 
 	if adminExtender != nil {

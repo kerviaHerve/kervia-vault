@@ -178,21 +178,29 @@ func (s *Service) NewAdminSession() string {
 	return id
 }
 
-// AdminMiddleware validates the session cookie on /admin/* routes.
+// AdminMiddleware guards admin routes.
+// For browser pages (/ui/*) it redirects to the login screen instead of
+// returning a raw 401 — the admin JSON API (/admin/*) keeps the 401 JSON.
 func (s *Service) AdminMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		c, err := r.Cookie("av_session")
-		if err != nil {
-			http.Error(w, `{"error":"unauthorized"}`, http.StatusUnauthorized)
+		valid := false
+		if err == nil {
+			if v, ok := s.sessions.Load(c.Value); ok && v.(time.Time).After(time.Now()) {
+				valid = true
+			}
+		}
+		if valid {
+			ctx := context.WithValue(r.Context(), adminKey, true)
+			next.ServeHTTP(w, r.WithContext(ctx))
 			return
 		}
-		v, ok := s.sessions.Load(c.Value)
-		if !ok || v.(time.Time).Before(time.Now()) {
-			http.Error(w, `{"error":"unauthorized"}`, http.StatusUnauthorized)
+		// no valid session: pages redirect, API stays JSON 401
+		if strings.HasPrefix(r.URL.Path, "/ui") {
+			http.Redirect(w, r, "/ui/login", http.StatusSeeOther)
 			return
 		}
-		ctx := context.WithValue(r.Context(), adminKey, true)
-		next.ServeHTTP(w, r.WithContext(ctx))
+		http.Error(w, `{"error":"unauthorized"}`, http.StatusUnauthorized)
 	})
 }
 

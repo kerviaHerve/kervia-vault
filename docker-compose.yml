@@ -12,9 +12,6 @@ networks:
     name: proxy
     external: true
 
-volumes:
-  data: {}
-
 services:
   kervia-vault:
     build: .
@@ -28,7 +25,7 @@ services:
       KERVIA_VAULT_ADMIN_HASH: ${KERVIA_VAULT_ADMIN_HASH}
       KERVIA_VAULT_RATE_PER_MIN: "60"
     volumes:
-      - data:/data
+      - ./data:/data
     networks:
       - proxy
     read_only: true

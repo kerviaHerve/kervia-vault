@@ -49,6 +49,10 @@ func New(st *store.Store, authSvc *auth.Service, enc *crypto.Encryptor) *Server 
 
 // Routes mounts the webui under /ui/*.
 func (s *Server) Routes(adminMux *http.ServeMux) {
+	// login page is public (no session)
+	adminMux.HandleFunc("GET /ui/login", s.loginPage)
+	adminMux.HandleFunc("POST /ui/login", s.loginSubmit)
+	// auth-guarded pages
 	adminMux.HandleFunc("GET /ui/{$}", s.page(s.dashboard))
 	adminMux.HandleFunc("GET /ui/agents", s.page(s.agents))
 	adminMux.HandleFunc("GET /ui/vaults", s.page(s.vaults))
@@ -60,6 +64,10 @@ func (s *Server) Routes(adminMux *http.ServeMux) {
 // page wraps a renderer with the common layout.
 func (s *Server) page(render func(w http.ResponseWriter, r *http.Request) (string, any, error)) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		if !auth.IsAdmin(r.Context()) {
+			http.Redirect(w, r, "/ui/login", http.StatusSeeOther)
+			return
+		}
 		name, data, err := render(w, r)
 		if err != nil {
 			http.Error(w, "internal error", 500)
@@ -159,4 +167,64 @@ func (s *Server) AttachAdmin(adminMux *http.ServeMux) {
 func (s *Server) RenderAgentsForTest() string {
 	_, data, _ := s.agents(nil, nil)
 	return string(data.(template.HTML))
+}
+
+// loginPage renders the standalone login screen.
+func (s *Server) loginPage(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	_, _ = w.Write([]byte(`<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kervia-vault — Connexion</title>
+<link rel="stylesheet" href="/ui/static/style.css">
+<style>
+body { display: grid; place-items: center; min-height: 100vh; }
+.login-box {
+  width: min(380px, calc(100vw - 40px));
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: 14px;
+  padding: 34px 30px;
+  box-shadow: 0 24px 60px rgba(0,0,0,.5);
+}
+.login-brand { display: flex; align-items: center; gap: 10px; margin-bottom: 26px; }
+.login-title { font-size: 18px; font-weight: 650; letter-spacing: -0.01em; }
+.login-sub { color: var(--text-2); font-size: 12.5px; margin-top: -18px; margin-bottom: 22px; }
+.login-box .btn.primary { width: 100%; justify-content: center; margin-top: 6px; padding: 10px; }
+.err { color: var(--danger); font-size: 13px; margin-top: 12px; text-align: center; }
+</style>
+</head>
+<body>
+<div class="login-box">
+  <div class="login-brand"><div class="brand-mark">🔐</div><div class="login-title">Kervia-vault</div></div>
+  <p class="login-sub">Coffre multi-agents — accès administrateur</p>
+  <form method="POST" action="/ui/login">
+    <div class="field"><label>Mot de passe</label>
+      <input type="password" name="password" class="mono" autofocus autocomplete="current-password"></div>
+    <button class="btn primary" type="submit">Se connecter</button>`))
+	if r.URL.Query().Get("e") == "1" {
+		_, _ = w.Write([]byte(`<div class="err">Identifiants invalides.</div>`))
+	}
+	_, _ = w.Write([]byte(`</form></div></body></html>`))
+}
+
+// loginSubmit handles the form POST (same flow as the JSON /admin/login).
+func (s *Server) loginSubmit(w http.ResponseWriter, r *http.Request) {
+	if err := r.ParseForm(); err != nil || r.FormValue("password") == "" {
+		http.Redirect(w, r, "/ui/login?e=1", http.StatusSeeOther)
+		return
+	}
+	sid := s.authSvc.LoginAdmin(r, r.FormValue("password"))
+	if sid == "" {
+		http.Redirect(w, r, "/ui/login?e=1", http.StatusSeeOther)
+		return
+	}
+	http.SetCookie(w, &http.Cookie{
+		Name: "av_session", Value: sid, Path: "/",
+		HttpOnly: true, Secure: true, SameSite: http.SameSiteStrictMode,
+		MaxAge: 12 * 3600,
+	})
+	http.Redirect(w, r, "/ui/", http.StatusSeeOther)
 }

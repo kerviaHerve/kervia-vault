@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"golang.org/x/crypto/bcrypt"
@@ -40,8 +41,16 @@ type Service struct {
 	store     *store.Store
 	rate      *rateLimiter
 	failRate  *failLimiter
-	adminHash string // bcrypt
-	sessions  sync.Map // sessionID -> expiry
+	adminHash atomic.Value // string — bcrypt hash, swapped at runtime
+	sessions  sync.Map     // sessionID -> expiry
+}
+
+// adminHashString loads the current hash (atomic).
+func (s *Service) adminHashString() string {
+	if v, ok := s.adminHash.Load().(string); ok {
+		return v
+	}
+	return ""
 }
 
 // New builds the auth service.
@@ -52,11 +61,13 @@ func New(st *store.Store, adminHash string, ratePerMin int) *Service {
 	if failPerMin < 5 {
 		failPerMin = 5
 	}
-	return &Service{
-		store: st, adminHash: adminHash,
+	svc := &Service{
+		store: st,
 		rate:     newRateLimiter(ratePerMin),
 		failRate: newFailLimiter(failPerMin),
 	}
+	svc.adminHash.Store(adminHash)
+	return svc
 }
 
 // clientIP extracts the best-effort source for failed-auth throttling.
@@ -155,7 +166,7 @@ func (s *Service) auditFail(_ *http.Request, prefix string) {
 
 // CheckAdmin validates the admin password (webui login).
 func (s *Service) CheckAdmin(password string) bool {
-	return bcrypt.CompareHashAndPassword([]byte(s.adminHash), []byte(password)) == nil
+	return bcrypt.CompareHashAndPassword([]byte(s.adminHashString()), []byte(password)) == nil
 }
 
 // LoginAdmin verifies the password with throttling (brute-force protection).
@@ -245,7 +256,7 @@ func (s *Service) SetAdminPassword(newPassword string) error {
 	if err != nil {
 		return err
 	}
-	s.adminHash = string(h)
+	s.adminHash.Store(string(h))
 	if adminHashPath != "" {
 		// 0600 — credential material
 		if err := os.WriteFile(adminHashPath, h, 0o600); err != nil {
@@ -262,6 +273,6 @@ func (s *Service) LoadAdminHashOverride() {
 	}
 	h, err := os.ReadFile(adminHashPath) // #nosec G304 -- fixed admin-controlled path (next to DB)
 	if err == nil && len(h) > 0 {
-		s.adminHash = string(h)
+		s.adminHash.Store(string(h))
 	}
 }

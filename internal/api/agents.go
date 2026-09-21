@@ -131,7 +131,6 @@ func (s *Server) GetSecret(w http.ResponseWriter, r *http.Request, id string) {
 		writeErr(w, 500, "internal", "")
 		return
 	}
-	_ = s.store.AppendAudit(agent.ID, model.AuditRead, "secret/"+id, "")
 	sec.Value = string(value)
 	// Templated secrets: the agent receives a structured OBJECT, not a JSON string.
 	if sec.Template != "" {
@@ -199,7 +198,6 @@ func (s *Server) CreateSecret(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, 500, "internal", "")
 		return
 	}
-	_ = s.store.AppendAudit(agent.ID, model.AuditCreate, "vault/"+vault.Name+"/secret/"+req.Key, "")
 	writeJSON(w, 201, sec)
 }
 
@@ -243,7 +241,6 @@ func (s *Server) UpdateSecret(w http.ResponseWriter, r *http.Request, id string)
 		writeErr(w, 500, "internal", "")
 		return
 	}
-	_ = s.store.AppendAudit(agent.ID, model.AuditUpdate, "secret/"+id, "")
 	writeJSON(w, 200, map[string]string{"status": "updated"})
 }
 
@@ -269,7 +266,6 @@ func (s *Server) DeleteSecret(w http.ResponseWriter, r *http.Request, id string)
 		writeErr(w, 500, "internal", "")
 		return
 	}
-	_ = s.store.AppendAudit(agent.ID, model.AuditDelete, "secret/"+id, "")
 	writeJSON(w, 200, map[string]string{"status": "deleted"})
 }
 

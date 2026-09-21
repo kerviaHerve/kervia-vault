@@ -1,9 +1,10 @@
+@import "tailwindcss" source(none);
+@source "../src/**/*.{ts,tsx}";
 @import "@fontsource/ibm-plex-sans/400.css";
 @import "@fontsource/ibm-plex-sans/500.css";
 @import "@fontsource/ibm-plex-sans/600.css";
 @import "@fontsource/ibm-plex-sans/700.css";
 @import "@fontsource-variable/jetbrains-mono";
-@import "tailwindcss";
 
 @theme {
   --color-bg: #0F172A;
@@ -33,7 +34,6 @@ body { background: var(--color-bg); color: var(--color-fg); font-family: var(--f
   outline-offset: 2px;
 }
 
-/* scrollbar */
 ::-webkit-scrollbar { width: 10px; height: 10px; }
 ::-webkit-scrollbar-thumb { background: var(--color-muted); border-radius: 6px; border: 2px solid var(--color-bg); }
 ::-webkit-scrollbar-track { background: transparent; }

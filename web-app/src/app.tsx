@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { Toaster, toast } from 'sonner'
 import { LayoutDashboard, Bot, Archive, KeyRound, Shield, ScrollText, Vault } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import '@fontsource/ibm-plex-sans/400.css'
+import '@/index.css'
 
 import Dashboard from '@/pages/dashboard'
 import Agents from '@/pages/agents'

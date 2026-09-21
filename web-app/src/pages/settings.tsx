@@ -1,6 +1,6 @@
 import * as React from 'react'
 import { motion } from 'framer-motion'
-import { KeyRound, ShieldCheck, Clock, LoaderCircle } from 'lucide-react'
+import { KeyRound, ShieldCheck, Clock, LoaderCircle, RotateCcw, Download, AlertTriangle } from 'lucide-react'
 import { toast } from 'sonner'
 import { api } from '@/lib/api'
 import { useLang } from '@/i18n'
@@ -13,8 +13,47 @@ export default function Settings() {
   const [confirm, setConfirm] = React.useState('')
   const [busy, setBusy] = React.useState(false)
   const [info, setInfo] = React.useState<any>(null)
+  const [recStatus, setRecStatus] = React.useState<number | null>(null)
+  const [recCurrent, setRecCurrent] = React.useState('')
+  const [recBusy, setRecBusy] = React.useState(false)
+  const [kit, setKit] = React.useState<any | null>(null)
 
-  React.useEffect(() => { api('GET', '/admin/settings').then(setInfo).catch(() => {}) }, [])
+  React.useEffect(() => {
+    api('GET', '/admin/settings').then(setInfo).catch(() => {})
+    api('GET', '/admin/recovery/status').then((d: any) => setRecStatus(d.remaining)).catch(() => {})
+  }, [])
+
+  const generateRecovery = async () => {
+    if (!recCurrent.trim() || recBusy) return
+    setRecBusy(true)
+    try {
+      const d = await api('POST', '/admin/recovery/generate', { current_password: recCurrent })
+      setKit(d); setRecCurrent('')
+      api('GET', '/admin/recovery/status').then((x: any) => setRecStatus(x.remaining)).catch(() => {})
+    } catch (e: any) { toast.error(e.message) }
+    setRecBusy(false)
+  }
+
+  const downloadKit = () => {
+    if (!kit) return
+    const mk = localStorage.getItem('kerviavault-mk') || '' // master key NOT stored client-side normally
+    const txt = [
+      'Kervia-vault — KIT DE RÉCUPÉRATION',
+      '================================',
+      '',
+      'Codes de récupération (usage unique):',
+      ...kit.codes.map((c: string, i: number) => `  ${i + 1}. ${c}`),
+      '',
+      'Chaque code permet de réinitialiser le mot de passe administrateur',
+      'sans accès au serveur. Ils ne seront plus jamais affichés.',
+    ].join('\n')
+    const blob = new Blob([txt], { type: 'text/plain' })
+    const a = document.createElement('a')
+    a.href = URL.createObjectURL(blob)
+    a.download = 'kervia-vault-recovery-kit.txt'
+    a.click()
+    toast.success(String(t.recoveryDownload) + ' ✓')
+  }
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -77,6 +116,46 @@ export default function Settings() {
             <span className="text-fg-2">{String(t.minPassword)}</span>
             <span className="font-semibold">{info?.min_password_length ?? 12} {String(t.chars)}</span>
           </div>
+        </CardBody>
+      </Card>
+
+      <Card className="mt-5">
+        <CardHeader>
+          <span className="flex items-center gap-2"><RotateCcw size={15} /> {String(t.recoveryTitle)}</span>
+          <span className="text-xs text-accent font-semibold">{recStatus ?? '—'} {String(t.recoveryRemaining)}</span>
+        </CardHeader>
+        <CardBody>
+          <p className="text-xs text-fg-2 mb-4">{String(t.recoveryWarning)}</p>
+          <Field label={String(t.currentPassword)}>
+            <Input type="password" value={recCurrent} onChange={e => setRecCurrent(e.target.value)}
+              autoComplete="current-password" className="max-w-xs" />
+          </Field>
+          <Button variant="primary" onClick={generateRecovery} disabled={!recCurrent.trim() || recBusy}>
+            {recBusy ? <LoaderCircle size={15} className="animate-spin" /> : <><RotateCcw size={14} /> {String(t.recoveryGen)}</>}
+          </Button>
+
+          {kit && (
+            <motion.div
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="mt-5 border border-accent/40 rounded-xl p-4 bg-bg"
+            >
+              <p className="text-xs font-semibold text-accent mb-2">{String(t.recoveryTitle)}</p>
+              <div className="font-mono text-sm space-y-1 mb-3">
+                {kit.codes.map((c: string, i: number) => (
+                  <div key={i}>{String(i + 1).padStart(2, '0')} · {c}</div>
+                ))}
+              </div>
+              <div className="flex gap-2">
+                <Button variant="primary" onClick={downloadKit}><Download size={14} /> {String(t.recoveryDownload)}</Button>
+                <Button onClick={() => setKit(null)}>OK</Button>
+              </div>
+              <div className="mt-3 flex gap-2 items-start bg-warn/10 text-warn rounded-lg px-3 py-2 text-[11px]">
+                <AlertTriangle size={13} className="shrink-0 mt-0.5" />
+                {String(t.recoveryWarning)}
+              </div>
+            </motion.div>
+          )}
         </CardBody>
       </Card>
     </div>

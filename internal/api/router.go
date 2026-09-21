@@ -5,6 +5,7 @@
 package api
 
 import (
+	"encoding/json"
 	"log/slog"
 	"net/http"
 	"time"
@@ -56,6 +57,23 @@ func (s *Server) Router(authSvc *auth.Service, admin *AdminServer, adminExtender
 	mux.Handle("/admin/", authSvc.AdminMiddleware(admin.AdminAudit(adminMux)))
 	mux.Handle("POST /admin/login", admin.AdminAudit(http.HandlerFunc(admin.Login)))
 	mux.Handle("POST /admin/logout", http.HandlerFunc(admin.Logout))
+	mux.HandleFunc("POST /recovery/recover", func(w http.ResponseWriter, r *http.Request) {
+		var req struct {
+			Code        string `json:"code"`
+			NewPassword string `json:"new_password"`
+		}
+		if err := json.NewDecoder(http.MaxBytesReader(nil, r.Body, 1<<16)).Decode(&req); err != nil {
+			writeErr(w, 400, "invalid_request", "")
+			return
+		}
+		if !authSvc.RecoverWithCode(req.Code, req.NewPassword) {
+			_ = authSvc.AuditRecoveryFail(r)
+			writeErr(w, 401, "invalid_code", "")
+			return
+		}
+		_ = authSvc.AuditRecoverySuccess(r)
+		writeJSON(w, 200, map[string]string{"status": "recovered"})
+	})
 
 	return logRequests(mux)
 }

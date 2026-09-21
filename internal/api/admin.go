@@ -464,3 +464,41 @@ func (a *AdminServer) RevokeGrant(w http.ResponseWriter, r *http.Request) {
 		store.RequestInfo{Source: "webui", IP: clientIP(r), UserAgent: ua(r), Method: r.Method, Status: 200, Path: r.URL.Path})
 	writeJSON(w, 200, map[string]string{"status": "revoked"})
 }
+
+// ---- recovery codes ----
+
+type recoveryGenerateReq struct {
+	CurrentPassword string `json:"current_password"`
+	IncludeMasterKey bool  `json:"include_master_key,omitempty"`
+}
+
+// RecoveryGenerate regenerates the one-time recovery codes (requires the
+// current admin password). Returns the plaintext codes ONCE. If
+// include_master_key, the master encryption key is included in the kit.
+func (a *AdminServer) RecoveryGenerate(w http.ResponseWriter, r *http.Request) {
+	var req recoveryGenerateReq
+	if err := jsonBody(r, &req); err != nil || req.CurrentPassword == "" {
+		writeErr(w, 400, "invalid_request", "current_password required")
+		return
+	}
+	codes := a.authSvc.RegenerateRecoveryCodes(req.CurrentPassword)
+	if codes == nil {
+		writeErr(w, 401, "invalid_credentials", "")
+		return
+	}
+	resp := map[string]any{
+		"codes":         codes,
+		"remaining":     len(codes),
+		"warning":       "These codes are shown ONCE. Store them securely. Each code works once to reset the admin password.",
+	}
+	_ = a.store.AppendAuditDetail("admin", "recovery_generate", "admin/recovery", "",
+		store.RequestInfo{Source: "webui", IP: clientIP(r), UserAgent: ua(r), Method: r.Method, Status: 200, Path: "/admin/recovery/generate"})
+	writeJSON(w, 200, resp)
+}
+
+// RecoveryStatus reports how many unused recovery codes remain.
+func (a *AdminServer) RecoveryStatus(w http.ResponseWriter, _ *http.Request) {
+	writeJSON(w, 200, map[string]any{
+		"remaining": a.authSvc.RecoveryRemaining(),
+	})
+}

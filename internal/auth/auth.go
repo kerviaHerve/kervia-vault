@@ -43,6 +43,10 @@ type Service struct {
 	failRate  *failLimiter
 	adminHash atomic.Value // string — bcrypt hash, swapped at runtime
 	sessions  sync.Map     // sessionID -> expiry
+
+	mu           sync.RWMutex
+	recovery     *recoveryStore // hashed single-use codes
+	recoveryPath string          // persistence file, next to the DB
 }
 
 // adminHashString loads the current hash (atomic).

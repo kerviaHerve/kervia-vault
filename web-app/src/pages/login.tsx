@@ -11,6 +11,27 @@ export default function Login({ onLogin }: { onLogin: () => void }) {
   const [err, setErr] = React.useState(false)
   const [busy, setBusy] = React.useState(false)
 
+  const [showRecover, setShowRecover] = React.useState(false)
+  const [recCode, setRecCode] = React.useState('')
+  const [recPass, setRecPass] = React.useState('')
+  const [recBusy, setRecBusy] = React.useState(false)
+  const [recErr, setRecErr] = React.useState(false)
+  const [recOk, setRecOk] = React.useState(false)
+
+  const recover = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!recCode.trim() || recPass.length < 12 || recBusy) return
+    setRecBusy(true); setRecErr(false)
+    const r = await fetch('/recovery/recover', {
+      method: 'POST', credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code: recCode.trim().toUpperCase(), new_password: recPass }),
+    })
+    setRecBusy(false)
+    if (r.ok) { setRecOk(true); setShowRecover(false); setPw(recPass) }
+    else setRecErr(true)
+  }
+
   const submit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!pw || busy) return
@@ -62,7 +83,36 @@ export default function Login({ onLogin }: { onLogin: () => void }) {
           <Button variant="primary" className="w-full" type="submit" disabled={!pw || busy}>
             {busy ? <LoaderCircle size={16} className="animate-spin" /> : String(t.loginBtn)}
           </Button>
+          <button
+            onClick={() => setShowRecover(!showRecover)}
+            className="mt-3 text-[11px] text-fg-3 hover:text-fg-2 transition-colors cursor-pointer w-full text-center"
+          >
+            {String(t.forgotPassword)}
+          </button>
         </form>
+
+        {showRecover && (
+          <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} className="overflow-hidden">
+            {recOk ? (
+              <p className="text-xs text-accent font-semibold mt-4 text-center">{String(t.recoverOK)}</p>
+            ) : (
+              <form onSubmit={recover} className="mt-4 pt-4 border-t border-border">
+                <p className="text-xs font-semibold text-fg-2 mb-3">{String(t.recoverTitle)}</p>
+                <Field label={String(t.recoverCode)}>
+                  <Input value={recCode} onChange={e => { setRecCode(e.target.value); setRecErr(false) }}
+                    placeholder="AGV-XXXXX-XXXXX" className="font-mono" />
+                </Field>
+                <Field label={String(t.recoverNew)} help={String(t.passwordHelp)}>
+                  <Input type="password" value={recPass} onChange={e => { setRecPass(e.target.value); setRecErr(false) }} />
+                </Field>
+                {recErr && <p className="text-xs text-danger font-medium -mt-2 mb-3">{String(t.recoverBad)}</p>}
+                <Button variant="primary" className="w-full" type="submit" disabled={!recCode.trim() || recPass.length < 12 || recBusy}>
+                  {recBusy ? <LoaderCircle size={15} className="animate-spin" /> : String(t.recoverBtn)}
+                </Button>
+              </form>
+            )}
+          </motion.div>
+        )}
       </motion.div>
 
       {/* footer discret — version, kervia.ch, GitHub, AGPL */}

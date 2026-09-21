@@ -85,3 +85,71 @@ func init() {
 		},
 	)
 }
+func init() {
+	register(
+		Template{
+			Key: "cohere", Name: "Cohere", Category: "LLM",
+			Description: "Cohere API (Command models, embeddings, rerank).",
+			Fields: []Field{
+				{Name: "api_key", Label: "API key", Type: TypePassword, Required: true},
+			},
+		},
+		Template{
+			Key: "perplexity", Name: "Perplexity", Category: "LLM",
+			Description: "Perplexity Sonar API (search-augmented).",
+			Fields: []Field{
+				{Name: "api_key", Label: "API key", Type: TypePassword, Required: true,
+					Placeholder: "pplx-..."},
+			},
+		},
+		Template{
+			Key: "together", Name: "Together AI", Category: "LLM",
+			Description: "Together AI inference platform.",
+			Fields: []Field{
+				{Name: "api_key", Label: "API key", Type: TypePassword, Required: true},
+			},
+		},
+		Template{
+			Key: "fireworks", Name: "Fireworks AI", Category: "LLM",
+			Description: "Fireworks AI fast inference.",
+			Fields: []Field{
+				{Name: "api_key", Label: "API key", Type: TypePassword, Required: true,
+					Placeholder: "fw_..."},
+			},
+		},
+		Template{
+			Key: "azure-openai", Name: "Azure OpenAI", Category: "LLM",
+			Description: "Azure-hosted OpenAI models.",
+			Fields: []Field{
+				{Name: "api_key", Label: "API key", Type: TypePassword, Required: true},
+				{Name: "endpoint", Label: "Endpoint URL", Type: TypeURL, Required: true,
+					Placeholder: "https://<resource>.openai.azure.com"},
+				{Name: "deployment_name", Label: "Deployment name", Type: TypeText, Required: false},
+				{Name: "api_version", Label: "API version", Type: TypeText, Required: false,
+					Placeholder: "2026-xx-xx"},
+			},
+		},
+		Template{
+			Key: "openai-compatible", Name: "OpenAI-compatible endpoint", Category: "LLM",
+			Description: "Any OpenAI-compatible API: vLLM, LiteLLM proxy, local servers…",
+			Fields: []Field{
+				{Name: "base_url", Label: "Base URL", Type: TypeURL, Required: true,
+					Placeholder: "https://llm.example.com/v1"},
+				{Name: "api_key", Label: "API key", Type: TypePassword, Required: false,
+					Help: "leave empty if the endpoint has no auth"},
+				{Name: "model", Label: "Default model", Type: TypeText, Required: false,
+					Placeholder: "llama-3.3-70b"},
+			},
+		},
+		Template{
+			Key: "aws-bedrock", Name: "AWS Bedrock", Category: "LLM",
+			Description: "AWS Bedrock model access.",
+			Fields: []Field{
+				{Name: "access_key_id", Label: "Access key ID", Type: TypeText, Required: true},
+				{Name: "secret_access_key", Label: "Secret access key", Type: TypePassword, Required: true},
+				{Name: "region", Label: "Region", Type: TypeText, Required: true,
+					Placeholder: "us-east-1"},
+			},
+		},
+	)
+}

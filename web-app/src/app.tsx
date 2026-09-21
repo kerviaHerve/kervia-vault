@@ -2,9 +2,10 @@ import * as React from 'react'
 import { createRoot } from 'react-dom/client'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Toaster, toast } from 'sonner'
-import { LayoutDashboard, Bot, Archive, KeyRound, Shield, ScrollText, Vault, Settings as SettingsIcon } from 'lucide-react'
+import { LayoutDashboard, Bot, Archive, KeyRound, Shield, ScrollText, Settings as SettingsIcon } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import '@/index.css'
+import emblem from '@/assets/emblem-dark.png'
 
 import Dashboard from '@/pages/dashboard'
 import Agents from '@/pages/agents'
@@ -42,7 +43,7 @@ function App() {
   }, [])
 
   if (authed === null) {
-    return <div className="grid place-items-center h-screen"><Vault className="animate-pulse text-fg-3" size={32} /></div>
+    return <div className="grid place-items-center h-screen"><img src={emblem} className="w-12 h-12 animate-pulse" alt="Kervia-vault" /></div>
   }
 
   const go = (p: string) => { window.location.hash = p }
@@ -52,10 +53,8 @@ function App() {
       {/* sidebar */}
       <aside className="w-56 bg-card border-r border-border sticky top-0 h-screen flex flex-col">
         <div className="flex items-center gap-2.5 px-5 h-16 border-b border-border">
-          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-accent to-emerald-700 grid place-items-center">
-            <Vault size={16} className="text-[#0F172A]" strokeWidth={2.5} />
-          </div>
-          <span className="font-bold text-[15px] tracking-tight">Kervia-vault</span>
+          <img src={emblem} alt="" className="w-8 h-8" />
+          <span className="font-bold text-[15px] tracking-tight text-accent">Kervia-vault</span>
         </div>
         <nav className="flex-1 p-3 space-y-0.5">
           {NAV.map(({ id, label, icon: Icon }) => (

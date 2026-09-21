@@ -6,18 +6,20 @@
 @import "@fontsource/ibm-plex-sans/700.css";
 @import "@fontsource-variable/jetbrains-mono";
 
+/* Palette Kervia-vault — issue du kit logo officiel (palette.json) :
+   orange #F46B35, anthracite #202122, ivoire #F7F1E7 */
 @theme {
-  --color-bg: #0F172A;
-  --color-card: #1B2336;
-  --color-card-2: #232B40;
-  --color-muted: #272F42;
-  --color-fg: #F8FAFC;
-  --color-fg-2: #94A3B8;
-  --color-fg-3: #5B6577;
-  --color-border: #2E3A54;
-  --color-border-2: #475569;
-  --color-accent: #22C55E;
-  --color-accent-hover: #34D377;
+  --color-bg: #202122;          /* anthracite — fond */
+  --color-card: #2A2B2D;        /* anthracite +1 */
+  --color-card-2: #333436;      /* anthracite +2 (hover) */
+  --color-muted: #3B3C3E;
+  --color-fg: #F7F1E7;          /* ivoire — texte principal */
+  --color-fg-2: #C9C2B4;        /* ivoire atténué */
+  --color-fg-3: #8A8478;        /* ivoire muted */
+  --color-border: #43444A;
+  --color-border-2: #575A63;
+  --color-accent: #F46B35;      /* orange — actions, focus */
+  --color-accent-hover: #FF7E4D;
   --color-danger: #EF4444;
   --color-warn: #FFB454;
   --font-sans: "IBM Plex Sans", system-ui, sans-serif;
@@ -27,7 +29,7 @@
 html { color-scheme: dark; }
 body { background: var(--color-bg); color: var(--color-fg); font-family: var(--font-sans); }
 
-::selection { background: color-mix(in srgb, var(--color-accent) 30%, transparent); }
+::selection { background: color-mix(in srgb, var(--color-accent) 35%, transparent); color: var(--color-fg); }
 
 *:focus-visible {
   outline: 2px solid var(--color-accent);

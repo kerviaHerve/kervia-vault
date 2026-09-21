@@ -35,10 +35,10 @@ type PageId = (typeof NAV)[number]['id'] | 'login'
 function App() {
   const [page, setPage] = React.useState<PageId>((window.location.hash.slice(1) || 'dashboard') as PageId)
   const [authed, setAuthed] = React.useState<boolean | null>(null)
-  const [setupInfo, setSetupInfo] = React.useState<any>(null)
+  const [setupInfo, setupSet] = React.useState<any>(null)
 
   React.useEffect(() => {
-    fetch('/setup/info').then(r => r.json()).then(setupInfo).catch(() => setSetupInfo({ setup_done: true }))
+    fetch('/setup/info').then(r => r.json()).then(setupSet).catch(() => setupSet({ setup_done: true }))
     fetch('/admin/agents', { credentials: 'same-origin' }).then(r => setAuthed(r.ok)).catch(() => setAuthed(false))
   }, [])
 
@@ -64,7 +64,7 @@ function App() {
   if (!setupInfo.setup_done) {
     return (
       <>
-        <Wizard onDone={() => { setSetupInfo({ setup_done: true }); window.location.reload() }} />
+        <Wizard onDone={() => { setupSet({ setup_done: true }); window.location.reload() }} />
         <Toaster
           position="bottom-right"
           toastOptions={{

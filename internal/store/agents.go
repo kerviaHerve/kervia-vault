@@ -1,6 +1,7 @@
 // Store: agents CRUD.
 // SPDX-License-Identifier: AGPL-3.0
 
+// Package store implements the SQLite persistence layer.
 package store
 
 import (
@@ -35,7 +36,7 @@ func (s *Store) GetAgentByKeyHash(keyHash string) (*model.Agent, error) {
 	return scanAgent(row)
 }
 
-// GetAgentByKeyPrefix narrows the login lookup by prefix before hashing —
+// ListAgentsByKeyPrefix narrows the login lookup by prefix before hashing —
 // only used when the hash computation is expensive (Argon2id is, so this
 // is the primary lookup: O(prefix matches) then constant-time verify).
 func (s *Store) ListAgentsByKeyPrefix(prefix string) ([]*model.Agent, error) {
@@ -44,7 +45,7 @@ func (s *Store) ListAgentsByKeyPrefix(prefix string) ([]*model.Agent, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	var out []*model.Agent
 	for rows.Next() {
 		a, err := scanAgent(rows)
@@ -69,7 +70,7 @@ func (s *Store) ListAgents() ([]*model.Agent, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	var out []*model.Agent
 	for rows.Next() {
 		a, err := scanAgent(rows)

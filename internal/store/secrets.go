@@ -67,7 +67,7 @@ func (s *Store) ListSecretsByVault(vaultID string) ([]*model.Secret, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	var out []*model.Secret
 	for rows.Next() {
 		var sec model.Secret
@@ -141,7 +141,7 @@ func (s *Store) ListVersions(secretID string) ([]*model.SecretVersion, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	var out []*model.SecretVersion
 	for rows.Next() {
 		var v model.SecretVersion

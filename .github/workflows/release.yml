@@ -1,0 +1,74 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # webui first — go:embed needs internal/web/dist to exist
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: web-app/package-lock.json
+      - name: Build webui
+        working-directory: web-app
+        run: |
+          npm ci
+          npx vite build
+
+      - uses: actions/setup-go@v5
+        with: { go-version: "1.27" }
+
+      - name: Build static binaries (amd64 + arm64)
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          for ARCH in amd64 arm64; do
+            CGO_ENABLED=0 GOOS=linux GOARCH=$ARCH go build \
+              -trimpath \
+              -ldflags="-s -w -X main.version=${GITHUB_REF_NAME}" \
+              -o build/kervia-vault ./cmd/kervia-vault
+            tar -czf "kervia-vault-linux-${ARCH}.tar.gz" -C build kervia-vault
+            rm -f build/kervia-vault
+          done
+          sha256sum kervia-vault-linux-*.tar.gz > kervia-vault_checksums.txt
+          echo "RELEASE_VERSION=${VERSION}" >> "$GITHUB_ENV"
+
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: "Kervia-vault v${{ env.RELEASE_VERSION }}"
+          files: |
+            kervia-vault-linux-amd64.tar.gz
+            kervia-vault-linux-arm64.tar.gz
+            kervia-vault_checksums.txt
+          body: |
+            Kervia-vault v${{ env.RELEASE_VERSION }}
+
+            ## Install (root)
+
+            ```bash
+            curl -sfL https://github.com/kerviaHerve/kervia-vault/releases/latest/download/kervia-vault-linux-$(uname -m | sed 's/x86_64/amd64/; s/aarch64/arm64/').tar.gz -o /tmp/av.tgz
+            ```
+
+            Or the full installer (wizard included):
+
+            ```bash
+            bash install.sh
+            ```
+
+            The installer verifies the sha256 checksum before installing.
+      - name: Verify release assets are downloadable
+        run: |
+          sleep 5
+          ARCH=$(uname -m | sed 's/x86_64/amd64/; s/aarch64/arm64/')
+          curl -sfL "https://github.com/kerviaHerve/kervia-vault/releases/latest/download/kervia-vault_checksums.txt" -o /tmp/sums.txt
+          grep "kervia-vault-linux-${ARCH}.tar.gz" /tmp/sums.txt

@@ -1,7 +1,9 @@
-// Template registry — Cloud providers + generic web auth patterns.
-// SPDX-License-Identifier: AGPL-3.0
-
 package templates
+
+// Cloud provider templates + generic web auth patterns (see templates.go
+// for the package comment).
+//
+// SPDX-License-Identifier: AGPL-3.0
 
 func init() {
 	register(

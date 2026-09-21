@@ -11,7 +11,6 @@
 // Authorization header, verified by the shared auth middleware).
 //
 // SPDX-License-Identifier: AGPL-3.0
-
 package mcp
 
 import (
@@ -152,7 +151,7 @@ func (d *Deps) agentFor(ctx context.Context) (*model.Agent, error) {
 
 // ---- tools ----
 
-func (d *Deps) toolListVaults(ctx context.Context, req *mcp.CallToolRequest, _ struct{}) (*mcp.CallToolResult, any, error) {
+func (d *Deps) toolListVaults(ctx context.Context, _ *mcp.CallToolRequest, _ struct{}) (*mcp.CallToolResult, any, error) {
 	agent, err := d.agentFor(ctx)
 	if err != nil {
 		return nil, nil, err
@@ -169,7 +168,7 @@ type listSecretsArgs struct {
 	Vault string `json:"vault"`
 }
 
-func (d *Deps) toolListSecrets(ctx context.Context, req *mcp.CallToolRequest, args listSecretsArgs) (*mcp.CallToolResult, any, error) {
+func (d *Deps) toolListSecrets(ctx context.Context, _ *mcp.CallToolRequest, args listSecretsArgs) (*mcp.CallToolResult, any, error) {
 	agent, err := d.agentFor(ctx)
 	if err != nil {
 		return nil, nil, err
@@ -194,7 +193,7 @@ type getSecretArgs struct {
 	ID string `json:"id"`
 }
 
-func (d *Deps) toolGetSecret(ctx context.Context, req *mcp.CallToolRequest, args getSecretArgs) (*mcp.CallToolResult, any, error) {
+func (d *Deps) toolGetSecret(ctx context.Context, _ *mcp.CallToolRequest, args getSecretArgs) (*mcp.CallToolResult, any, error) {
 	agent, err := d.agentFor(ctx)
 	if err != nil {
 		return nil, nil, err
@@ -228,7 +227,7 @@ func (d *Deps) toolGetSecret(ctx context.Context, req *mcp.CallToolRequest, args
 	})), nil, nil
 }
 
-func (d *Deps) toolListTemplates(ctx context.Context, req *mcp.CallToolRequest, _ struct{}) (*mcp.CallToolResult, any, error) {
+func (d *Deps) toolListTemplates(_ context.Context, _ *mcp.CallToolRequest, _ struct{}) (*mcp.CallToolResult, any, error) {
 	return textResult(mustJSON(templates.All())), nil, nil
 }
 
@@ -240,7 +239,7 @@ type createSecretArgs struct {
 	Values   map[string]any `json:"values,omitempty"`
 }
 
-func (d *Deps) toolCreateSecret(ctx context.Context, req *mcp.CallToolRequest, args createSecretArgs) (*mcp.CallToolResult, any, error) {
+func (d *Deps) toolCreateSecret(ctx context.Context, _ *mcp.CallToolRequest, args createSecretArgs) (*mcp.CallToolResult, any, error) {
 	agent, err := d.agentFor(ctx)
 	if err != nil {
 		return nil, nil, err
@@ -292,7 +291,7 @@ type updateSecretArgs struct {
 	Value string `json:"value"`
 }
 
-func (d *Deps) toolUpdateSecret(ctx context.Context, req *mcp.CallToolRequest, args updateSecretArgs) (*mcp.CallToolResult, any, error) {
+func (d *Deps) toolUpdateSecret(ctx context.Context, _ *mcp.CallToolRequest, args updateSecretArgs) (*mcp.CallToolResult, any, error) {
 	agent, err := d.agentFor(ctx)
 	if err != nil {
 		return nil, nil, err
@@ -321,7 +320,7 @@ type deleteSecretArgs struct {
 	ID string `json:"id"`
 }
 
-func (d *Deps) toolDeleteSecret(ctx context.Context, req *mcp.CallToolRequest, args deleteSecretArgs) (*mcp.CallToolResult, any, error) {
+func (d *Deps) toolDeleteSecret(ctx context.Context, _ *mcp.CallToolRequest, args deleteSecretArgs) (*mcp.CallToolResult, any, error) {
 	agent, err := d.agentFor(ctx)
 	if err != nil {
 		return nil, nil, err
@@ -341,7 +340,7 @@ func (d *Deps) toolDeleteSecret(ctx context.Context, req *mcp.CallToolRequest, a
 	return textResult(mustJSON(map[string]any{"status": "deleted", "id": args.ID})), nil, nil
 }
 
-func (d *Deps) toolWhoami(ctx context.Context, req *mcp.CallToolRequest, _ struct{}) (*mcp.CallToolResult, any, error) {
+func (d *Deps) toolWhoami(ctx context.Context, _ *mcp.CallToolRequest, _ struct{}) (*mcp.CallToolResult, any, error) {
 	agent, err := d.agentFor(ctx)
 	if err != nil {
 		return nil, nil, err

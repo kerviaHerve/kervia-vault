@@ -64,7 +64,7 @@ func TestAuthenticateRejectsBadKeys(t *testing.T) {
 	}
 	for _, c := range cases {
 		func() {
-			h := svc.Authenticate(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			h := svc.Authenticate(http.HandlerFunc(func(_ http.ResponseWriter, _ *http.Request) {
 				t.Fatal("handler called with bad key")
 			}))
 			req := httptest.NewRequest("GET", "/v1/whoami", nil)
@@ -88,7 +88,7 @@ func TestAuthenticateRejectsBadKeys(t *testing.T) {
 func TestAuthenticateRejectsRevoked(t *testing.T) {
 	svc, key, st := newTestAuth(t)
 	st.RevokeAgent("a1")
-	h := svc.Authenticate(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	h := svc.Authenticate(http.HandlerFunc(func(_ http.ResponseWriter, _ *http.Request) {
 		t.Fatal("revoked agent passed")
 	}))
 	req := httptest.NewRequest("GET", "/", nil)
@@ -129,7 +129,7 @@ func TestAdminSession(t *testing.T) {
 		t.Fatal("empty session id")
 	}
 	// middleware accepts the cookie
-	h := svc.AdminMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	h := svc.AdminMiddleware(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
 		if !IsAdmin(r.Context()) {
 			t.Fatal("admin flag missing")
 		}
@@ -151,12 +151,6 @@ func TestAdminSession(t *testing.T) {
 	}
 }
 
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
-}
 func TestFailRateLimiter(t *testing.T) {
 	fl := newFailLimiter(5)
 	// 5 allowed, then blocked
@@ -190,7 +184,7 @@ func TestFailedAuthThrottled(t *testing.T) {
 	// THE expensive vector: a key sharing an existing agent's 11-char prefix —
 	// each attempt runs Argon2id (94ms, 64MB). Same prefix as the real key.
 	bad := validKey[:11] + strings.Repeat("ff", 29)
-	h := svc.Authenticate(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	h := svc.Authenticate(http.HandlerFunc(func(_ http.ResponseWriter, _ *http.Request) {
 		t.Fatal("handler reached with bad key")
 	}))
 	blocked := false
@@ -213,7 +207,7 @@ func TestFailedAuthThrottled(t *testing.T) {
 	req.Header.Set("Authorization", "Bearer "+validKey)
 	req.RemoteAddr = "8.8.8.8:1234"
 	rec := httptest.NewRecorder()
-	svc.Authenticate(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	svc.Authenticate(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(200)
 	})).ServeHTTP(rec, req)
 	if rec.Code != 200 {

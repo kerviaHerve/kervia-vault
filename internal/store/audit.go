@@ -34,7 +34,7 @@ func (s *Store) ListAudit(limit, offset int, agentFilter string) ([]*model.Audit
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	var out []*model.AuditEntry
 	for rows.Next() {
 		var e model.AuditEntry

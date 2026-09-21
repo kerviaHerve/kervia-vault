@@ -1,7 +1,6 @@
 // Package store implements the SQLite persistence layer.
 // All queries are parameterized (gosec G201/G202 clean by design).
 // SPDX-License-Identifier: AGPL-3.0
-
 package store
 
 import (

@@ -1,6 +1,5 @@
 // Package model defines the core domain types of Kervia-vault.
 // SPDX-License-Identifier: AGPL-3.0
-
 package model
 
 import "time"

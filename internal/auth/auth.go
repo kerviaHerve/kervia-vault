@@ -1,6 +1,8 @@
 // Auth: API key middleware + admin session + rate limiting.
 // SPDX-License-Identifier: AGPL-3.0
 
+// Package auth implements Kervia-vault authentication: API keys (Argon2id),
+// admin sessions, recovery codes and rate limiting.
 package auth
 
 import (
@@ -8,8 +10,8 @@ import (
 	"errors"
 	"fmt"
 	"net"
-	"os"
 	"net/http"
+	"os"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -46,7 +48,7 @@ type Service struct {
 
 	mu           sync.RWMutex
 	recovery     *recoveryStore // hashed single-use codes
-	recoveryPath string          // persistence file, next to the DB
+	recoveryPath string         // persistence file, next to the DB
 }
 
 // adminHashString loads the current hash (atomic).
@@ -66,7 +68,7 @@ func New(st *store.Store, adminHash string, ratePerMin int) *Service {
 		failPerMin = 5
 	}
 	svc := &Service{
-		store: st,
+		store:    st,
 		rate:     newRateLimiter(ratePerMin),
 		failRate: newFailLimiter(failPerMin),
 	}
@@ -248,7 +250,7 @@ func (s *Service) VerifyKey(key string) (*model.Agent, error) {
 // The env var remains the boot-time default; this file overrides it at boot.
 var adminHashPath string
 
-// SetAdminHashPath tells the service where to persist admin password changes.
+// SetHashPath tells the service where to persist admin password changes.
 func (s *Service) SetHashPath(p string) { adminHashPath = p }
 
 // SetAdminPassword validates, hashes and swaps the admin password at runtime.
@@ -270,7 +272,6 @@ func (s *Service) SetAdminPassword(newPassword string) error {
 	return nil
 }
 
-
 // LogoutAdmin revokes a webui session server-side.
 func (s *Service) LogoutAdmin(sessionID string) {
 	if sessionID != "" {
@@ -287,4 +288,18 @@ func (s *Service) LoadAdminHashOverride() {
 	if err == nil && len(h) > 0 {
 		s.adminHash.Store(string(h))
 	}
+}
+
+// AdminPlaceholderPassword is the public placeholder hash seed used by the
+// installer (install.sh) so the server can boot before the wizard runs.
+// It is PUBLIC (in the AGPL repo) — that's fine: it only ever means
+// "no human has configured this instance yet". The setup manager refuses
+// to run the wizard once a real password exists.
+const AdminPlaceholderPassword = "setup-placeholder"
+
+// AdminPasswordIsPlaceholder reports whether the effective admin hash still
+// verifies the public installer placeholder. Used by the setup manager to
+// decide wizard mode (fresh install) vs already-configured instance.
+func (s *Service) AdminPasswordIsPlaceholder() bool {
+	return bcrypt.CompareHashAndPassword([]byte(s.adminHashString()), []byte(AdminPlaceholderPassword)) == nil
 }

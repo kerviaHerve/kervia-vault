@@ -16,6 +16,8 @@ const W = {
     sub: "Configurez votre coffre multi-agents en 3 étapes.",
     step1: "Mot de passe administrateur",
     step1h: "12 caractères minimum — c'est le seul mot de passe à retenir.",
+    pw: "Mot de passe",
+    pw2: "Confirmer",
     next: "Continuer",
     step2: "Codes de récupération",
     step2h: "Si vous perdez votre mot de passe, ces codes vous sauveront. Téléchargez-les maintenant — ils ne seront plus jamais affichés.",
@@ -31,12 +33,15 @@ const W = {
     goLogin: "Ouvrir Kervia-vault",
     weak: "Trop court (12 caractères minimum)",
     mismatch: "Les mots de passe ne correspondent pas",
+    stepOf: "Étape",
   },
   en: {
     welcome: "Welcome to Kervia-vault",
     sub: "Set up your multi-agent vault in 3 steps.",
     step1: "Administrator password",
     step1h: "12 characters minimum — the only password you need.",
+    pw: "Password",
+    pw2: "Confirm",
     next: "Continue",
     step2: "Recovery codes",
     step2h: "If you lose your password, these codes will save you. Download them now — they will never be shown again.",
@@ -52,6 +57,7 @@ const W = {
     goLogin: "Open Kervia-vault",
     weak: "Too short (12 characters minimum)",
     mismatch: "Passwords do not match",
+    stepOf: "Step",
   },
 }
 
@@ -89,12 +95,18 @@ export default function Wizard({ onDone }: { onDone: () => void }) {
   const createAgent = async () => {
     if (!agentName.trim() || busy) return
     setBusy(true)
-    // login first (the setup just created the password)
-    await fetch('/admin/login', {
-      method: 'POST', credentials: 'same-origin',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ password: pw }),
-    }).catch(() => {})
+    // login first (the setup just created the password) — if this fails the
+    // api() call below will surface the error, but we still stop early
+    let loggedIn = false
+    try {
+      const res = await fetch('/admin/login', {
+        method: 'POST', credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password: pw }),
+      })
+      loggedIn = res.ok
+    } catch { /* network error — fall through */ }
+    if (!loggedIn) { toast.error('Login failed'); setBusy(false); return }
     try {
       const d = await api('POST', '/admin/agents', { name: agentName.trim() })
       setAgent(d)
@@ -119,7 +131,7 @@ export default function Wizard({ onDone }: { onDone: () => void }) {
     <div className="grid place-items-center min-h-screen relative">
       {/* progress */}
       <div className="absolute top-5 flex items-center gap-3 text-xs text-fg-3">
-        <span className="font-bold text-accent">Étape {progress[step as 1]}</span>
+        <span className="font-bold text-accent">{t.stepOf} {progress[step as 1]}</span>
         <span className="w-40 h-1 bg-muted rounded-full overflow-hidden">
           <motion.span className="block h-full bg-accent rounded-full" animate={{ width: `${(step >= 4 ? 3 : step) / 3 * 100}%` }} />
         </span>
@@ -145,10 +157,10 @@ export default function Wizard({ onDone }: { onDone: () => void }) {
                 <span className="text-sm font-semibold">{t.step1}</span>
               </div>
               <p className="text-xs text-fg-2 mb-4">{t.step1h}</p>
-              <Field label="Mot de passe">
+              <Field label={t.pw}>
                 <Input type="password" value={pw} autoFocus onChange={e => setPw(e.target.value)} />
               </Field>
-              <Field label="Confirmer">
+              <Field label={t.pw2}>
                 <Input type="password" value={pw2} onChange={e => setPw2(e.target.value)}
                   className={pw2 && pw !== pw2 ? 'border-danger' : ''} />
               </Field>

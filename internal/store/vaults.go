@@ -45,7 +45,7 @@ func (s *Store) ListVaults() ([]*model.Vault, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	var out []*model.Vault
 	for rows.Next() {
 		var v model.Vault
@@ -72,7 +72,7 @@ func (s *Store) ListVaultsForAgent(agentID string) ([]*model.Vault, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	var out []*model.Vault
 	for rows.Next() {
 		var v model.Vault
@@ -126,7 +126,7 @@ func (s *Store) ListGrants() ([]*model.Grant, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	var out []*model.Grant
 	for rows.Next() {
 		var g model.Grant

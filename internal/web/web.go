@@ -1,8 +1,7 @@
-// Package web: embedded WebUI (HTMX + hand-rolled design system).
-// Zero external dependencies, zero build step — go:embed only.
+// Package web serves the embedded webui SPA (React build, go:embed)
+// and the session-guarded UI endpoints.
 //
 // SPDX-License-Identifier: AGPL-3.0
-
 package web
 
 import (
@@ -47,7 +46,7 @@ func (s *Server) Routes(adminMux *http.ServeMux) {
 	// assets with hashed names: immutable cache
 	adminMux.Handle("GET /ui/assets/", cacheImmutable(http.StripPrefix("/ui/", fileServer)))
 	// SPA fallback: every /ui/* path serves index.html (client-side hash routing)
-	adminMux.HandleFunc("GET /ui/", func(w http.ResponseWriter, r *http.Request) {
+	adminMux.HandleFunc("GET /ui/", func(w http.ResponseWriter, _ *http.Request) {
 		b, err := fs.ReadFile(spaFS, "index.html")
 		if err != nil {
 			http.Error(w, "webui missing", 500)
@@ -69,23 +68,6 @@ func cacheImmutable(next http.Handler) http.Handler {
 
 var _ = model.AuditRead // keep model imported for future use
 var _ = templates.All
-// templateOptions returns (key, label) for the create-secret dropdown.
-func templateOptions() []struct{ key, label string } {
-	var out []struct{ key, label string }
-	for _, t := range templates.All() {
-		out = append(out, struct{ key, label string }{t.Key, t.Name + " (" + t.Category + ")"})
-	}
-	return out
-}
-
-// templateJSON exports templates as JSON for the client-side form builder.
-func templateJSON() string {
-	b, err := json.Marshal(templates.All())
-	if err != nil {
-		return "{}"
-	}
-	return string(b)
-}
 
 // Files exposes the embedded static assets.
 func Files() fs.FS {
@@ -100,7 +82,7 @@ func Files() fs.FS {
 // to the guarded admin mux. These use the session auth like the rest of /admin.
 func (s *Server) AttachAdmin(adminMux *http.ServeMux) {
 	// settings info for the SPA settings page
-	adminMux.HandleFunc("GET /admin/settings", func(w http.ResponseWriter, r *http.Request) {
+	adminMux.HandleFunc("GET /admin/settings", func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write([]byte(`{"audit_retention_days": 90, "min_password_length": 12}`))
 	})
@@ -124,7 +106,7 @@ func (s *Server) AttachAdmin(adminMux *http.ServeMux) {
 		_ = json.NewEncoder(w).Encode(results)
 	})
 	// templates readable by the admin session (the SPA creates templated secrets)
-	adminMux.HandleFunc("GET /admin/templates", func(w http.ResponseWriter, r *http.Request) {
+	adminMux.HandleFunc("GET /admin/templates", func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(templates.All())
 	})

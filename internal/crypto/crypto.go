@@ -1,9 +1,8 @@
 // Package crypto implements all cryptographic primitives of Kervia-vault.
 // Security by design: every function here is reviewed against the
 // threat model; NO function may ever log its inputs or outputs.
- 
+//
 // SPDX-License-Identifier: AGPL-3.0
-
 package crypto
 
 import (

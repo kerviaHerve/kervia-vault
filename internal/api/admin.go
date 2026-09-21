@@ -1,6 +1,7 @@
-// Admin handlers (webui backend): agents, vaults, grants, secrets, audit.
+// Package api exposes the Kervia-vault HTTP surface: agent API, admin API
+// and the first-boot setup wizard.
+//
 // SPDX-License-Identifier: AGPL-3.0
-
 package api
 
 import (
@@ -18,6 +19,7 @@ import (
 	"github.com/kerviaHerve/kervia-vault/internal/store"
 )
 
+// AdminServer serves the session-guarded admin API (webui backend).
 type AdminServer struct {
 	store    *store.Store
 	enc      *crypto.Encryptor
@@ -111,7 +113,7 @@ func (a *AdminServer) ListAgents(w http.ResponseWriter, _ *http.Request) {
 }
 
 // RevokeAgent disables an agent's key.
-func (a *AdminServer) RevokeAgent(w http.ResponseWriter, r *http.Request, id string) {
+func (a *AdminServer) RevokeAgent(w http.ResponseWriter, _ *http.Request, id string) {
 	if err := a.store.RevokeAgent(id); err != nil {
 		if errors.Is(err, store.ErrNotFound) {
 			writeErr(w, 404, "not_found", "")
@@ -198,7 +200,7 @@ func (a *AdminServer) ListGrants(w http.ResponseWriter, _ *http.Request) {
 	writeJSON(w, 200, grants)
 }
 
-// AdminCreateSecret creates a secret from the webui (values visible there).
+// CreateSecret creates a secret from the webui (values visible there).
 func (a *AdminServer) CreateSecret(w http.ResponseWriter, r *http.Request) {
 	var req createSecretReq
 	if err := jsonBody(r, &req); err != nil || req.Vault == "" || req.Key == "" {
@@ -233,7 +235,7 @@ func (a *AdminServer) CreateSecret(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, 201, sec)
 }
 
-// AdminListSecrets lists a vault's secrets WITH decrypted values (webui view).
+// ListSecrets lists a vault's secrets WITH decrypted values (webui view).
 func (a *AdminServer) ListSecrets(w http.ResponseWriter, r *http.Request) {
 	vaultName := r.URL.Query().Get("vault")
 	if vaultName == "" {
@@ -285,7 +287,7 @@ func (a *AdminServer) Audit(w http.ResponseWriter, r *http.Request) {
 }
 
 // Versions lists the version history of a secret.
-func (a *AdminServer) Versions(w http.ResponseWriter, r *http.Request, id string) {
+func (a *AdminServer) Versions(w http.ResponseWriter, _ *http.Request, id string) {
 	versions, err := a.store.ListVersions(id)
 	if err != nil {
 		writeErr(w, 500, "internal", "")
@@ -445,7 +447,7 @@ func (a *AdminServer) UpdateSecret(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, 200, map[string]string{"status": "updated"})
 }
 
-// DeleteVaultByGrantAdmin removes a grant (dedicated to the vault detail view).
+// RevokeGrant removes a grant (dedicated to the vault detail view).
 func (a *AdminServer) RevokeGrant(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		AgentID string `json:"agent_id"`

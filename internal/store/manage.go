@@ -97,7 +97,7 @@ func (s *Store) SearchSecretsByName(pattern string, limit int) ([]*model.Secret,
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	var out []*model.Secret
 	for rows.Next() {
 		var sec model.Secret

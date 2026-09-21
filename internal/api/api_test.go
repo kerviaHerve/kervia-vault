@@ -73,8 +73,6 @@ var (
 )
 
 func ritaVaultID(st *store.Store) string { return vaultID(st, "rita-vault") }
-func otherVaultID(st *store.Store) string { return vaultID(st, "other-vault") }
-
 func vaultID(st *store.Store, name string) string {
 	v, err := st.GetVaultByName(name)
 	if err != nil {
@@ -83,15 +81,6 @@ func vaultID(st *store.Store, name string) string {
 	return v.ID
 }
 
-func agentID(st *store.Store, name string) string {
-	agents, _ := st.ListAgents()
-	for _, a := range agents {
-		if a.Name == name {
-			return a.ID
-		}
-	}
-	return ""
-}
 
 func (e *testEnv) adminLogin() {
 	body, _ := json.Marshal(map[string]string{"password": "admin-pw"})
@@ -288,7 +277,6 @@ func TestAuditTrail(t *testing.T) {
 	}
 }
 
-type testing2 = testing.T
 func TestTemplateSecretCreation(t *testing.T) {
 	env, ritaKey, _ := newTestEnv(t)
 

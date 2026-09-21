@@ -3,6 +3,7 @@
  
 // SPDX-License-Identifier: AGPL-3.0
 
+// Package config loads and validates Kervia-vault configuration.
 package config
 
 import (
@@ -78,7 +79,7 @@ func envIntOr(key string, def int) int {
 
 func isHex(s string) bool {
 	for _, c := range s {
-		if !((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F')) {
+		if (c < '0' || c > '9') && (c < 'a' || c > 'f') && (c < 'A' || c > 'F') {
 			return false
 		}
 	}

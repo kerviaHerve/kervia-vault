@@ -8,7 +8,6 @@
 //   - template=null on a secret means "free-form value" (backward compatible).
 //
 // SPDX-License-Identifier: AGPL-3.0
-
 package templates
 
 import (
@@ -21,6 +20,7 @@ import (
 // FieldType is the input type of a template field.
 type FieldType string
 
+// Template field input types.
 const (
 	TypeText     FieldType = "text"     // visible value
 	TypePassword FieldType = "password" // masked in webui

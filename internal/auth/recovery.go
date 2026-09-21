@@ -211,3 +211,18 @@ func requestAudit(r *http.Request, status int) store.RequestInfo {
 
 // SetRecoveryPath tells the service where hashed codes persist.
 func (s *Service) SetRecoveryPath(p string) { s.recoveryPath = p }
+
+// RegenerateRecoveryCodesUnauthenticated regenerates codes WITHOUT the
+// password check — used ONLY by setup/init (the server has no admin
+// password yet on first boot).
+func (s *Service) RegenerateRecoveryCodesUnauthenticated() []string {
+	plain, hashes := newRecoveryCodes(10)
+	s.mu.Lock()
+	s.recovery = &recoveryStore{path: s.recoveryPath, codes: make([]RecoveryCode, len(hashes))}
+	for i, h := range hashes {
+		s.recovery.codes[i] = RecoveryCode{Hash: h, Used: false}
+	}
+	s.mu.Unlock()
+	s.persistRecovery()
+	return plain
+}

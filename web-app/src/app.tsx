@@ -18,6 +18,7 @@ import Grants from '@/pages/grants'
 import Audit from '@/pages/audit'
 import Settings from '@/pages/settings'
 import Login from '@/pages/login'
+import Wizard from '@/pages/wizard'
 
 const NAV = [
   { id: 'dashboard', label: 'overview', icon: LayoutDashboard },
@@ -34,8 +35,10 @@ type PageId = (typeof NAV)[number]['id'] | 'login'
 function App() {
   const [page, setPage] = React.useState<PageId>((window.location.hash.slice(1) || 'dashboard') as PageId)
   const [authed, setAuthed] = React.useState<boolean | null>(null)
+  const [setupInfo, setSetupInfo] = React.useState<any>(null)
 
   React.useEffect(() => {
+    fetch('/setup/info').then(r => r.json()).then(setupInfo).catch(() => setSetupInfo({ setup_done: true }))
     fetch('/admin/agents', { credentials: 'same-origin' }).then(r => setAuthed(r.ok)).catch(() => setAuthed(false))
   }, [])
 
@@ -45,7 +48,7 @@ function App() {
     return () => window.removeEventListener('hashchange', onHash)
   }, [])
 
-  if (authed === null) {
+  if (authed === null || setupInfo === null) {
     return <div className="grid place-items-center h-screen"><img src={emblem} className="w-12 h-12 animate-pulse" alt="Kervia-vault" /></div>
   }
 
@@ -57,11 +60,11 @@ function App() {
     setAuthed(false)
   }
 
-  // écran de login : PLEIN ÉCRAN, pas de sidebar ni de menus
-  if (!authed) {
+  // écran de setup (premier boot) : PLEIN ÉCRAN avec la TÊTE DE VIKING
+  if (!setupInfo.setup_done) {
     return (
       <>
-        <Login onLogin={() => { setAuthed(true); go('dashboard') }} />
+        <Wizard onDone={() => { setSetupInfo({ setup_done: true }); window.location.reload() }} />
         <Toaster
           position="bottom-right"
           toastOptions={{

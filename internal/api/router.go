@@ -1,0 +1,121 @@
+// Router: mounts every route with its middleware chain.
+// Go 1.22+ pattern routing — no framework, stdlib only.
+// SPDX-License-Identifier: AGPL-3.0
+
+package api
+
+import (
+	"log/slog"
+	"net/http"
+	"time"
+
+	"github.com/kerviaHerve/kervia-vault/internal/auth"
+)
+
+// Router builds the complete http.Handler.
+func (s *Server) Router(authSvc *auth.Service, admin *AdminServer) http.Handler {
+	mux := http.NewServeMux()
+
+	// ---- agent API (API key auth) ----
+	agentMux := http.NewServeMux()
+	agentMux.HandleFunc("GET /v1/whoami", s.Whoami)
+	agentMux.HandleFunc("GET /v1/vaults", s.ListVaults)
+	agentMux.HandleFunc("GET /v1/secrets", s.ListSecrets)
+	agentMux.HandleFunc("POST /v1/secrets", s.CreateSecret)
+	agentMux.HandleFunc("GET /v1/secrets/{id}", s.getSecretHandler)
+	agentMux.HandleFunc("PATCH /v1/secrets/{id}", s.updateSecretHandler)
+	agentMux.HandleFunc("DELETE /v1/secrets/{id}", s.deleteSecretHandler)
+
+	mux.Handle("/v1/", authSvc.Authenticate(agentMux))
+
+	// ---- admin API (session auth, except /admin/login) ----
+	adminMux := http.NewServeMux()
+	adminMux.HandleFunc("POST /admin/agents", admin.CreateAgent)
+	adminMux.HandleFunc("GET /admin/agents", admin.ListAgents)
+	adminMux.HandleFunc("POST /admin/agents/{id}/revoke", admin.revokeAgentHandler)
+	adminMux.HandleFunc("POST /admin/vaults", admin.CreateVault)
+	adminMux.HandleFunc("GET /admin/vaults", admin.ListVaults)
+	adminMux.HandleFunc("POST /admin/grants", admin.SetGrant)
+	adminMux.HandleFunc("DELETE /admin/grants", admin.RemoveGrant)
+	adminMux.HandleFunc("GET /admin/grants", admin.ListGrants)
+	adminMux.HandleFunc("POST /admin/secrets", admin.CreateSecret)
+	adminMux.HandleFunc("GET /admin/secrets", admin.ListSecrets)
+	adminMux.HandleFunc("GET /admin/audit", admin.Audit)
+	adminMux.HandleFunc("GET /admin/versions/{id}", admin.versionsHandler)
+
+	mux.Handle("/admin/", authSvc.AdminMiddleware(adminMux))
+	mux.HandleFunc("POST /admin/login", admin.Login)
+
+	return logRequests(mux)
+}
+
+// {id} path value adapters (clean handlers keep the ctx signature).
+func (s *Server) getSecretHandler(w http.ResponseWriter, r *http.Request) {
+	id, ok := secretIDFromPath(r.URL.Path)
+	if !ok {
+		writeErr(w, 400, "invalid_id", "")
+		return
+	}
+	s.GetSecret(w, r, id)
+}
+
+func (s *Server) updateSecretHandler(w http.ResponseWriter, r *http.Request) {
+	id, ok := secretIDFromPath(r.URL.Path)
+	if !ok {
+		writeErr(w, 400, "invalid_id", "")
+		return
+	}
+	s.UpdateSecret(w, r, id)
+}
+
+func (s *Server) deleteSecretHandler(w http.ResponseWriter, r *http.Request) {
+	id, ok := secretIDFromPath(r.URL.Path)
+	if !ok {
+		writeErr(w, 400, "invalid_id", "")
+		return
+	}
+	s.DeleteSecret(w, r, id)
+}
+
+func (a *AdminServer) revokeAgentHandler(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	if id == "" || len(id) > 64 {
+		writeErr(w, 400, "invalid_id", "")
+		return
+	}
+	a.RevokeAgent(w, r, id)
+}
+
+func (a *AdminServer) versionsHandler(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	if id == "" || len(id) > 64 {
+		writeErr(w, 400, "invalid_id", "")
+		return
+	}
+	a.Versions(w, r, id)
+}
+
+// logRequests: slog access log. Never logs bodies — bodies carry secrets.
+func logRequests(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		start := time.Now()
+		rw := &statusWriter{ResponseWriter: w, status: 200}
+		next.ServeHTTP(rw, r)
+		slog.Info("http",
+			"method", r.Method,
+			"path", r.URL.Path, // path only — query may carry identifiers, values never
+			"status", rw.status,
+			"ms", time.Since(start).Milliseconds(),
+		)
+	})
+}
+
+type statusWriter struct {
+	http.ResponseWriter
+	status int
+}
+
+func (w *statusWriter) WriteHeader(code int) {
+	w.status = code
+	w.ResponseWriter.WriteHeader(code)
+}

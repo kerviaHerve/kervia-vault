@@ -38,6 +38,7 @@ type Secret struct {
 	VaultID   string    `json:"vault_id"`
 	VaultName string    `json:"vault_name,omitempty"`
 	Key       string    `json:"key"`
+	Template  string    `json:"template,omitempty"` // template key (null = free-form)
 	Value     string    `json:"value,omitempty"` // omitted in lists
 	Version   int       `json:"version"`
 	CreatedBy string    `json:"created_by"`

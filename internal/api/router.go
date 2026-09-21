@@ -22,6 +22,8 @@ func (s *Server) Router(authSvc *auth.Service, admin *AdminServer) http.Handler 
 	agentMux.HandleFunc("GET /v1/vaults", s.ListVaults)
 	agentMux.HandleFunc("GET /v1/secrets", s.ListSecrets)
 	agentMux.HandleFunc("POST /v1/secrets", s.CreateSecret)
+	agentMux.HandleFunc("GET /v1/templates", s.ListTemplates)
+	agentMux.HandleFunc("GET /v1/templates/{key}", s.GetTemplate)
 	agentMux.HandleFunc("GET /v1/secrets/{id}", s.getSecretHandler)
 	agentMux.HandleFunc("PATCH /v1/secrets/{id}", s.updateSecretHandler)
 	agentMux.HandleFunc("DELETE /v1/secrets/{id}", s.deleteSecretHandler)

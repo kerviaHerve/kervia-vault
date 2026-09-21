@@ -100,7 +100,7 @@ func TestSecretLifecycle(t *testing.T) {
 	s.CreateAgent("a1", "agent", "h", "p")
 
 	nonce, ct, _ := enc.Encrypt([]byte("password123"))
-	sec, err := s.CreateSecret("s1", "v1", "DB_PASS", nonce, ct, "sv1", "a1")
+	sec, err := s.CreateSecret("s1", "v1", "DB_PASS", "", nonce, ct, "sv1", "a1")
 	if err != nil {
 		t.Fatalf("CreateSecret: %v", err)
 	}
@@ -108,7 +108,7 @@ func TestSecretLifecycle(t *testing.T) {
 		t.Fatalf("version = %d", sec.Version)
 	}
 	// duplicate key conflicts
-	if _, err := s.CreateSecret("s2", "v1", "DB_PASS", nonce, ct, "sv2", "a1"); !errors.Is(err, ErrConflict) {
+	if _, err := s.CreateSecret("s2", "v1", "DB_PASS", "", nonce, ct, "sv2", "a1"); !errors.Is(err, ErrConflict) {
 		t.Fatalf("duplicate key accepted: %v", err)
 	}
 

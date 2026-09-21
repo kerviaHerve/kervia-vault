@@ -17,6 +17,7 @@ import (
 	"github.com/kerviaHerve/kervia-vault/internal/crypto"
 	"github.com/kerviaHerve/kervia-vault/internal/model"
 	"github.com/kerviaHerve/kervia-vault/internal/store"
+	"github.com/kerviaHerve/kervia-vault/internal/templates"
 )
 
 // Server carries the dependencies of all handlers.
@@ -132,21 +133,45 @@ func (s *Server) GetSecret(w http.ResponseWriter, r *http.Request, id string) {
 	}
 	_ = s.store.AppendAudit(agent.ID, model.AuditRead, "secret/"+id, "")
 	sec.Value = string(value)
+	// Templated secrets: the agent receives a structured OBJECT, not a JSON string.
+	if sec.Template != "" {
+		var obj map[string]any
+		if json.Unmarshal(value, &obj) == nil {
+			writeJSON(w, 200, map[string]any{
+				"id": sec.ID, "vault_id": sec.VaultID, "key": sec.Key,
+				"template": sec.Template, "version": sec.Version,
+				"created_by": sec.CreatedBy, "created_at": sec.CreatedAt,
+				"updated_at": sec.UpdatedAt, "values": obj,
+			})
+			return
+		}
+	}
 	writeJSON(w, 200, sec)
 }
 
 type createSecretReq struct {
-	Vault string `json:"vault"`
-	Key   string `json:"key"`
-	Value string `json:"value"`
+	Vault    string         `json:"vault"`
+	Key      string         `json:"key"`
+	Value    string         `json:"value,omitempty"`  // free-form value (no template)
+	Template string         `json:"template,omitempty"` // template key
+	Values   map[string]any `json:"values,omitempty"`   // template fields
 }
 
 // CreateSecret stores a new secret in a vault the agent can write.
+// Two forms are accepted:
+//   - free-form: {vault, key, value}
+//   - templated: {vault, key, template, values} — fields validated by the template
 func (s *Server) CreateSecret(w http.ResponseWriter, r *http.Request) {
 	agent, _ := auth.AgentFrom(r.Context())
 	var req createSecretReq
 	if err := jsonBody(r, &req); err != nil || req.Vault == "" || req.Key == "" {
-		writeErr(w, 400, "invalid_request", "fields vault, key, value are required")
+		writeErr(w, 400, "invalid_request", "fields vault and key are required")
+		return
+	}
+	// resolve the payload: free-form string or template-validated JSON
+	payload, templateKey, verr := resolveSecretPayload(req)
+	if verr != "" {
+		writeErr(w, 400, "invalid_template", verr)
 		return
 	}
 	vault, err := s.store.GetVaultByName(req.Vault)
@@ -160,12 +185,12 @@ func (s *Server) CreateSecret(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, 403, "forbidden", "")
 		return
 	}
-	nonce, ct, err := s.enc.Encrypt([]byte(req.Value))
+	nonce, ct, err := s.enc.Encrypt(payload)
 	if err != nil {
 		writeErr(w, 500, "internal", "")
 		return
 	}
-	sec, err := s.store.CreateSecret(uuid.NewString(), vault.ID, req.Key, nonce, ct, uuid.NewString(), agent.ID)
+	sec, err := s.store.CreateSecret(uuid.NewString(), vault.ID, req.Key, templateKey, nonce, ct, uuid.NewString(), agent.ID)
 	if err != nil {
 		if errors.Is(err, store.ErrConflict) {
 			writeErr(w, 409, "already_exists", "a secret with this key already exists in the vault")
@@ -265,4 +290,48 @@ func secretIDFromPath(p string) (string, bool) {
 		}
 	}
 	return id, true
+}
+
+// resolveSecretPayload normalizes the two creation forms into a single
+// encrypted payload + template key. Returns a validation error message if any.
+func resolveSecretPayload(req createSecretReq) ([]byte, string, string) {
+	if req.Template == "" {
+		if req.Value == "" {
+			return nil, "", "either 'value' (free-form) or 'template'+'values' is required"
+		}
+		return []byte(req.Value), "", ""
+	}
+	tpl, ok := templates.Get(req.Template)
+	if !ok {
+		return nil, "", "unknown template " + req.Template
+	}
+	if req.Values == nil {
+		return nil, "", "templated secrets require a 'values' object"
+	}
+	if errs := tpl.Validate(req.Values); len(errs) > 0 {
+		return nil, "", strings.Join(errs, "; ")
+	}
+	data, err := json.Marshal(req.Values)
+	if err != nil {
+		return nil, "", "values not serializable"
+	}
+	return data, req.Template, ""
+}
+
+
+// ListTemplates returns every credential template (metadata + fields).
+// Public to authenticated agents: structures are not secrets.
+func (s *Server) ListTemplates(w http.ResponseWriter, _ *http.Request) {
+	writeJSON(w, 200, templates.All())
+}
+
+// GetTemplate returns one template by key.
+func (s *Server) GetTemplate(w http.ResponseWriter, r *http.Request) {
+	key := r.PathValue("key")
+	tpl, ok := templates.Get(key)
+	if !ok {
+		writeErr(w, 404, "template_not_found", "")
+		return
+	}
+	writeJSON(w, 200, tpl)
 }

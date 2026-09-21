@@ -195,12 +195,17 @@ func (a *AdminServer) CreateSecret(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, 404, "vault_not_found", "")
 		return
 	}
-	nonce, ct, err := a.enc.Encrypt([]byte(req.Value))
+	payload, templateKey, verr := resolveSecretPayload(req)
+	if verr != "" {
+		writeErr(w, 400, "invalid_template", verr)
+		return
+	}
+	nonce, ct, err := a.enc.Encrypt(payload)
 	if err != nil {
 		writeErr(w, 500, "internal", "")
 		return
 	}
-	sec, err := a.store.CreateSecret(uuid.NewString(), vault.ID, req.Key, nonce, ct, uuid.NewString(), "admin")
+	sec, err := a.store.CreateSecret(uuid.NewString(), vault.ID, req.Key, templateKey, nonce, ct, uuid.NewString(), "admin")
 	if err != nil {
 		if errors.Is(err, store.ErrConflict) {
 			writeErr(w, 409, "already_exists", "")

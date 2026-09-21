@@ -169,7 +169,10 @@ func TestFullAgentLifecycle(t *testing.T) {
 	res := env.do("POST", "/v1/secrets",
 		map[string]string{"vault": "rita-vault", "key": "API_TOKEN", "value": "tok-123"}, ritaKey)
 	if res.StatusCode != 201 {
-		t.Fatalf("create secret: %d", res.StatusCode)
+		var e map[string]any
+		_ = json.NewDecoder(res.Body).Decode(&e)
+		res.Body.Close()
+		t.Fatalf("create secret: %d %v", res.StatusCode, e)
 	}
 	var created struct{ ID string `json:"id"` }
 	_ = json.NewDecoder(res.Body).Decode(&created)
@@ -286,3 +289,75 @@ func TestAuditTrail(t *testing.T) {
 }
 
 type testing2 = testing.T
+func TestTemplateSecretCreation(t *testing.T) {
+	env, ritaKey, _ := newTestEnv(t)
+
+	// templated creation — postgres
+	res := env.do("POST", "/v1/secrets", map[string]any{
+		"vault": "rita-vault", "key": "PROD_DB", "template": "postgres",
+		"values": map[string]any{
+			"host": "db.kervia.ch", "port": 5432, "database": "app",
+			"username": "app", "password": "s3cr3t", "sslmode": "require",
+		},
+	}, ritaKey)
+	if res.StatusCode != 201 {
+		var e map[string]any
+		_ = json.NewDecoder(res.Body).Decode(&e)
+		res.Body.Close()
+		t.Fatalf("templated create: %d %v", res.StatusCode, e)
+	}
+	var created struct{ ID string `json:"id"` }
+	_ = json.NewDecoder(res.Body).Decode(&created)
+	res.Body.Close()
+
+	// read back: value is the JSON object, template field set
+	res = env.do("GET", "/v1/secrets/"+created.ID, nil, ritaKey)
+	var got struct {
+		Template string         `json:"template"`
+		Values   map[string]any `json:"values"`
+	}
+	_ = json.NewDecoder(res.Body).Decode(&got)
+	res.Body.Close()
+	if got.Template != "postgres" {
+		t.Fatalf("template = %q", got.Template)
+	}
+	if got.Values["host"] != "db.kervia.ch" || got.Values["password"] != "s3cr3t" {
+		t.Fatalf("values = %v", got.Values)
+	}
+
+	// invalid: missing required field
+	res = env.do("POST", "/v1/secrets", map[string]any{
+		"vault": "rita-vault", "key": "BAD", "template": "postgres",
+		"values": map[string]any{"host": "x"},
+	}, ritaKey)
+	res.Body.Close()
+	if res.StatusCode != 400 {
+		t.Fatalf("invalid values accepted: %d", res.StatusCode)
+	}
+
+	// unknown template
+	res = env.do("POST", "/v1/secrets", map[string]any{
+		"vault": "rita-vault", "key": "BAD2", "template": "nope",
+		"values": map[string]any{"a": "b"},
+	}, ritaKey)
+	res.Body.Close()
+	if res.StatusCode != 400 {
+		t.Fatalf("unknown template accepted: %d", res.StatusCode)
+	}
+
+	// templates endpoints
+	res = env.do("GET", "/v1/templates", nil, ritaKey)
+	var tpls []map[string]any
+	_ = json.NewDecoder(res.Body).Decode(&tpls)
+	res.Body.Close()
+	if len(tpls) < 40 {
+		t.Fatalf("templates = %d", len(tpls))
+	}
+	res = env.do("GET", "/v1/templates/postgres", nil, ritaKey)
+	var tpl map[string]any
+	_ = json.NewDecoder(res.Body).Decode(&tpl)
+	res.Body.Close()
+	if tpl["key"] != "postgres" {
+		t.Fatal("template detail broken")
+	}
+}

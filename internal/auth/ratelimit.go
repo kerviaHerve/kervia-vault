@@ -46,3 +46,39 @@ func (rl *rateLimiter) allow(key string) bool {
 	b.tokens--
 	return true
 }
+
+// failLimiter rate-limits failed AUTHENTICATION attempts (global + per-source),
+// protecting the Argon2id verification from CPU-targeted brute force.
+// Failed attempts have no resolved agent, so the per-agent bucket cannot apply.
+type failLimiter struct {
+	mu      sync.Mutex
+	perMin  float64
+	buckets map[string]*bucket
+}
+
+func newFailLimiter(perMin int) *failLimiter {
+	return &failLimiter{perMin: float64(perMin), buckets: make(map[string]*bucket)}
+}
+
+// allow consumes one token for the given source (IP or "global").
+func (f *failLimiter) allow(source string) bool {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	now := time.Now()
+	b, ok := f.buckets[source]
+	if !ok {
+		b = &bucket{tokens: f.perMin, last: now}
+		f.buckets[source] = b
+	}
+	elapsed := now.Sub(b.last).Seconds()
+	b.tokens += elapsed * f.perMin / 60.0
+	if b.tokens > f.perMin {
+		b.tokens = f.perMin
+	}
+	b.last = now
+	if b.tokens < 1 {
+		return false
+	}
+	b.tokens--
+	return true
+}

@@ -127,12 +127,18 @@ Never log or echo secret values beyond what the task strictly requires.`
 // ---- agent resolution ----
 
 // agentFor resolves the calling agent from the tool context.
-// stdio: KERVIA_VAULT_API_KEY env; HTTP: injected by the auth middleware.
+//
+// HTTP transport: the auth middleware has ALREADY authenticated the Bearer
+// key and stored the agent in the context — we read that (no re-verification,
+// no env). The middleware guarantees: valid key, non-revoked, rate-limited.
+//
+// stdio transport (subprocess): no HTTP middleware exists, so the key comes
+// from the KERVIA_VAULT_API_KEY environment variable of the spawned process.
 func (d *Deps) agentFor(ctx context.Context) (*model.Agent, error) {
-	if a := ctx.Value(agentCtxKey{}); a != nil {
-		return a.(*model.Agent), nil
+	if a, ok := auth.AgentFrom(ctx); ok {
+		return a, nil
 	}
-	// stdio mode: key from env
+	// stdio mode: key from the process environment
 	key := strings.TrimSpace(getEnv("KERVIA_VAULT_API_KEY"))
 	if key == "" || !crypto.ValidateAPIKeyFormat(key) {
 		return nil, fmt.Errorf("no valid API key (set KERVIA_VAULT_API_KEY)")
@@ -143,9 +149,6 @@ func (d *Deps) agentFor(ctx context.Context) (*model.Agent, error) {
 	}
 	return a, nil
 }
-
-type agentCtxKey struct{}
-type apiKeyEnvCtxKey struct{}
 
 // ---- tools ----
 

@@ -36,12 +36,12 @@ func (a *AdminServer) Login(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, 400, "invalid_request", "")
 		return
 	}
-	if !a.authSvc.CheckAdmin(req.Password) {
+	sid := a.authSvc.LoginAdmin(r, req.Password)
+	if sid == "" {
 		_ = a.store.AppendAudit("admin", model.AuditLoginFail, "admin/login", "")
 		writeErr(w, 401, "invalid_credentials", "")
 		return
 	}
-	sid := a.authSvc.NewAdminSession()
 	http.SetCookie(w, &http.Cookie{
 		Name:     "av_session",
 		Value:    sid,

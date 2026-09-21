@@ -6,6 +6,7 @@ package auth
 import (
 	"context"
 	"errors"
+	"net"
 	"net/http"
 	"strings"
 	"sync"
@@ -22,6 +23,13 @@ type ctxKey int
 
 const agentKey ctxKey = 1
 
+// WithAgentInCtx stores an authenticated agent in the request context.
+// Exported so the MCP layer can read the middleware-resolved identity
+// on the HTTP transport (single source of truth — no env fallback there).
+func WithAgentInCtx(ctx context.Context, agent *model.Agent) context.Context {
+	return context.WithValue(ctx, agentKey, agent)
+}
+
 // ctxKeyAdmin marks an authenticated webui admin session.
 const adminKey ctxKey = 2
 
@@ -29,13 +37,35 @@ const adminKey ctxKey = 2
 type Service struct {
 	store     *store.Store
 	rate      *rateLimiter
+	failRate  *failLimiter
 	adminHash string // bcrypt
 	sessions  sync.Map // sessionID -> expiry
 }
 
 // New builds the auth service.
+// ratePerMin: per-agent bucket. Failed-auth attempts get a smaller,
+// stricter bucket (ratePerMin/6) — the Argon2id cost they trigger is high.
 func New(st *store.Store, adminHash string, ratePerMin int) *Service {
-	return &Service{store: st, adminHash: adminHash, rate: newRateLimiter(ratePerMin)}
+	failPerMin := ratePerMin / 6
+	if failPerMin < 5 {
+		failPerMin = 5
+	}
+	return &Service{
+		store: st, adminHash: adminHash,
+		rate:     newRateLimiter(ratePerMin),
+		failRate: newFailLimiter(failPerMin),
+	}
+}
+
+// clientIP extracts the best-effort source for failed-auth throttling.
+func clientIP(r *http.Request) string {
+	if r.RemoteAddr != "" {
+		if host, _, err := net.SplitHostPort(r.RemoteAddr); err == nil {
+			return host
+		}
+		return r.RemoteAddr
+	}
+	return "unknown"
 }
 
 // AgentFrom extracts the authenticated agent from a request context.
@@ -57,6 +87,10 @@ func (s *Service) Authenticate(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		key := bearer(r)
 		if key == "" || !crypto.ValidateAPIKeyFormat(key) {
+			if !s.failRate.allow(clientIP(r)) {
+				http.Error(w, `{"error":"rate_limited"}`, http.StatusTooManyRequests)
+				return
+			}
 			s.auditFail(r, "")
 			http.Error(w, `{"error":"unauthorized"}`, http.StatusUnauthorized)
 			return
@@ -81,6 +115,11 @@ func (s *Service) Authenticate(next http.Handler) http.Handler {
 			}
 		}
 		if agent == nil {
+			// failed verification ran Argon2id — throttle this source
+			if !s.failRate.allow(clientIP(r)) {
+				http.Error(w, `{"error":"rate_limited"}`, http.StatusTooManyRequests)
+				return
+			}
 			s.auditFail(r, prefix)
 			http.Error(w, `{"error":"unauthorized"}`, http.StatusUnauthorized)
 			return
@@ -115,6 +154,18 @@ func (s *Service) auditFail(_ *http.Request, prefix string) {
 // CheckAdmin validates the admin password (webui login).
 func (s *Service) CheckAdmin(password string) bool {
 	return bcrypt.CompareHashAndPassword([]byte(s.adminHash), []byte(password)) == nil
+}
+
+// LoginAdmin verifies the password with throttling (brute-force protection).
+// Returns the session id on success, "" on failure (audited by the caller).
+func (s *Service) LoginAdmin(r *http.Request, password string) string {
+	if !s.failRate.allow("admin:" + clientIP(r)) {
+		return ""
+	}
+	if !s.CheckAdmin(password) {
+		return ""
+	}
+	return s.NewAdminSession()
 }
 
 // NewAdminSession creates a webui session (crypto-random id, 12h expiry).

@@ -2,7 +2,7 @@ import * as React from 'react'
 import { createRoot } from 'react-dom/client'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Toaster, toast } from 'sonner'
-import { LayoutDashboard, Bot, Archive, KeyRound, Shield, ScrollText, Vault } from 'lucide-react'
+import { LayoutDashboard, Bot, Archive, KeyRound, Shield, ScrollText, Vault, Settings as SettingsIcon } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import '@/index.css'
 
@@ -12,6 +12,7 @@ import Vaults from '@/pages/vaults'
 import Secrets from '@/pages/secrets'
 import Grants from '@/pages/grants'
 import Audit from '@/pages/audit'
+import Settings from '@/pages/settings'
 import Login from '@/pages/login'
 
 const NAV = [
@@ -21,6 +22,7 @@ const NAV = [
   { id: 'secrets', label: 'Secrets', icon: KeyRound },
   { id: 'grants', label: 'Permissions', icon: Shield },
   { id: 'audit', label: 'Audit', icon: ScrollText },
+  { id: 'settings', label: 'Paramètres', icon: SettingsIcon },
 ] as const
 
 type PageId = (typeof NAV)[number]['id'] | 'login'
@@ -92,6 +94,7 @@ function App() {
               : page === 'secrets' ? <Secrets />
               : page === 'grants' ? <Grants />
               : page === 'audit' ? <Audit />
+              : page === 'settings' ? <Settings />
               : <Dashboard go={go} />}
           </motion.div>
         </AnimatePresence>

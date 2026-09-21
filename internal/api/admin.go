@@ -293,3 +293,34 @@ func intQuery(r *http.Request, name string, def int) int {
 
 var _ = json.Marshal // keep json imported (used via writeJSON)
 var _ = bcrypt.MinCost
+type changePasswordReq struct {
+	CurrentPassword string `json:"current_password"`
+	NewPassword     string `json:"new_password"`
+}
+
+// ChangePassword updates the admin bcrypt hash (persisted to a settings file
+// next to the DB — the env var stays the boot default).
+func (a *AdminServer) ChangePassword(w http.ResponseWriter, r *http.Request) {
+	var req changePasswordReq
+	if err := jsonBody(r, &req); err != nil || req.CurrentPassword == "" || req.NewPassword == "" {
+		writeErr(w, 400, "invalid_request", "current_password and new_password are required")
+		return
+	}
+	if len(req.NewPassword) < 12 {
+		writeErr(w, 400, "too_short", "le mot de passe doit faire au moins 12 caractères")
+		return
+	}
+	if !a.authSvc.CheckAdmin(req.CurrentPassword) {
+		_ = a.store.AppendAuditDetail("admin", model.AuditLoginFail, "admin/password-change", "bad current password",
+			store.RequestInfo{Source: "webui", IP: clientIP(r), UserAgent: ua(r), Method: r.Method, Status: 401, Path: "/admin/password"})
+		writeErr(w, 401, "invalid_credentials", "mot de passe actuel incorrect")
+		return
+	}
+	if err := a.authSvc.SetAdminPassword(req.NewPassword); err != nil {
+		writeErr(w, 500, "internal", "")
+		return
+	}
+	_ = a.store.AppendAuditDetail("admin", "password_change", "admin/password", "",
+		store.RequestInfo{Source: "webui", IP: clientIP(r), UserAgent: ua(r), Method: r.Method, Status: 200, Path: "/admin/password"})
+	writeJSON(w, 200, map[string]string{"status": "updated"})
+}

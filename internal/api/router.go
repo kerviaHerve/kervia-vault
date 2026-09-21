@@ -30,7 +30,7 @@ func (s *Server) Router(authSvc *auth.Service, admin *AdminServer, adminExtender
 	agentMux.HandleFunc("PATCH /v1/secrets/{id}", s.updateSecretHandler)
 	agentMux.HandleFunc("DELETE /v1/secrets/{id}", s.deleteSecretHandler)
 
-	mux.Handle("/v1/", authSvc.Authenticate(agentMux))
+	mux.Handle("/v1/", authSvc.Authenticate(s.AgentAudit(agentMux)))
 
 	// ---- admin API (session auth, except /admin/login) ----
 	adminMux := http.NewServeMux()
@@ -50,8 +50,8 @@ func (s *Server) Router(authSvc *auth.Service, admin *AdminServer, adminExtender
 	if adminExtender != nil {
 		adminExtender(adminMux)
 	}
-	mux.Handle("/admin/", authSvc.AdminMiddleware(adminMux))
-	mux.HandleFunc("POST /admin/login", admin.Login)
+	mux.Handle("/admin/", authSvc.AdminMiddleware(admin.AdminAudit(adminMux)))
+	mux.HandleFunc("POST /admin/login", admin.AdminAudit(http.HandlerFunc(admin.Login)))
 
 	return logRequests(mux)
 }

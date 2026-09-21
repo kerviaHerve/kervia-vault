@@ -22,11 +22,13 @@ func (s *Store) ListAudit(limit, offset int, agentFilter string) ([]*model.Audit
 	var rows interface{ Next() bool; Scan(...any) error; Err() error; Close() error }
 	var err error
 	if agentFilter != "" {
-		rows, err = s.db.Query(`SELECT id, ts, agent_id, action, resource, detail
+		rows, err = s.db.Query(`SELECT id, ts, agent_id, action, resource, detail,
+			COALESCE(source,''), COALESCE(ip,''), COALESCE(user_agent,''), COALESCE(method,''), COALESCE(status,0), COALESCE(path,'')
 			FROM audit_log WHERE agent_id = ? ORDER BY id DESC LIMIT ? OFFSET ?`,
 			agentFilter, limit, offset)
 	} else {
-		rows, err = s.db.Query(`SELECT id, ts, agent_id, action, resource, detail
+		rows, err = s.db.Query(`SELECT id, ts, agent_id, action, resource, detail,
+			COALESCE(source,''), COALESCE(ip,''), COALESCE(user_agent,''), COALESCE(method,''), COALESCE(status,0), COALESCE(path,'')
 			FROM audit_log ORDER BY id DESC LIMIT ? OFFSET ?`, limit, offset)
 	}
 	if err != nil {
@@ -37,7 +39,8 @@ func (s *Store) ListAudit(limit, offset int, agentFilter string) ([]*model.Audit
 	for rows.Next() {
 		var e model.AuditEntry
 		var ts string
-		if err := rows.Scan(&e.ID, &ts, &e.AgentID, &e.Action, &e.Resource, &e.Detail); err != nil {
+		if err := rows.Scan(&e.ID, &ts, &e.AgentID, &e.Action, &e.Resource, &e.Detail,
+			&e.Source, &e.IP, &e.UserAgent, &e.Method, &e.Status, &e.Path); err != nil {
 			return nil, err
 		}
 		e.TS, _ = parseTS(ts)

@@ -99,6 +99,11 @@ func Files() fs.FS {
 // AttachAdmin adds webui-specific admin endpoints (reveal, delete, templates)
 // to the guarded admin mux. These use the session auth like the rest of /admin.
 func (s *Server) AttachAdmin(adminMux *http.ServeMux) {
+	// settings info for the SPA settings page
+	adminMux.HandleFunc("GET /admin/settings", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"audit_retention_days": 90, "min_password_length": 12}`))
+	})
 	// templates readable by the admin session (the SPA creates templated secrets)
 	adminMux.HandleFunc("GET /admin/templates", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")

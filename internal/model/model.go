@@ -57,12 +57,18 @@ type SecretVersion struct {
 
 // AuditEntry is one line of the append-only audit trail.
 type AuditEntry struct {
-	ID      int64     `json:"id"`
-	TS      time.Time `json:"ts"`
-	AgentID string    `json:"agent_id"` // "admin" for webui actions
-	Action  string    `json:"action"`
-	Resource string   `json:"resource"`
-	Detail  string    `json:"detail,omitempty"`
+	ID        int64     `json:"id"`
+	TS        time.Time `json:"ts"`
+	AgentID   string    `json:"agent_id"` // "admin" for webui actions
+	Action    string    `json:"action"`
+	Resource  string    `json:"resource"`
+	Detail    string    `json:"detail,omitempty"`
+	Source    string    `json:"source,omitempty"`     // agent | webui | mcp
+	IP        string    `json:"ip,omitempty"`
+	UserAgent string    `json:"user_agent,omitempty"`
+	Method    string    `json:"method,omitempty"`
+	Status    int       `json:"status,omitempty"`
+	Path      string    `json:"path,omitempty"`
 }
 
 // Audit actions (constants — no free-form strings from callers).

@@ -6,7 +6,9 @@ package auth
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net"
+	"os"
 	"net/http"
 	"strings"
 	"sync"
@@ -225,4 +227,41 @@ func (s *Service) VerifyKey(key string) (*model.Agent, error) {
 		}
 	}
 	return nil, errors.New("auth: unknown or revoked key")
+}
+
+// adminHashPath is where the changed admin hash persists (next to the DB).
+// The env var remains the boot-time default; this file overrides it at boot.
+var adminHashPath string
+
+// SetAdminHashPath tells the service where to persist admin password changes.
+func (s *Service) SetHashPath(p string) { adminHashPath = p }
+
+// SetAdminPassword validates, hashes and swaps the admin password at runtime.
+func (s *Service) SetAdminPassword(newPassword string) error {
+	if len(newPassword) < 12 {
+		return errors.New("auth: password too short")
+	}
+	h, err := bcrypt.GenerateFromPassword([]byte(newPassword), 12)
+	if err != nil {
+		return err
+	}
+	s.adminHash = string(h)
+	if adminHashPath != "" {
+		// 0600 — credential material
+		if err := os.WriteFile(adminHashPath, h, 0o600); err != nil {
+			return fmt.Errorf("auth: persist hash: %w", err)
+		}
+	}
+	return nil
+}
+
+// LoadAdminHashOverride reads the persisted hash at boot (if any).
+func (s *Service) LoadAdminHashOverride() {
+	if adminHashPath == "" {
+		return
+	}
+	h, err := os.ReadFile(adminHashPath) // #nosec G304 -- fixed admin-controlled path (next to DB)
+	if err == nil && len(h) > 0 {
+		s.adminHash = string(h)
+	}
 }

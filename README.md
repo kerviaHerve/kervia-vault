@@ -57,17 +57,36 @@ Auth: `Authorization: Bearer av_<key>` — key is scoped to the granted vaults.
 Admin (`/admin/*`, session cookie from `POST /admin/login`): agents (create →
 key shown once), vaults, grants, secrets, versions, audit.
 
-## MCP
+## MCP (validated E2E — stdio + HTTP)
 
+Two transports, the same agent-scoped key:
+
+**stdio (OpenCode):**
 ```bash
-opencode mcp add kervia-vault --env KERVIA_VAULT_API_KEY=av_... \
-  -- kervia-vault --mcp-stdio
+opencode mcp add kervia-vault --global \
+  --env KERVIA_VAULT_API_KEY=av_... \
+  --env KERVIA_VAULT_MASTER_KEY=<64 hex> \
+  --env KERVIA_VAULT_ADMIN_HASH=<bcrypt> \
+  --env KERVIA_VAULT_DB=/opt/kervia-vault/data/kervia-vault.db \
+  -- /opt/kervia-vault/bin/kervia-vault --mcp-stdio
 ```
 
-Remote: streamable HTTP at `/mcp` (same Bearer auth as REST).
+**HTTP (Hermes — any machine on the mesh, no binary needed):**
+```yaml
+mcp_servers:
+  kervia-vault:
+    url: https://vault.kervia.ch/mcp
+    headers:
+      Authorization: "Bearer av_..."
+```
 
 Tools: `list_vaults` · `list_secrets` · `get_secret` · `create_secret` ·
 `update_secret` · `delete_secret` · `list_templates` · `whoami`.
+
+Scoping enforced per tool (defense in depth): grants re-verified on
+every operation; templated creates validated; templated reads return
+structured `values` objects. Skill for agents: `docs/skills/kervia-vault/`.
+Agent distribution kit: `kerviavault-agent-kit.zip` (binary + skill + guide).
 
 ## Security model
 

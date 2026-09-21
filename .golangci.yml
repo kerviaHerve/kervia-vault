@@ -1,0 +1,22 @@
+version: "2"
+run:
+  timeout: 5m
+linters:
+  enable:
+    - gosec          # SAST security
+    - errcheck       # erreurs jamais ignorées
+    - govet
+    - staticcheck
+    - unused
+    - ineffassign
+    - misspell
+    - revive
+  settings:
+    gosec:
+      severity: medium
+      confidence: medium
+      excludes:
+        - G304  # (fichier de config contrôlé par nous) — documenté
+  exclusions:
+    - path: _test\.go
+      linters: [errcheck]

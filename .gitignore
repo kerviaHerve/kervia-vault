@@ -1,0 +1,17 @@
+# Binaries
+kervia-vault
+kervia-vault-*
+dist/
+
+# Test artifacts
+*.test
+*.out
+coverage.*
+
+# Local env (NEVER commit)
+.env
+*.local.yaml
+
+# IDE
+.idea/
+.vscode/

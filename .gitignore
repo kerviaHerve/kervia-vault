@@ -1,6 +1,6 @@
 # Binaries
-kervia-vault
-kervia-vault-*
+/kervia-vault
+/kervia-vault-*
 dist/
 
 # Test artifacts

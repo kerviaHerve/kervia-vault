@@ -78,6 +78,8 @@ export const translations = {
     removeAccess: (n: string, v: string) => `Retirer l'accès de ${n} à « ${v} » ?`,
     // secrets
     secretsTitle: "Secrets",
+    search: "Rechercher…",
+    noResults: "Aucun résultat.",
     secretsSub: "Les valeurs ne s'affichent que sur clic.",
     newSecret: "Nouveau",
     freeValue: "— Valeur libre —",
@@ -206,6 +208,8 @@ export const translations = {
     chooseAgent: "— choose an agent —",
     removeAccess: (n: string, v: string) => `Remove ${n}'s access to « ${v} »?`,
     secretsTitle: "Secrets",
+    search: "Search…",
+    noResults: "No results.",
     secretsSub: "Values only show on click.",
     newSecret: "New",
     freeValue: "— Free-form value —",

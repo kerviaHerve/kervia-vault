@@ -1,6 +1,6 @@
 import * as React from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
-import { Plus, Copy, Eye, EyeOff, Trash2, KeyRound, LoaderCircle, Pencil } from 'lucide-react'
+import { Plus, Copy, Eye, EyeOff, Trash2, KeyRound, LoaderCircle, Pencil, Search, X } from 'lucide-react'
 import { toast } from 'sonner'
 import { useLang } from '@/i18n'
 import { api } from '@/lib/api'
@@ -33,6 +33,14 @@ export default function Secrets() {
     try { v = JSON.stringify(JSON.parse(v), null, 2) } catch {}
     setRevealed(r => ({ ...r, [id]: v }))
   }
+  const revealSearch = async (sr: any) => {
+    if (revealed[sr.id] !== undefined) { setRevealed(r => { const n = { ...r }; delete n[sr.id]; return n }); return }
+    const d = await api('GET', `/admin/secrets/reveal?id=${sr.id}`)
+    let v = d.value
+    try { v = JSON.stringify(JSON.parse(v), null, 2) } catch {}
+    setRevealed(r => ({ ...r, [sr.id]: v }))
+  }
+
   const del = async (id: string, key: string) => {
     if (!confirm(t.deleteConfirm(key))) return
     await api('POST', `/admin/secrets/${id}/delete`)
@@ -43,6 +51,24 @@ export default function Secrets() {
   const [editKey, setEditKey] = React.useState('')
   const [editVal, setEditVal] = React.useState('')
   const [editBusy, setEditBusy] = React.useState(false)
+  const [query, setQuery] = React.useState('')
+  const [searchResults, setSearchResults] = React.useState<any[] | null>(null
+  )
+  const searchTimer = React.useRef<any>(null)
+
+  const runSearch = (q: string) => {
+    if (searchTimer.current) clearTimeout(searchTimer.current)
+    if (!q.trim()) { setSearchResults(null); return }
+    searchTimer.current = setTimeout(async () => {
+      try {
+        const r = await api('GET', `/admin/secrets/search?q=${encodeURIComponent(q.trim())}`)
+        setSearchResults(Array.isArray(r) ? r : [])
+      } catch { setSearchResults([]) }
+    }, 200)
+  }
+  React.useEffect(() => { runSearch(query) }, [query])
+  const searching = query.trim() !== ''
+
   const openEdit = async (s: any) => {
     setEdit(s); setEditKey(s.key); setEditVal('')
     try {
@@ -80,7 +106,22 @@ export default function Secrets() {
           <h1 className="text-xl font-bold tracking-tight mb-1">Secrets</h1>
           <p className="text-sm text-fg-2">{String(t.secretsSub)}</p>
         </div>
-        <div className="flex gap-1.5">
+        <div className="flex gap-1.5 items-center">
+          <div className="relative">
+            <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-fg-3" />
+            <input
+              value={query}
+              onChange={e => setQuery(e.target.value)}
+              placeholder={String(t.search)}
+              className="h-9 w-48 bg-card border border-border rounded-lg pl-8 pr-7 text-sm text-fg placeholder:text-fg-3 focus:border-accent focus:outline-none"
+            />
+            {query && (
+              <button onClick={() => setQuery('')}
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-fg-3 hover:text-fg cursor-pointer">
+                <X size={13} />
+              </button>
+            )}
+          </div>
           {vaults.map(v => (
             <button key={v.id} onClick={() => setVault(v.name)}
               className={cn(
@@ -94,12 +135,53 @@ export default function Secrets() {
         </div>
       </div>
 
+      {searching ? (
+      <div className="bg-card border border-border rounded-xl overflow-hidden">
+        <div className="px-5 py-3 border-b border-border text-xs text-fg-2">
+          {searchResults?.length ?? 0} résultat{(searchResults?.length ?? 0) > 1 ? 's' : ''} pour « {query.trim()} » — tous vaults
+        </div>
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b border-border text-fg-3">
+              {[String(t.key), 'Vault', 'Type', String(t.value), 'Version', 'MàJ', ''].map((h, i) => (
+                <th key={i} className="px-5 py-3 text-left text-[11px] font-semibold uppercase tracking-wider">{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {(searchResults ?? []).map((sr: any) => (
+              <tr key={sr.id} className="border-b border-border/50 last:border-0 hover:bg-card-2/50 transition-colors">
+                <td className="px-5 py-3"><span className="font-semibold">{sr.key}</span></td>
+                <td className="px-5 py-3"><Badge variant="accent">{sr.vault_name}</Badge></td>
+                <td className="px-5 py-3"><Badge variant={sr.template ? 'neutral' : 'neutral'}>{sr.template || String(t.free)}</Badge></td>
+                <td className="px-5 py-3 max-w-72">
+                  {revealed[sr.id] !== undefined ? (
+                    <span className="font-mono text-xs whitespace-pre-wrap break-all">{revealed[sr.id]}</span>
+                  ) : (
+                    <Button variant="ghost" size="sm" onClick={() => revealSearch(sr)}>
+                      <Eye size={13} /> {String(t.reveal)}
+                    </Button>
+                  )}
+                </td>
+                <td className="px-5 py-3 text-xs text-fg-2">v{sr.version}</td>
+                <td className="px-5 py-3 text-xs text-fg-2">{fmtDateTime(sr.updated_at)}</td>
+                <td></td>
+              </tr>
+            ))}
+            {searchResults?.length === 0 && (
+              <tr><td colSpan={7} className="py-14 text-center text-fg-3">
+                <Search className="mx-auto mb-3 opacity-50" size={32} />{String(t.noResults)}</td></tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+      ) : (
       <div className="bg-card border border-border rounded-xl overflow-hidden">
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-border text-fg-3">
-              {[String(t.key), 'Type', String(t.value), 'Version', 'MàJ', ''].map(h => (
-                <th key={h} className="px-5 py-3 text-left text-[11px] font-semibold uppercase tracking-wider">{h}</th>
+              {[String(t.key), 'Type', String(t.value), 'Version', 'MàJ', ''].map((h, i) => (
+                <th key={i} className="px-5 py-3 text-left text-[11px] font-semibold uppercase tracking-wider">{h}</th>
               ))}
             </tr>
           </thead>
@@ -157,6 +239,7 @@ export default function Secrets() {
           </tbody>
         </table>
       </div>
+      )}
 
       {/* edit dialog */}
       <Dialog open={!!edit} onOpenChange={o => { if (!o) setEdit(null) }}>

@@ -104,6 +104,25 @@ func (s *Server) AttachAdmin(adminMux *http.ServeMux) {
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write([]byte(`{"audit_retention_days": 90, "min_password_length": 12}`))
 	})
+	// search across ALL vaults (metadata only)
+	adminMux.HandleFunc("GET /admin/secrets/search", func(w http.ResponseWriter, r *http.Request) {
+		q := r.URL.Query().Get("q")
+		if q == "" {
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte("[]"))
+			return
+		}
+		results, err := s.store.SearchSecretsByName(q, 100)
+		if err != nil {
+			http.Error(w, `{"error":"internal"}`, 500)
+			return
+		}
+		if results == nil {
+			results = []*model.Secret{}
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(results)
+	})
 	// templates readable by the admin session (the SPA creates templated secrets)
 	adminMux.HandleFunc("GET /admin/templates", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")

@@ -7,6 +7,9 @@ package store
 import (
 	"database/sql"
 	"errors"
+	"time"
+
+	"github.com/kerviaHerve/kervia-vault/internal/model"
 )
 
 // DeleteVault removes a vault and cascades (secrets, versions, grants).
@@ -76,4 +79,38 @@ func (s *Store) GetSecretByVaultAndKey(vaultID, key string) (string, error) {
 		return "", err
 	}
 	return id, nil
+}
+// SearchSecretsByName finds secrets whose key matches a pattern, across ALL
+// vaults. Returns metadata only (vault name included for display).
+func (s *Store) SearchSecretsByName(pattern string, limit int) ([]*model.Secret, error) {
+	if limit <= 0 || limit > 200 {
+		limit = 100
+	}
+	rows, err := s.db.Query(`
+		SELECT sec.id, sec.vault_id, sec.key, sec.template, sec.version,
+		       sec.created_by, sec.created_at, sec.updated_at, v.name
+		FROM secrets sec
+		JOIN vaults v ON v.id = sec.vault_id
+		WHERE sec.key LIKE '%' || ? || '%'
+		ORDER BY sec.key
+		LIMIT ?`, pattern, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []*model.Secret
+	for rows.Next() {
+		var sec model.Secret
+		var c, u string
+		var tmpl sql.NullString
+		if err := rows.Scan(&sec.ID, &sec.VaultID, &sec.Key, &tmpl, &sec.Version,
+			&sec.CreatedBy, &c, &u, &sec.VaultName); err != nil {
+			return nil, err
+		}
+		sec.Template = tmpl.String
+		sec.CreatedAt, _ = time.Parse(time.RFC3339Nano, c)
+		sec.UpdatedAt, _ = time.Parse(time.RFC3339Nano, u)
+		out = append(out, &sec)
+	}
+	return out, rows.Err()
 }

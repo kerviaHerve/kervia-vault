@@ -15,3 +15,7 @@ coverage.*
 # IDE
 .idea/
 .vscode/
+data/
+*.db
+*.db-wal
+*.db-shm

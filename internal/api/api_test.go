@@ -46,7 +46,7 @@ func newTestEnv(t *testing.T) (*testEnv, string, string) {
 	authSvc := auth.New(st, string(adminHash), 100000)
 	apiSrv := New(st, enc)
 	adminSrv := NewAdmin(st, enc, authSvc)
-	ts := httptest.NewServer(apiSrv.Router(authSvc, adminSrv))
+	ts := httptest.NewServer(apiSrv.Router(authSvc, adminSrv, nil))
 	t.Cleanup(ts.Close)
 
 	// create two vaults and two agents through the admin API

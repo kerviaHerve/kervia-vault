@@ -1,0 +1,54 @@
+{{define "layout.html"}}<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kervia-vault</title>
+<link rel="stylesheet" href="/ui/static/style.css">
+<script src="/ui/static/app.js"></script>
+<script>
+function toast(msg, kind) {
+  kind = kind || '';
+  var t = document.createElement('div');
+  t.className = 'toast ' + kind;
+  t.textContent = msg;
+  document.getElementById('toasts').appendChild(t);
+  setTimeout(function(){ t.remove(); }, 3500);
+}
+function closeModal() {
+  document.getElementById('modal').innerHTML = '';
+}
+function openModal(html) {
+  document.getElementById('modal').innerHTML =
+    '<div class="modal-backdrop" onclick="if(event.target===this)closeModal()"><div class="modal">' + html + '</div></div>';
+}
+function copyText(txt) {
+  navigator.clipboard.writeText(txt).then(function(){ toast('Copié', 'success'); });
+}
+</script>
+</head>
+<body>
+<div class="shell">
+  <aside>
+    <div class="brand">
+      <div class="brand-mark">🔐</div>
+      <div class="brand-name">Kervia-vault</div>
+    </div>
+    <nav>
+      <a href="/ui/" {{if eq .Active "dashboard"}}class="active"{{end}}><span class="icon">◧</span> Vue d'ensemble</a>
+      <a href="/ui/agents" {{if eq .Active "agents"}}class="active"{{end}}><span class="icon">◆</span> Agents</a>
+      <a href="/ui/vaults" {{if eq .Active "vaults"}}class="active"{{end}}><span class="icon">▤</span> Vaults</a>
+      <a href="/ui/secrets" {{if eq .Active "secrets"}}class="active"{{end}}><span class="icon">✦</span> Secrets</a>
+      <a href="/ui/grants" {{if eq .Active "grants"}}class="active"{{end}}><span class="icon">⇄</span> Permissions</a>
+      <a href="/ui/audit" {{if eq .Active "audit"}}class="active"{{end}}><span class="icon">≡</span> Audit</a>
+      <div class="meta">Kervia-vault v1.0 · AGPL-3.0<br>chiffré AES-256-GCM</div>
+    </nav>
+  </aside>
+  <main>
+    {{.Data}}
+  </main>
+</div>
+<div id="modal"></div>
+<div id="toasts"></div>
+</body>
+</html>{{end}}

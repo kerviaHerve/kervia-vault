@@ -13,7 +13,9 @@ import (
 )
 
 // Router builds the complete http.Handler.
-func (s *Server) Router(authSvc *auth.Service, admin *AdminServer) http.Handler {
+// adminExtender (optional) receives the guarded admin mux so extra
+// admin endpoints can be attached (webui reveal/delete).
+func (s *Server) Router(authSvc *auth.Service, admin *AdminServer, adminExtender func(*http.ServeMux)) http.Handler {
 	mux := http.NewServeMux()
 
 	// ---- agent API (API key auth) ----
@@ -45,6 +47,9 @@ func (s *Server) Router(authSvc *auth.Service, admin *AdminServer) http.Handler 
 	adminMux.HandleFunc("GET /admin/audit", admin.Audit)
 	adminMux.HandleFunc("GET /admin/versions/{id}", admin.versionsHandler)
 
+	if adminExtender != nil {
+		adminExtender(adminMux)
+	}
 	mux.Handle("/admin/", authSvc.AdminMiddleware(adminMux))
 	mux.HandleFunc("POST /admin/login", admin.Login)
 

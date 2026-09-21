@@ -29,6 +29,21 @@ func NewAdmin(st *store.Store, enc *crypto.Encryptor, authSvc *auth.Service) *Ad
 	return &AdminServer{store: st, enc: enc, authSvc: authSvc}
 }
 
+// Logout revokes the webui session (server-side + cookie).
+func (a *AdminServer) Logout(w http.ResponseWriter, r *http.Request) {
+	if c, err := r.Cookie("av_session"); err == nil {
+		a.authSvc.LogoutAdmin(c.Value)
+	}
+	http.SetCookie(w, &http.Cookie{
+		Name: "av_session", Value: "", Path: "/",
+		HttpOnly: true, Secure: true, SameSite: http.SameSiteStrictMode,
+		MaxAge: 0,
+	})
+	_ = a.store.AppendAuditDetail("admin", "logout", "admin/logout", "",
+		store.RequestInfo{Source: "webui", IP: clientIP(r), UserAgent: ua(r), Method: r.Method, Status: 200, Path: "/admin/logout"})
+	writeJSON(w, 200, map[string]string{"status": "ok"})
+}
+
 // Login handles POST /admin/login {password} → session cookie.
 func (a *AdminServer) Login(w http.ResponseWriter, r *http.Request) {
 	var req struct{ Password string `json:"password"` }

@@ -2,7 +2,7 @@ import * as React from 'react'
 import { createRoot } from 'react-dom/client'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Toaster, toast } from 'sonner'
-import { LayoutDashboard, Bot, Archive, KeyRound, Shield, ScrollText, Settings as SettingsIcon } from 'lucide-react'
+import { LayoutDashboard, Bot, Archive, KeyRound, Shield, ScrollText, LogOut, Settings as SettingsIcon } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import '@/index.css'
 import emblem from '@/assets/emblem-dark.png'
@@ -52,6 +52,11 @@ function App() {
   const go = (p: string) => { window.location.hash = p }
   const { t } = useLang()
 
+  const logout = async () => {
+    await fetch('/admin/logout', { method: 'POST', credentials: 'same-origin' })
+    setAuthed(false)
+  }
+
   // écran de login : PLEIN ÉCRAN, pas de sidebar ni de menus
   if (!authed) {
     return (
@@ -92,6 +97,13 @@ function App() {
         </nav>
         <div className="px-3 pb-2">
           <LangSwitch />
+          <button
+            onClick={logout}
+            className="flex items-center gap-2 px-3 h-8 mt-1.5 w-full rounded-lg text-[11px] font-bold cursor-pointer transition-colors border bg-card-2 border-border text-fg-2 hover:text-danger hover:border-danger/40"
+          >
+            <LogOut size={13} />
+            {String(t.logout)}
+          </button>
         </div>
         <div className="px-4 py-3 border-t border-border text-[10px] text-fg-3 leading-relaxed">
           Kervia-vault v1.0 · AGPL-3.0<br />{String(t.footer)}

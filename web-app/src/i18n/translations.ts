@@ -10,6 +10,7 @@ export const translations = {
     audit: "Audit",
     settings: "Paramètres",
     footer: "chiffré AES-256-GCM",
+    logout: "Déconnexion",
     // login
     loginTitle: "Coffre multi-agents",
     loginLabel: "Mot de passe administrateur",
@@ -142,6 +143,7 @@ export const translations = {
     audit: "Audit",
     settings: "Settings",
     footer: "encrypted AES-256-GCM",
+    logout: "Sign out",
     loginTitle: "Multi-agent vault",
     loginLabel: "Administrator password",
     loginBtn: "Sign in",

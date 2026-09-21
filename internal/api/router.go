@@ -55,6 +55,7 @@ func (s *Server) Router(authSvc *auth.Service, admin *AdminServer, adminExtender
 	}
 	mux.Handle("/admin/", authSvc.AdminMiddleware(admin.AdminAudit(adminMux)))
 	mux.Handle("POST /admin/login", admin.AdminAudit(http.HandlerFunc(admin.Login)))
+	mux.Handle("POST /admin/logout", http.HandlerFunc(admin.Logout))
 
 	return logRequests(mux)
 }

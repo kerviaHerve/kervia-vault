@@ -266,6 +266,14 @@ func (s *Service) SetAdminPassword(newPassword string) error {
 	return nil
 }
 
+
+// LogoutAdmin revokes a webui session server-side.
+func (s *Service) LogoutAdmin(sessionID string) {
+	if sessionID != "" {
+		s.sessions.Delete(sessionID)
+	}
+}
+
 // LoadAdminHashOverride reads the persisted hash at boot (if any).
 func (s *Service) LoadAdminHashOverride() {
 	if adminHashPath == "" {

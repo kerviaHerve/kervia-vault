@@ -5,6 +5,7 @@ package auth
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"strings"
 	"sync"
@@ -142,4 +143,27 @@ func (s *Service) AdminMiddleware(next http.Handler) http.Handler {
 		ctx := context.WithValue(r.Context(), adminKey, true)
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
+}
+
+// VerifyKey resolves an agent from a raw API key (MCP stdio path).
+// Same verification chain as the middleware, extracted for reuse.
+func (s *Service) VerifyKey(key string) (*model.Agent, error) {
+	if !crypto.ValidateAPIKeyFormat(key) {
+		return nil, errors.New("auth: invalid key format")
+	}
+	prefix := key[:11]
+	candidates, err := s.store.ListAgentsByKeyPrefix(prefix)
+	if err != nil {
+		return nil, err
+	}
+	for _, c := range candidates {
+		full, err := s.store.GetAgentForKeyVerify(c.ID)
+		if err != nil {
+			continue
+		}
+		if crypto.VerifyAPIKey(key, full) {
+			return c, nil
+		}
+	}
+	return nil, errors.New("auth: unknown or revoked key")
 }

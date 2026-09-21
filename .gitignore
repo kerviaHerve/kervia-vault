@@ -19,3 +19,4 @@ data/
 *.db
 *.db-wal
 *.db-shm
+web-app/node_modules/

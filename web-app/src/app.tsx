@@ -75,6 +75,21 @@ function App() {
     )
   }
 
+  // non authentifié : écran de login PLEIN ÉCRAN (pas de sidebar ni de menus)
+  if (!authed) {
+    return (
+      <>
+        <Login onLogin={() => { setAuthed(true); go('dashboard') }} />
+        <Toaster
+          position="bottom-right"
+          toastOptions={{
+            style: { background: '#1B2336', border: '1px solid #2E3A54', color: '#F8FAFC' },
+          }}
+        />
+      </>
+    )
+  }
+
   return (
     <div className="flex min-h-screen">
       {/* sidebar */}
@@ -117,7 +132,7 @@ function App() {
       <main className="flex-1 min-w-0 p-8">
         <AnimatePresence mode="wait">
           <motion.div
-            key={authed ? page : 'login'}
+            key={page}
             initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -4 }}

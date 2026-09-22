@@ -7,7 +7,24 @@ Ultra-fast multi-agent secrets vault. **One Go binary**: REST API + MCP server +
 - 51 credential templates (OpenAI, PostgreSQL, SMTP, Cloudflare, GitHub…)
 - Security by design — AGPL-3.0
 
-## Quick start
+## Quick start — installer (systemd, recommended)
+
+```bash
+sudo bash install.sh
+```
+
+Interactive installer: picks the bind address (NetBird/Tailscale VPN
+detected, public IPs warned), downloads the verified release binary
+(sha256), installs a hardened systemd service and opens the setup
+wizard at `http://<bind>/ui/` — language → terms → admin password →
+recovery codes → first agent (API key + ready-to-paste skill).
+
+Automated (no prompts): `KERVIA_VAULT_BIND=10.0.0.5 KERVIA_VAULT_PORT=8321 sudo -E bash install.sh`
+
+Updates: from the webui (Settings → Version → *Update now*) —
+self-update with sha256-verified releases, data untouched.
+
+## Quick start — Docker
 
 ```bash
 # generate the master key
@@ -114,4 +131,20 @@ Layout: `cmd/kervia-vault` · `internal/{crypto,store,auth,api,mcp,templates,web
 
 ## License
 
-AGPL-3.0 — see [LICENSE](LICENSE).
+AGPL-3.0-or-later — see [LICENSE](LICENSE) (full text).
+
+Copyright (C) 2026 kervia
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful, but
+WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
+Affero General Public License for more details.
+
+Binary releases: the corresponding source is this repository (the tag
+you downloaded). Build it with `cd web-app && npm ci && npx vite build`
+then `go build ./cmd/kervia-vault` — same commands the CI runs.

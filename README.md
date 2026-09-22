@@ -122,7 +122,8 @@ docker compose up -d
 
 ## REST API
 
-Auth: `Authorization: Bearer av_<key>` — key is scoped to the granted vaults.
+Auth: `Authorization: Bearer $AG_VAULT_API_KEY` (from a 0600 file / env var —
+never inline) — key is scoped to the granted vaults.
 
 | Method | Path | Description |
 |---|---|---|
@@ -159,7 +160,7 @@ mcp_servers:
   kervia-vault:
     url: https://your-kerviavault.example.com/mcp   # ← your instance's URL
     headers:
-      Authorization: "Bearer av_..."
+      Authorization: "Bearer ${AG_VAULT_API_KEY}"   # interpolation — never the raw key in a file
 ```
 
 Tools: `list_vaults` · `list_secrets` · `get_secret` · `create_secret` ·

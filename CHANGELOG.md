@@ -1,5 +1,20 @@
 # Changelog
 
+## v1.0.6 (2026-09-22)
+
+- **SECURITY: the generated skill never contains the API key anymore.**
+  The wizard's SKILL.md used to embed the live key in 9 places (YAML,
+  stdio, curl, OpenCode CLI+jsonc, Hermes prompt). A key inside a stored/
+  logged/shared file is a burned key. Now:
+  - the skill documents the connection (URLs, tools, rules) with
+    placeholders only (`Bearer ${MCP_AG_VAULT_API_KEY}` interpolation);
+  - install is out-of-band: the agent asks the user for the key via the
+    client's masked prompt (`hermes mcp add`), or a user-owned 0600 file;
+  - the key lives only in the one-time displayed screen + the .txt file
+    (with chmod 600 instructions), and the client's own store.
+- Generated skill + wizard hint + key file: bilingual FR/EN.
+- README/docs skill: interpolation-only examples (no `Bearer av_...`).
+
 ## v1.0.5 (2026-09-22)
 
 - README: technical ASCII architecture diagram + release badge.

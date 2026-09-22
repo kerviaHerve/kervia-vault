@@ -42,10 +42,10 @@ const T = {
     dlKey: "Télécharger la clé",
     dlSkill: "Télécharger le skill",
     skillHintT: "Que faire du skill ?",
-    skillHint: "Le SKILL.md contient la clé, les URLs de CETTE installation et les commandes d'installation MCP. Pose-le selon ton agent :",
+    skillHint: "Le SKILL.md contient les URLs de CETTE installation et les commandes d'installation MCP — mais AUCUNE clé (par sécurité : une clé dans un fichier est une clé compromise). Pose-le selon ton agent :",
     skillHintOC: "OpenCode : ~/.config/opencode/skills/kervia-vault/SKILL.md",
     skillHintH: "Hermes : ~/.hermes/skills/devops/kervia-vault/SKILL.md",
-    skillHintEnd: "Puis redémarre l'agent — le skill lui dira comment installer la connexion MCP.",
+    skillHintEnd: "L'agent demandera la clé (fichier .txt ci-dessus) au moment de l'installation — dans le prompt masqué du client, jamais dans un fichier.",
     finish: "Terminé",
     finishH: "Kervia-vault est prêt. Connectez-vous avec votre nouveau mot de passe.",
     goLogin: "Ouvrir Kervia-vault",
@@ -84,10 +84,10 @@ const T = {
     dlKey: "Download key",
     dlSkill: "Download skill",
     skillHintT: "What to do with the skill",
-    skillHint: "The SKILL.md holds the key, THIS installation's URLs and the MCP install commands. Drop it depending on your agent:",
+    skillHint: "The SKILL.md holds THIS installation's URLs and the MCP install commands — but NO key (by design: a key inside a file is a burned key). Drop it depending on your agent:",
     skillHintOC: "OpenCode: ~/.config/opencode/skills/kervia-vault/SKILL.md",
     skillHintH: "Hermes: ~/.hermes/skills/devops/kervia-vault/SKILL.md",
-    skillHintEnd: "Then restart the agent — the skill tells it how to install the MCP connection.",
+    skillHintEnd: "The agent will ask for the key (the .txt above) at install time — through the client's masked prompt, never stored in a file.",
     finish: "Done",
     finishH: "Kervia-vault is ready. Sign in with your new password.",
     goLogin: "Open Kervia-vault",
@@ -164,11 +164,44 @@ export default function Wizard({ onDone }: { onDone: () => void }) {
     'Chaque code réinitialise le mot de passe admin. Usage unique.',
     '', ...codes.map((c, i) => `${i + 1}. ${c}`)].join('\n') : ''
 
-  const keyText = agent ? [`Kervia-vault — CLÉ API AGENT "${agent.agent.name}"`, '='.repeat(30), '',
-    `API key (usage: Authorization: Bearer <key> ou KERVIA_VAULT_API_KEY):`, agent.api_key,
-    '', 'Ne partagez jamais cette clé. Elle ne sera plus jamais affichée.'].join('\n') : ''
+  const K = {
+    fr: {
+      title: (n: string) => `Kervia-vault — CLÉ API AGENT "${n}"`,
+      intro: `API key:`,
+      store: [
+        'STOCKAGE SÉCURISÉ (ce fichier est le SEUL endroit où la clé doit',
+        'vivre — ne la recopiez ni dans un skill, ni dans un chat, ni dans',
+        'un config, ni dans une commande en ligne):',
+        '  chmod 600 ce-fichier  # ou rangez-la dans le magasin de votre',
+        '                        # client (~/.hermes/.env, keychain…)',
+        "  Les skills/docs n'embarquent JAMAIS la clé: les installateurs",
+        '  la demandent au moment voulu (prompt masqué ou fichier 0600).',
+      ],
+      warn: 'Ne partagez jamais cette clé. Elle ne sera plus jamais affichée.',
+      lost: 'Perdue ou exposée ? Révoquez-la dans la webui et créez-en une neuve.',
+    },
+    en: {
+      title: (n: string) => `Kervia-vault — API KEY FOR AGENT "${n}"`,
+      intro: `API key:`,
+      store: [
+        'SECURE STORAGE (this file is the ONLY place the key should live',
+        '— never copy it into a skill, a chat, a config file, or a',
+        'command line):',
+        '  chmod 600 this-file  # or store it in your client\'s own',
+        '                       # vault (~/.hermes/.env, keychain…)',
+        '  Skills/docs NEVER embed the key: installers ask for it at',
+        '  the right moment (masked prompt or a 0600 file).',
+      ],
+      warn: 'Never share this key. It will never be shown again.',
+      lost: 'Lost or exposed? Revoke it in the webui and create a new one.',
+    },
+  }
+  const k = K[lang] || K.fr
+  const keyText = agent ? [k.title(agent.agent.name), '='.repeat(30), '',
+    k.intro, agent.api_key, '', ...k.store,
+    '', k.warn, k.lost].join('\n') : ''
 
-  const skillText = agent ? skillFor(agent.agent.name, agent.api_key, window.location.origin) : ''
+  const skillText = agent ? skillFor(agent.agent.name, window.location.origin) : ''
 
   const progress = { 1: '1/5', 2: '2/5', 3: '3/5', 4: '4/5', 5: '5/5' } as const
 
@@ -345,90 +378,94 @@ export default function Wizard({ onDone }: { onDone: () => void }) {
   )
 }
 
-// Skill generator (usage + connection, NO master key inside).
-// origin: where the user is RIGHT NOW (window.location.origin) — the skill
-// is ready to paste, no <host>:<port> placeholders to fill.
-function skillFor(agentName: string, apiKey: string, origin: string): string {
+// Skill generator — NO SECRETS INSIDE (security rule): the key is
+// provided by the USER out-of-band (masked prompt of the client, or a
+// 0600 file they own), NEVER embedded in the skill. A skill file gets
+// stored, attached to chats, logged — any key inside is burned.
+// origin: where the user is RIGHT NOW (window.location.origin).
+function skillFor(agentName: string, origin: string): string {
   return `---
 name: kervia-vault
-description: Read and write credentials in Kervia-vault — the kervia multi-agent secrets vault. Use when a task needs an API key, password, token, or any credential, when storing/rotating a shared credential, or when the user mentions "vault", "secret", or a credential by name.
+description: Read and write credentials in Kervia-vault — the multi-agent secrets vault. Use when a task needs an API key, password, token, or any credential, when storing/rotating a shared credential, or when the user mentions "vault", "secret", or a credential by name.
 version: 1.0.0
 ---
 
-# Kervia-vault — Credentials for AI agents (${agentName})
+# Kervia-vault — Credentials for AI agents
 
-You are authenticated as agent "${agentName}". You can ONLY access the
-vaults granted to you. Never echo a secret value unless the task requires it.
+This skill contains NO secret. The API key is provided by the user at
+install time, out-of-band (masked prompt or their own 0600 file).
+You are authenticated as the agent whose key the user provides — call
+whoami to see your REAL identity and scope. Never assume the agent name.
 
-## How to connect (choose ONE)
+## Connection
 
-### Option A — MCP over HTTP (simplest, no binary needed)
-\`\`\`yaml
-mcp_servers:
-  kervia-vault:
-    url: ${origin}/mcp
-    headers:
-      Authorization: "Bearer ${apiKey}"
-\`\`\`
-
-### Option B — MCP stdio (local binary)
-\`\`\`bash
-KERVIA_VAULT_API_KEY=${apiKey} ./kervia-vault --mcp-stdio
-\`\`\`
-
-### Option C — REST fallback
-\`\`\`bash
-curl -H "Authorization: Bearer ${apiKey}" ${origin}/v1/whoami
-curl -H "Authorization: Bearer ${apiKey}" "${origin}/v1/secrets?vault=<name>"
-curl -X POST -H "Authorization: Bearer ${apiKey}" -H "Content-Type: application/json" \\
-  ${origin}/v1/secrets \\
-  -d '{"vault":"<name>","key":"NEW_KEY","value":"..."}'
-\`\`\`
+Server: kervia-vault — MCP over HTTP at ${origin}/mcp
 
 ## Tools
 whoami · list_vaults · list_secrets · get_secret · create_secret ·
 update_secret · delete_secret · list_templates
 
-## Installation (MCP connection setup)
+## Usage rules
+1. Start with whoami (your real identity + vaults granted to you),
+   then list_secrets (metadata only — never values).
+2. You can ONLY access the vaults granted to your key. Do not guess
+   vault names or ids.
+3. ALWAYS prefer templated secrets (list_templates shows ~58 structures:
+   openai, postgres, smtp, cloudflare, github…). Required fields are
+   enforced.
+4. update_secret creates a new version (history preserved). Rotation:
+   generate a new strong value, update, then update the consumer.
+5. "forbidden" = you lack the right (RO vault or not your vault).
+   Report to the user; do NOT retry.
+6. Never log or echo secret values beyond task requirements.
 
-The vault is NOT yet wired into your MCP clients. To install it:
+## Installation (one-time)
 
-**OpenCode** — run this once (any machine that can reach ${origin}):
-\`\`\`bash
-opencode mcp add kervia-vault --global --url ${origin}/mcp --header "Authorization=Bearer ${apiKey}"
-\`\`\`
-or add to ~/.config/opencode/opencode.jsonc:
-\`\`\`json
-{ "mcp": { "kervia-vault": { "type": "url", "url": "${origin}/mcp",
-  "headers": { "Authorization": "Bearer ${apiKey}" } } } }
-\`\`\`
+Ask the user for the API key when running these. The key comes from the
+Kervia-vault webui (Agents → created once at setup, or ask the admin).
+NEVER store the key in this skill, a gist, a markdown, or any
+world-readable file. If a key appears in a document: it is burned —
+tell the user to revoke and issue a new one.
 
-**Hermes Agent** — run this once, paste the API key when prompted
-(it is stored in ~/.hermes/.env, not in config.yaml):
+**Hermes Agent** — the CLI prompts for the token (masked, stored in
+~/.hermes/.env with 0600 perms, referenced via \${ } interpolation only):
 \`\`\`bash
 hermes mcp add kervia-vault --url ${origin}/mcp --auth header
-# → "API key / Bearer token:" → paste: ${apiKey}
+# when prompted "API key / Bearer token": the user pastes the key
+# (the prompt is masked — the key never lands in a file or history)
 \`\`\`
-or add the block to ~/.hermes/config.yaml:
+config.yaml equivalent (interpolation ONLY — never the raw value):
 \`\`\`yaml
 mcp_servers:
   kervia-vault:
     url: ${origin}/mcp
     headers:
-      Authorization: "Bearer ${apiKey}"
+      Authorization: "Bearer \${MCP_AG_VAULT_API_KEY}"
 \`\`\`
-then reload with /reload-mcp (chat) or restart.
+Note: tools from a newly added MCP usually appear in a NEW session,
+not the current one. /reload-mcp is not always enough — start a fresh
+conversation to see the kervia-vault tools.
 
-After install, restart the client, then call whoami to confirm access.
-If connection fails: check you can reach ${origin} (VPN/mesh), and that
-the key is still active (revocation kills it instantly).
+**OpenCode** — use the client's own secret mechanism (the key is
+provided by the user, typed into the prompt or their keychain):
+\`\`\`bash
+opencode mcp add kervia-vault --global --url ${origin}/mcp \
+  --header "Authorization=Bearer \$AG_VAULT_API_KEY"
+\`\`\`
+(the user may export AG_VAULT_API_KEY in their shell rc first — env
+vars stay out of files that get committed)
 
-## Rules
-1. Start with whoami + list_secrets to see your scope.
-2. ALWAYS prefer templated secrets (list_templates shows 58 structures:
-   openai, postgres, smtp, cloudflare, github…).
-3. update_secret creates a new version (history preserved).
-4. "forbidden" = you lack the right; report, don't retry.
-5. Never log or echo secret values beyond task requirements.
+**REST fallback** — read the key from a 0600 file the USER owns:
+\`\`\`bash
+KEY=$(cat ~/.config/kervia-vault/key)   # file created by the user, chmod 600
+curl -H "Authorization: Bearer \$KEY" ${origin}/v1/whoami
+curl -H "Authorization: Bearer \$KEY" "${origin}/v1/secrets?vault=<name>"
+\`\`\`
+Never put the key inline in a command (shell history + argv are logged).
+
+## After install
+Call whoami to confirm: your identity + granted vaults. If it fails:
+check you can reach ${origin} (VPN/mesh), and that the key is still
+active — revocation is instant.
 `
 }

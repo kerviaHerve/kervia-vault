@@ -63,6 +63,12 @@ a single ~15 MB static executable:
 
 ## Install — one command (Linux, systemd)
 
+> **Platforms**: Linux (amd64/arm64) is fully supported — installer,
+> systemd service, self-update. **macOS support is coming** — the code
+> base is fully portable (pure Go, no CGO) and compiles for darwin
+> out of the box; what's missing is the launchd installer/service.
+> Docker works on any platform.
+
 ```bash
 sudo bash install.sh
 ```

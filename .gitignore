@@ -20,3 +20,4 @@ data/
 *.db-wal
 *.db-shm
 web-app/node_modules/
+bin/

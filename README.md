@@ -1,30 +1,58 @@
-# Kervia-vault
+<p align="center">
+  <img src="docs/logo.png" alt="Kervia-vault" width="420">
+</p>
 
-Ultra-fast multi-agent secrets vault. **One Go binary**: REST API + MCP server + embedded WebUI.
+<h3 align="center">Ultra-fast multi-agent secrets vault</h3>
+
+<p align="center">
+  <b>One Go binary</b> · REST API + MCP server + embedded WebUI
+</p>
+
+<p align="center">
+  <a href="https://github.com/kerviaHerve/kervia-vault/releases"><img src="https://img.shields.io/badge/release-v1.0.1-22C55E" alt="release"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0-blue" alt="license"></a>
+  <img src="https://img.shields.io/badge/Go-1.27-00ADD8?logo=go" alt="Go">
+  <img src="https://img.shields.io/badge/SQLite-embedded-003B57?logo=sqlite" alt="SQLite">
+  <img src="https://img.shields.io/badge/crypto-AES--256--GCM-orange" alt="AES-256-GCM">
+</p>
+
+---
 
 - SQLite embedded (pure Go, no CGO), AES-256-GCM at rest
 - Per-agent API keys (Argon2id), per-vault grants, immutable versioning, append-only audit
 - 51 credential templates (OpenAI, PostgreSQL, SMTP, Cloudflare, GitHub…)
+- **Self-update** from the webui — sha256-verified releases, data untouched
 - Security by design — AGPL-3.0
 
-## Quick start — installer (systemd, recommended)
+## Install — one command (Linux, systemd)
 
 ```bash
 sudo bash install.sh
 ```
 
-Interactive installer: picks the bind address (NetBird/Tailscale VPN
-detected, public IPs warned), downloads the verified release binary
-(sha256), installs a hardened systemd service and opens the setup
-wizard at `http://<bind>/ui/` — language → terms → admin password →
-recovery codes → first agent (API key + ready-to-paste skill).
+That's it. The installer:
 
-Automated (no prompts): `KERVIA_VAULT_BIND=10.0.0.5 KERVIA_VAULT_PORT=8321 sudo -E bash install.sh`
+1. **Asks where to bind** — detects your addresses, highlights VPN ones
+   (NetBird/Tailscale), warns in red before any public-IP exposure
+2. **Downloads the release binary** from GitHub and verifies its **sha256**
+3. Installs a **hardened systemd service** (dedicated user,
+   `ProtectSystem=strict`, no root)
+4. Opens the **setup wizard** at `http://<bind>:8321/ui/` — pick your
+   language → accept the terms → set the admin password → download your
+   recovery codes → create your first agent (its API key + a
+   ready-to-paste skill for OpenCode/Hermes)
 
-Updates: from the webui (Settings → Version → *Update now*) —
-self-update with sha256-verified releases, data untouched.
+Automated, no prompts:
 
-## Quick start — Docker
+```bash
+KERVIA_VAULT_BIND=10.0.0.5 KERVIA_VAULT_PORT=8321 sudo -E bash install.sh
+```
+
+Updates: **Settings → Version → Update now** in the webui. The service
+downloads the newer release, verifies it, swaps itself and restarts —
+your vaults and secrets are never touched.
+
+## Install — Docker alternative
 
 ```bash
 # generate the master key

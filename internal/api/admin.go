@@ -9,6 +9,7 @@ import (
 	"errors"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
@@ -21,9 +22,9 @@ import (
 
 // AdminServer serves the session-guarded admin API (webui backend).
 type AdminServer struct {
-	store    *store.Store
-	enc      *crypto.Encryptor
-	authSvc  *auth.Service
+	store   *store.Store
+	enc     *crypto.Encryptor
+	authSvc *auth.Service
 }
 
 // NewAdmin builds the admin API server.
@@ -36,19 +37,37 @@ func (a *AdminServer) Logout(w http.ResponseWriter, r *http.Request) {
 	if c, err := r.Cookie("av_session"); err == nil {
 		a.authSvc.LogoutAdmin(c.Value)
 	}
-	http.SetCookie(w, &http.Cookie{
-		Name: "av_session", Value: "", Path: "/",
-		HttpOnly: true, Secure: true, SameSite: http.SameSiteStrictMode,
-		MaxAge: 0,
-	})
+	http.SetCookie(w, sessionCookie("", r, 0))
 	_ = a.store.AppendAuditDetail("admin", "logout", "admin/logout", "",
 		store.RequestInfo{Source: "webui", IP: clientIP(r), UserAgent: ua(r), Method: r.Method, Status: 200, Path: "/admin/logout"})
 	writeJSON(w, 200, map[string]string{"status": "ok"})
 }
 
+// sessionCookie builds the admin session cookie. Secure is set when the
+// request is HTTPS (direct TLS or behind the reverse proxy via
+// X-Forwarded-Proto) so the browser keeps it in production; a plain-HTTP
+// first-boot wizard on a LAN/VPN IP still works (browsers reject Secure
+// cookies over non-localhost HTTP).
+// G124 false-positive: Secure is dynamic (HTTPS→true), HttpOnly and
+// SameSite=Strict are always set.
+func sessionCookie(value string, r *http.Request, maxAge int) *http.Cookie {
+	secure := r.TLS != nil || strings.EqualFold(r.Header.Get("X-Forwarded-Proto"), "https")
+	return &http.Cookie{ // #nosec G124 -- Secure is dynamic, set on HTTPS requests
+		Name:     "av_session",
+		Value:    value,
+		Path:     "/",
+		HttpOnly: true,
+		Secure:   secure,
+		SameSite: http.SameSiteStrictMode,
+		MaxAge:   maxAge,
+	}
+}
+
 // Login handles POST /admin/login {password} → session cookie.
 func (a *AdminServer) Login(w http.ResponseWriter, r *http.Request) {
-	var req struct{ Password string `json:"password"` }
+	var req struct {
+		Password string `json:"password"`
+	}
 	if err := jsonBody(r, &req); err != nil || req.Password == "" {
 		writeErr(w, 400, "invalid_request", "")
 		return
@@ -59,22 +78,16 @@ func (a *AdminServer) Login(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, 401, "invalid_credentials", "")
 		return
 	}
-	http.SetCookie(w, &http.Cookie{
-		Name:     "av_session",
-		Value:    sid,
-		Path:     "/",
-		HttpOnly: true,
-		Secure:   true,
-		SameSite: http.SameSiteStrictMode,
-		MaxAge:   12 * 3600,
-	})
+	http.SetCookie(w, sessionCookie(sid, r, 12*3600))
 	_ = a.store.AppendAudit("admin", "login", "admin/login", "")
 	writeJSON(w, 200, map[string]string{"status": "ok"})
 }
 
 // CreateAgent creates an agent and returns the API key ONCE.
 func (a *AdminServer) CreateAgent(w http.ResponseWriter, r *http.Request) {
-	var req struct{ Name string `json:"name"` }
+	var req struct {
+		Name string `json:"name"`
+	}
 	if err := jsonBody(r, &req); err != nil || req.Name == "" || len(req.Name) > 64 {
 		writeErr(w, 400, "invalid_request", "")
 		return
@@ -96,7 +109,7 @@ func (a *AdminServer) CreateAgent(w http.ResponseWriter, r *http.Request) {
 	_ = a.store.AppendAudit("admin", model.AuditAgentCreate, "agent/"+req.Name, "")
 	// The key is returned exactly once and never stored in plaintext.
 	writeJSON(w, 201, map[string]any{
-		"agent": agent,
+		"agent":   agent,
 		"api_key": full,
 		"warning": "store this key now — it will never be shown again",
 	})
@@ -128,7 +141,9 @@ func (a *AdminServer) RevokeAgent(w http.ResponseWriter, _ *http.Request, id str
 
 // CreateVault creates a vault.
 func (a *AdminServer) CreateVault(w http.ResponseWriter, r *http.Request) {
-	var req struct{ Name string `json:"name"` }
+	var req struct {
+		Name string `json:"name"`
+	}
 	if err := jsonBody(r, &req); err != nil || req.Name == "" || len(req.Name) > 64 {
 		writeErr(w, 400, "invalid_request", "")
 		return
@@ -310,6 +325,7 @@ func intQuery(r *http.Request, name string, def int) int {
 
 var _ = json.Marshal // keep json imported (used via writeJSON)
 var _ = bcrypt.MinCost
+
 type changePasswordReq struct {
 	CurrentPassword string `json:"current_password"`
 	NewPassword     string `json:"new_password"`
@@ -470,8 +486,8 @@ func (a *AdminServer) RevokeGrant(w http.ResponseWriter, r *http.Request) {
 // ---- recovery codes ----
 
 type recoveryGenerateReq struct {
-	CurrentPassword string `json:"current_password"`
-	IncludeMasterKey bool  `json:"include_master_key,omitempty"`
+	CurrentPassword  string `json:"current_password"`
+	IncludeMasterKey bool   `json:"include_master_key,omitempty"`
 }
 
 // RecoveryGenerate regenerates the one-time recovery codes (requires the
@@ -489,9 +505,9 @@ func (a *AdminServer) RecoveryGenerate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	resp := map[string]any{
-		"codes":         codes,
-		"remaining":     len(codes),
-		"warning":       "These codes are shown ONCE. Store them securely. Each code works once to reset the admin password.",
+		"codes":     codes,
+		"remaining": len(codes),
+		"warning":   "These codes are shown ONCE. Store them securely. Each code works once to reset the admin password.",
 	}
 	_ = a.store.AppendAuditDetail("admin", "recovery_generate", "admin/recovery", "",
 		store.RequestInfo{Source: "webui", IP: clientIP(r), UserAgent: ua(r), Method: r.Method, Status: 200, Path: "/admin/recovery/generate"})

@@ -161,18 +161,23 @@ download_binary() {
 # ─────────────────────────────── systemd ───────────────────────────────
 install_service() {
   MASTER_KEY=$(openssl rand -hex 32)
-  mkdir -p "$DATA_DIR"
+  mkdir -p "$DATA_DIR" "$DATA_DIR/bin"
   chmod 700 "$DATA_DIR"
   # utilisateur système dédié — le service n'a pas besoin de root (port >1024,
   # seul DATA_DIR est écrit)
   if ! id -u "$SERVICE_USER" >/dev/null 2>&1; then
     useradd --system --home-dir "$DATA_DIR" --shell /usr/sbin/nologin "$SERVICE_USER"
   fi
-  chown "$SERVICE_USER:$SERVICE_USER" "$DATA_DIR"
+  chown -R "$SERVICE_USER:$SERVICE_USER" "$DATA_DIR"
+  # le binaire vit dans le StateDirectory (la self-update peut écrire SON
+  # propre binaire) — /usr/local/bin ne garde qu'un symlink root-owned
+  mv "$INSTALL_DIR/$BIN_NAME" "$DATA_DIR/bin/$BIN_NAME"
+  chown "$SERVICE_USER:$SERVICE_USER" "$DATA_DIR/bin/$BIN_NAME"
+  ln -sfn "$DATA_DIR/bin/$BIN_NAME" "$INSTALL_DIR/$BIN_NAME"
   # hash placeholder PUBLIC pour le premier boot — le wizard le remplace au
   # premier lancement (mode first-boot: /setup/init n'est ouvert que si le
   # hash effectif est encore ce placeholder)
-  ADMIN_HASH=$("$INSTALL_DIR/$BIN_NAME" hashpw "$PLACEHOLDER")
+  ADMIN_HASH=$("$DATA_DIR/bin/$BIN_NAME" hashpw "$PLACEHOLDER")
   cat > "/etc/systemd/system/${SERVICE}.service" << EOF
 [Unit]
 Description=Kervia-vault — multi-agent secrets vault
@@ -185,8 +190,10 @@ Environment=KERVIA_VAULT_MASTER_KEY=${MASTER_KEY}
 Environment=KERVIA_VAULT_ADMIN_HASH=${ADMIN_HASH}
 Environment=KERVIA_VAULT_LISTEN=${BIND_IP}:${PORT}
 Environment=KERVIA_VAULT_DB=${DATA_DIR}/kervia-vault.db
-ExecStart=${INSTALL_DIR}/${BIN_NAME}
-Restart=on-failure
+ExecStart=${DATA_DIR}/bin/${BIN_NAME}
+# always (pas on-failure): la self-update quitte proprement (exit 0) et
+# systemd relance le NOUVEAU binaire
+Restart=always
 RestartSec=3
 NoNewPrivileges=true
 PrivateTmp=true

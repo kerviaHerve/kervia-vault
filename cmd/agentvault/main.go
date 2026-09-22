@@ -17,6 +17,7 @@ import (
 	"github.com/kerviaHerve/kervia-vault/internal/crypto"
 	agmcp "github.com/kerviaHerve/kervia-vault/internal/mcp"
 	"github.com/kerviaHerve/kervia-vault/internal/store"
+	agupdate "github.com/kerviaHerve/kervia-vault/internal/update"
 	agweb "github.com/kerviaHerve/kervia-vault/internal/web"
 	"golang.org/x/crypto/bcrypt"
 )
@@ -30,6 +31,9 @@ func main() {
 		switch os.Args[1] {
 		case "--mcp-stdio":
 			runMCPStdio()
+			return
+		case "--version", "-v", "version":
+			fmt.Println(version)
 			return
 		case "hashpw":
 			// helper: bcrypt a password from stdin/argv for KERVIA_VAULT_ADMIN_HASH
@@ -76,6 +80,9 @@ func main() {
 	defer func() { close(retentionStop) }()
 	apiServer := api.New(st, enc)
 	adminServer := api.NewAdmin(st, enc, authSvc)
+	// self-update manager (Settings → version + update button)
+	updateMgr := agupdate.New(version)
+	updateSrv := api.NewUpdateServer(updateMgr, st)
 
 	webSrv := agweb.New(st, authSvc, enc)
 	// setup wizard manager (first-boot /setup/init is public pre-flag)
@@ -106,6 +113,7 @@ func main() {
 		m.HandleFunc("POST /admin/password", adminServer.ChangePassword)
 		m.HandleFunc("POST /admin/recovery/generate", adminServer.RecoveryGenerate)
 		m.HandleFunc("GET /admin/recovery/status", adminServer.RecoveryStatus)
+		updateSrv.Mount(m)
 		webSrv.AttachAdmin(m)
 	})
 	// MCP over streamable HTTP, behind the same agent-key auth as /v1

@@ -1,6 +1,6 @@
 import * as React from 'react'
 import { motion } from 'framer-motion'
-import { KeyRound, ShieldCheck, Clock, LoaderCircle, RotateCcw, Download, AlertTriangle } from 'lucide-react'
+import { KeyRound, ShieldCheck, Clock, LoaderCircle, RotateCcw, Download, AlertTriangle, RefreshCw, ArrowUpCircle, CheckCircle2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { api } from '@/lib/api'
 import { useLang } from '@/i18n'
@@ -17,11 +17,29 @@ export default function Settings() {
   const [recCurrent, setRecCurrent] = React.useState('')
   const [recBusy, setRecBusy] = React.useState(false)
   const [kit, setKit] = React.useState<any | null>(null)
+  const [upd, setUpd] = React.useState<any>(null)
+  const [updBusy, setUpdBusy] = React.useState(false)
+  const [restarting, setRestarting] = React.useState(false)
 
   React.useEffect(() => {
     api('GET', '/admin/settings').then(setInfo).catch(() => {})
     api('GET', '/admin/recovery/status').then((d: any) => setRecStatus(d.remaining)).catch(() => {})
+    api('GET', '/admin/update/status?force=1').then(setUpd).catch(() => {})
   }, [])
+
+  const applyUpdate = async () => {
+    if (updBusy) return
+    setUpdBusy(true)
+    try {
+      await api('POST', '/admin/update/apply', {})
+      setRestarting(true)
+    } catch (e: any) { toast.error(e.message) }
+    setUpdBusy(false)
+  }
+
+  const checkUpdate = async () => {
+    try { setUpd(await api('GET', '/admin/update/status?force=1')) } catch { }
+  }
 
   const generateRecovery = async () => {
     if (!recCurrent.trim() || recBusy) return
@@ -73,6 +91,53 @@ export default function Settings() {
     <div className="max-w-xl">
       <h1 className="text-xl font-bold tracking-tight mb-1">Paramètres</h1>
       <p className="text-sm text-fg-2 mb-6">{String(t.settingsSub)}</p>
+
+      {/* version + mise à jour */}
+      <Card className="mb-5">
+        <CardHeader>
+          <span className="flex items-center gap-2"><RefreshCw size={15} /> {String(t.versionTitle)}</span>
+        </CardHeader>
+        <CardBody>
+          {restarting ? (
+            <div className="flex items-center gap-3 text-sm text-accent py-2">
+              <LoaderCircle size={18} className="animate-spin" />
+              {String(t.updateRestarting)}
+            </div>
+          ) : upd ? (
+            <div className="space-y-3">
+              <div className="flex items-center gap-2 text-sm">
+                <span className="font-mono font-semibold">{upd.current || 'dev'}</span>
+                {upd.update_available ? (
+                  <span className="flex items-center gap-1.5 text-accent font-medium">
+                    <ArrowUpCircle size={14} /> {String(t.updateTo)} <span className="font-mono">{upd.latest}</span>
+                  </span>
+                ) : (
+                  <span className="flex items-center gap-1.5 text-fg-3">
+                    <CheckCircle2 size={14} /> {upd.latest ? String(t.upToDate) : String(t.updateCheckFail)}
+                  </span>
+                )}
+              </div>
+              {upd.last_error && <p className="text-[11px] text-danger">{upd.last_error}</p>}
+              {upd.mode === 'docker' && <p className="text-[11px] text-warn">{String(t.updateDocker)}</p>}
+              <div className="flex gap-2">
+                {upd.update_available && upd.mode !== 'docker' && (
+                  <Button variant="primary" onClick={applyUpdate} disabled={updBusy}>
+                    {updBusy ? <LoaderCircle size={14} className="animate-spin" /> : <><ArrowUpCircle size={14} /> {String(t.updateBtn)}</>}
+                  </Button>
+                )}
+                <Button onClick={checkUpdate} disabled={updBusy}>
+                  <RefreshCw size={14} /> {String(t.updateCheck)}
+                </Button>
+              </div>
+              <p className="text-[11px] text-fg-3 leading-relaxed">{String(t.updateHint)}</p>
+            </div>
+          ) : (
+            <div className="flex items-center gap-2 text-sm text-fg-3 py-2">
+              <LoaderCircle size={15} className="animate-spin" /> {String(t.updateChecking)}
+            </div>
+          )}
+        </CardBody>
+      </Card>
 
       <Card className="mb-5">
         <CardHeader>

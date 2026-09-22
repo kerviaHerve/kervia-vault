@@ -36,11 +36,20 @@ function App() {
   const [page, setPage] = React.useState<PageId>((window.location.hash.slice(1) || 'dashboard') as PageId)
   const [authed, setAuthed] = React.useState<boolean | null>(null)
   const [setupInfo, setupSet] = React.useState<any>(null)
+  const [upd, setUpd] = React.useState<any>(null)
 
   React.useEffect(() => {
     fetch('/setup/info').then(r => r.json()).then(setupSet).catch(() => setupSet({ setup_done: true }))
     fetch('/admin/agents', { credentials: 'same-origin' }).then(r => setAuthed(r.ok)).catch(() => setAuthed(false))
   }, [])
+
+  // update check once logged in (badge in the sidebar, details in Settings)
+  React.useEffect(() => {
+    if (authed === true && upd === null) {
+      fetch('/admin/update/status', { credentials: 'same-origin' })
+        .then(r => r.ok ? r.json() : null).then(d => { if (d) setUpd(d) }).catch(() => {})
+    }
+  }, [authed])
 
   React.useEffect(() => {
     const onHash = () => setPage((window.location.hash.slice(1) || 'dashboard') as PageId)
@@ -114,6 +123,16 @@ function App() {
           ))}
         </nav>
         <div className="px-3 pb-2">
+          {upd?.update_available && (
+            <button
+              onClick={() => go('settings')}
+              className="flex items-center gap-2 px-3 h-8 w-full rounded-lg text-[11px] font-bold cursor-pointer transition-colors border border-accent/40 bg-accent/10 text-accent hover:bg-accent/20 mb-1.5"
+              title={`${upd.latest} disponible`}
+            >
+              <span className="w-1.5 h-1.5 rounded-full bg-accent animate-pulse" />
+              {String(t.updateBadge)} {upd.latest}
+            </button>
+          )}
           <LangSwitch />
           <button
             onClick={logout}
@@ -124,7 +143,7 @@ function App() {
           </button>
         </div>
         <div className="px-4 py-3 border-t border-border text-[10px] text-fg-3 leading-relaxed">
-          Kervia-vault v1.0 · AGPL-3.0<br />{String(t.footer)}
+          Kervia-vault {upd?.current || 'v1.0'} · AGPL-3.0<br />{String(t.footer)}
         </div>
       </aside>
 

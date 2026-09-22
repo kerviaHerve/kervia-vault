@@ -91,7 +91,9 @@ const T = {
 export default function Wizard({ onDone }: { onDone: () => void }) {
   const { lang, setLang } = useLang()
   const t = T[lang] || T.fr
-  const [step, setStep] = React.useState(lang ? 1 : 0) // 0=lang (skipped if already chosen), 1=terms, 2=pw, 3=codes, 4=agent, 5=done
+  // 0=language (ALWAYS first — the user must pick before reading anything),
+  // 1=terms, 2=password, 3=codes, 4=agent, 5=done
+  const [step, setStep] = React.useState(0)
   const [accepted, setAccepted] = React.useState(false)
   const [pw, setPw] = React.useState('')
   const [pw2, setPw2] = React.useState('')

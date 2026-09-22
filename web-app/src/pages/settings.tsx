@@ -20,19 +20,43 @@ export default function Settings() {
   const [upd, setUpd] = React.useState<any>(null)
   const [updBusy, setUpdBusy] = React.useState(false)
   const [restarting, setRestarting] = React.useState(false)
+  const restartTimer = React.useRef<number | null>(null)
 
   React.useEffect(() => {
     api('GET', '/admin/settings').then(setInfo).catch(() => {})
     api('GET', '/admin/recovery/status').then((d: any) => setRecStatus(d.remaining)).catch(() => {})
     api('GET', '/admin/update/status?force=1').then(setUpd).catch(() => {})
+    return () => { if (restartTimer.current) window.clearInterval(restartTimer.current) }
   }, [])
+
+  // after an update: poll until the server is back and shows the NEW
+  // version, then reload the page automatically — the user never stays
+  // stuck on "restarting…".
+  const watchRestart = (targetVersion: string) => {
+    const started = Date.now()
+    const check = async () => {
+      try {
+        const d = await fetch('/setup/info').then(r => r.ok ? r.json() : null)
+        if (d && d.version && d.version === targetVersion && Date.now() - started > 4000) {
+          window.clearInterval(restartTimer.current!)
+          window.location.reload()
+        }
+      } catch { /* server still down — keep polling */ }
+      // safety: stop after 3 minutes no matter what
+      if (Date.now() - started > 180000 && restartTimer.current) {
+        window.clearInterval(restartTimer.current)
+      }
+    }
+    restartTimer.current = window.setInterval(check, 2000)
+  }
 
   const applyUpdate = async () => {
     if (updBusy) return
     setUpdBusy(true)
     try {
-      await api('POST', '/admin/update/apply', {})
+      const d = await api('POST', '/admin/update/apply', {})
       setRestarting(true)
+      watchRestart(String(d.to).replace(' (pré-version)', ''))
     } catch (e: any) { toast.error(e.message) }
     setUpdBusy(false)
   }
@@ -99,9 +123,12 @@ export default function Settings() {
         </CardHeader>
         <CardBody>
           {restarting ? (
-            <div className="flex items-center gap-3 text-sm text-accent py-2">
-              <LoaderCircle size={18} className="animate-spin" />
-              {String(t.updateRestarting)}
+            <div className="space-y-2">
+              <div className="flex items-center gap-3 text-sm text-accent py-2">
+                <LoaderCircle size={18} className="animate-spin" />
+                {String(t.updateRestarting)}
+              </div>
+              <p className="text-[11px] text-fg-3">{String(t.updateRestartHint)}</p>
             </div>
           ) : upd ? (
             <div className="space-y-3">

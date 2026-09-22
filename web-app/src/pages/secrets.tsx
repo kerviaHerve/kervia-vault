@@ -183,6 +183,23 @@ export default function Secrets() {
   const reveal = (s: any) => { setDialogMode('reveal'); setDialogSecret(s) }
   const revealSearch = (sr: any) => { setDialogMode('reveal'); setDialogSecret(sr) }
 
+  // quickCopy: copie RAPIDE depuis la liste sans ouvrir le dialog.
+  // templated → le champ principal (premier password/token/key/secret);
+  // free-form → la valeur. Toast confirme ce qui a été copié.
+  const quickCopy = async (s: any) => {
+    try {
+      const d = await api('GET', `/admin/secrets/reveal?id=${s.id}`)
+      let v = d.value
+      if (d.fields?.length) {
+        const main = d.fields.find((f: any) => /secret|password|token|key|private/i.test(f.label))
+        v = main ? main.value : d.fields[0].value
+      }
+      if (!v) { toast.error(String(t.nothingToCopy)); return }
+      navigator.clipboard.writeText(v)
+      toast.success(String(t.copied))
+    } catch (e: any) { toast.error(e.message) }
+  }
+
   const del = async (id: string, key: string) => {
     if (!confirm(t.deleteConfirm(key))) return
     await api('POST', `/admin/secrets/${id}/delete`)
@@ -275,6 +292,9 @@ export default function Secrets() {
                   <Button variant="ghost" size="sm" onClick={() => revealSearch(sr)}>
                     <Eye size={13} /> {String(t.reveal)}
                   </Button>
+                  <Button variant="ghost" size="sm" onClick={() => quickCopy(sr)} title={String(t.copied)}>
+                    <Copy size={13} />
+                  </Button>
                 </td>
                 <td className="px-5 py-3 text-xs text-fg-2">v{sr.version}</td>
                 <td className="px-5 py-3 text-xs text-fg-2">{fmtDateTime(sr.updated_at)}</td>
@@ -319,8 +339,11 @@ export default function Secrets() {
                   <td className="px-5 py-3 text-xs text-fg-2">v{s.version}</td>
                   <td className="px-5 py-3 text-xs text-fg-2">{fmtDateTime(s.updated_at)}</td>
                   <td className="px-5 py-3 text-right whitespace-nowrap">
-                    <Button variant="ghost" size="icon" onClick={() => reveal(s)}>
+                    <Button variant="ghost" size="icon" onClick={() => reveal(s)} title={String(t.reveal)}>
                       <Eye size={15} />
+                    </Button>
+                    <Button variant="ghost" size="icon" onClick={() => quickCopy(s)} title={String(t.copied)}>
+                      <Copy size={15} />
                     </Button>
                     <Button variant="ghost" size="icon" onClick={() => openEdit(s)}>
                       <Pencil size={15} />

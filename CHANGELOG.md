@@ -1,5 +1,12 @@
 # Changelog
 
+## v1.0.10 (2026-09-22)
+
+- **Quick copy from the list.** A copy button next to the eye on every
+  secret row (and in search results): copies the main credential
+  (token/password/key field for templated secrets, the value for
+  free-form) straight to the clipboard with a toast — no dialog needed.
+
 ## v1.0.9 (2026-09-22)
 
 - **Eye toggle in edit fields.** Editing a sensitive field (API token,

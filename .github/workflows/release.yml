@@ -42,6 +42,23 @@ jobs:
           sha256sum kervia-vault-linux-*.tar.gz > kervia-vault_checksums.txt
           echo "RELEASE_VERSION=${VERSION}" >> "$GITHUB_ENV"
 
+      # Release notes: extract this tag's section from CHANGELOG.md
+      # (between "## <tag>" and the next "## " line) + install reminder.
+      - name: Extract release notes from CHANGELOG.md
+        run: |
+          python3 - <<'EOF'
+          import re, os, sys
+          tag = os.environ["GITHUB_REF_NAME"]
+          src = open("CHANGELOG.md").read()
+          m = re.search(r"## " + re.escape(tag) + r"\s*\((.*?)\)\s*\n(.*?)(?=\n## |\n---)", src, re.S)
+          if not m:
+              sys.exit("CHANGELOG.md has no '## " + tag + "' section")
+          date, body = m.groups()
+          notes = "Kervia-vault " + tag + " — " + date + "\n\n" + body.strip() + "\n\n---\n\n## Install\n\n```bash\nsudo bash install.sh\n```\n\nThe installer verifies the sha256 checksum before installing.\nUpdates: webui → Settings → Version → *Update now* (self-update, data untouched).\n\nFull history: CHANGELOG.md"
+          open("RELEASE_NOTES.md", "w").write(notes)
+          print("RELEASE_NOTES.md:", len(notes), "chars")
+          EOF
+
       - name: Create GitHub release
         uses: softprops/action-gh-release@v2
         with:
@@ -50,22 +67,7 @@ jobs:
             kervia-vault-linux-amd64.tar.gz
             kervia-vault-linux-arm64.tar.gz
             kervia-vault_checksums.txt
-          body: |
-            Kervia-vault v${{ env.RELEASE_VERSION }}
-
-            ## Install (root)
-
-            ```bash
-            curl -sfL https://github.com/kerviaHerve/kervia-vault/releases/latest/download/kervia-vault-linux-$(uname -m | sed 's/x86_64/amd64/; s/aarch64/arm64/').tar.gz -o /tmp/av.tgz
-            ```
-
-            Or the full installer (wizard included):
-
-            ```bash
-            bash install.sh
-            ```
-
-            The installer verifies the sha256 checksum before installing.
+          body_path: RELEASE_NOTES.md
       - name: Verify release assets are downloadable
         run: |
           sleep 5

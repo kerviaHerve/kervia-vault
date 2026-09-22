@@ -24,6 +24,43 @@
 - **Self-update** from the webui — sha256-verified releases, data untouched
 - Security by design — AGPL-3.0
 
+## Architecture
+
+One binary, one SQLite file, three surfaces — everything below ships in
+a single ~15 MB static executable:
+
+```
+                    ┌─────────────────────────────────────────────┐
+                    │              kervia-vault (Go)                 │
+                    │                                             │
+  agents / AI ────▶ │  /v1/*      REST API   ─┐                   │
+  (API key Bearer)  │  /mcp      MCP server  ─┤                   │
+                    │             (8 tools)   │                   │
+                    │                        ▼                   │
+  admin ──────────▶ │  /ui/*  /admin/*  SPA  ─┤   auth            │
+  (session cookie)  │             + wizard   │  ┌── Argon2id     │
+                    │                        │  │   key verify   │
+  GitHub releases ▶ │  self-update           │  │   rate limit   │
+  (sha256-checked)  │  (download→verify→swap)│  └   grants       │
+                    │                        ▼        │          │
+                    │               ┌──────────────┐ │          │
+                    │               │  crypto      │◀┘          │
+                    │               │  AES-256-GCM │            │
+                    │               │  master key  │            │
+                    │               └──────┬───────┘            │
+                    │                      ▼                    │
+                    │               ┌──────────────┐            │
+                    │               │ store (SQLite)│            │
+                    │               │ agents, vaults│            │
+                    │               │ secrets, audit│            │
+                    │               └──────────────┘            │
+                    └─────────────────────────────────────────────┘
+
+  /v1/*  agent API key ──▶ Argon2id verify ──▶ grant check ──▶ decrypt
+  /admin session cookie ─▶ bcrypt verify    ──▶ audit trail
+  data at rest: AES-256-GCM per secret · versions immutable · audit append-only
+```
+
 ## Install — one command (Linux, systemd)
 
 ```bash

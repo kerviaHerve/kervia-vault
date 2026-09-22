@@ -143,7 +143,10 @@ function App() {
           </button>
         </div>
         <div className="px-4 py-3 border-t border-border text-[10px] text-fg-3 leading-relaxed">
-          Kervia-vault {upd?.current || 'v1.0'} · AGPL-3.0<br />{String(t.footer)}
+          Kervia-vault {upd?.current || 'v1.0'} ·{' '}
+          <a href="https://github.com/kerviaHerve/kervia-vault" target="_blank" rel="noreferrer"
+             className="hover:text-fg-2 transition-colors">AGPL-3.0-or-later</a>
+          <br />{String(t.footer)}
         </div>
       </aside>
 

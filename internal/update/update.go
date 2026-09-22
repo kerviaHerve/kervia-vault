@@ -42,9 +42,10 @@ func envOr(key, def string) string {
 	return def
 }
 
-// checkCacheTTL: how long a "no update" answer is trusted. An available
-// update is re-checked more often (the user may click any minute).
-const checkCacheTTL = 6 * time.Hour
+// checkCacheTTL: how long a status answer is trusted. Short on purpose:
+// a fresh release should be visible within minutes, and the cost is one
+// HEAD request to GitHub per check. The apply path ALWAYS re-resolves.
+const checkCacheTTL = 5 * time.Minute
 
 // Manager handles update checks and application.
 type Manager struct {

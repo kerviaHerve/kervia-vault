@@ -41,6 +41,11 @@ const T = {
     createAgent: "Créer l'agent",
     dlKey: "Télécharger la clé",
     dlSkill: "Télécharger le skill",
+    skillHintT: "Que faire du skill ?",
+    skillHint: "Le SKILL.md contient la clé, les URLs de CETTE installation et les commandes d'installation MCP. Pose-le selon ton agent :",
+    skillHintOC: "OpenCode : ~/.config/opencode/skills/kervia-vault/SKILL.md",
+    skillHintH: "Hermes : ~/.hermes/skills/devops/kervia-vault/SKILL.md",
+    skillHintEnd: "Puis redémarre l'agent — le skill lui dira comment installer la connexion MCP.",
     finish: "Terminé",
     finishH: "Kervia-vault est prêt. Connectez-vous avec votre nouveau mot de passe.",
     goLogin: "Ouvrir Kervia-vault",
@@ -78,6 +83,11 @@ const T = {
     createAgent: "Create agent",
     dlKey: "Download key",
     dlSkill: "Download skill",
+    skillHintT: "What to do with the skill",
+    skillHint: "The SKILL.md holds the key, THIS installation's URLs and the MCP install commands. Drop it depending on your agent:",
+    skillHintOC: "OpenCode: ~/.config/opencode/skills/kervia-vault/SKILL.md",
+    skillHintH: "Hermes: ~/.hermes/skills/devops/kervia-vault/SKILL.md",
+    skillHintEnd: "Then restart the agent — the skill tells it how to install the MCP connection.",
     finish: "Done",
     finishH: "Kervia-vault is ready. Sign in with your new password.",
     goLogin: "Open Kervia-vault",
@@ -301,13 +311,20 @@ export default function Wizard({ onDone }: { onDone: () => void }) {
               <div className="bg-bg border border-accent rounded-lg p-3.5 font-mono text-xs text-accent break-all mb-4">
                 {agent.api_key}
               </div>
-              <div className="flex flex-col gap-2 mb-4">
+              <div className="flex flex-col gap-2 mb-3">
                 <Button onClick={() => dl(keyText, `kervia-vault-key-${agent.agent.name}.txt`)}>
                   <Download size={14} /> {t.dlKey}
                 </Button>
                 <Button onClick={() => dl(skillText, 'SKILL.md')}>
                   <Download size={14} /> {t.dlSkill}
                 </Button>
+              </div>
+              <div className="bg-bg border border-border rounded-lg p-3.5 mb-4 text-[11px] leading-relaxed">
+                <p className="font-semibold text-fg-1 mb-1.5">{t.skillHintT}</p>
+                <p className="text-fg-2 mb-2">{t.skillHint}</p>
+                <p className="font-mono text-fg-3 mb-1 break-all">{t.skillHintOC}</p>
+                <p className="font-mono text-fg-3 mb-2 break-all">{t.skillHintH}</p>
+                <p className="text-fg-2">{t.skillHintEnd}</p>
               </div>
               <Button variant="primary" className="w-full" onClick={onDone}>
                 {t.goLogin} <ArrowRight size={14} />

@@ -1,5 +1,13 @@
 # Changelog
 
+## v1.0.8 (2026-09-22)
+
+- **No JSON anywhere in the UI.** Secret reveal and edit moved to a
+  proper dialog: labeled field cards (masked sensitive values, per-field
+  copy) and one input PER template field for editing — the client sends
+  `{values: {field: value}}`, the server validates against the template
+  and stores the new version. Free-form secrets edit in a plain textarea.
+
 ## v1.0.7 (2026-09-22)
 
 - **WebUI: elegant secret reveal.** Templated secrets now show a labeled

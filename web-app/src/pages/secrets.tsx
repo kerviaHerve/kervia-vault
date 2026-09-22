@@ -13,52 +13,148 @@ interface Template {
 }
 
 
-// SecretValue: rendu élégant d'un secret révélé.
-// Templated → carte de champs (label humain + valeur, password masqué au
-// clic possible, copie par champ). Free-form → texte monospace.
-function SecretValue({ rev, onCopyAll, t }: { rev: any; onCopyAll?: () => void; t: any }) {
-  if (rev?.fields?.length) {
-    return (
-      <div className="rounded-lg border border-border bg-bg p-2.5 space-y-1.5 max-w-72">
-        {rev.fields.map((f: any, i: number) => (
-          <div key={i} className="flex items-start gap-2 group">
-            <span className="text-[10px] uppercase tracking-wide text-fg-3 mt-0.5 w-20 shrink-0">{f.label}</span>
-            <span className={`font-mono text-xs break-all flex-1 ${f.type === 'password' ? 'text-accent' : 'text-fg'}`}>
-              {f.type === 'password' || /secret|password|token|key/i.test(f.label) ? (
-                <MaskedValue value={f.value} />
-              ) : f.value}
-            </span>
-            <button
-              onClick={() => { navigator.clipboard.writeText(f.value); toast.success(String(t.copied)) }}
-              className="opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer text-fg-3 hover:text-fg shrink-0 mt-0.5"
-              title={String(t.copied)}><Copy size={11} /></button>
-          </div>
-        ))}
-        {onCopyAll && (
-          <button onClick={onCopyAll} className="text-[10px] text-fg-3 hover:text-fg cursor-pointer pt-1">
-            {String(t.copyRaw)}
-          </button>
-        )}
-      </div>
-    )
-  }
-  return (
-    <motion.pre
-      initial={{ opacity: 0 }} animate={{ opacity: 1 }}
-      className="font-mono text-xs text-fg whitespace-pre-wrap break-all max-w-64"
-    >{rev?.value ?? ''}</motion.pre>
-  )
-}
+// SecretDialog: reveal ET edition d'un secret, en dialog (pas dans la
+// cellule du tableau). mode='reveal': carte de champs labellisés avec
+// masquage des champs sensibles. mode='edit': un Input par champ du
+// template, pré-rempli — le JSON est reconstitué à la sauvegarde.
+function SecretDialog({ secret, mode, onClose, onSaved, t, templates }: {
+  secret: any; mode: 'reveal' | 'edit'; onClose: () => void;
+  onSaved?: () => void; t: any; templates: any[]
+}) {
+  const [data, setData] = React.useState<any>(null)   // {fields, value, template}
+  const [edits, setEdits] = React.useState<Record<string, string>>({})
+  const [showMap, setShowMap] = React.useState<Record<string, boolean>>({})
+  const [busy, setBusy] = React.useState(false)
+  const [editMode, setEditMode] = React.useState(mode === 'edit')
+  const [keyName, setKeyName] = React.useState(secret.key)
 
-// MaskedValue: montre •••• par défaut, la vraie valeur au survol/clic (les
-// champs sensibles ne s'affichent pas d'un coup dans la page).
-function MaskedValue({ value }: { value: string }) {
-  const [show, setShow] = React.useState(false)
-  if (show) return <span className="cursor-pointer" onClick={() => setShow(false)}>{value}</span>
+  React.useEffect(() => {
+    api('GET', `/admin/secrets/reveal?id=${secret.id}`).then(d => {
+      setData(d)
+      const e: Record<string, string> = {}
+      for (const f of (d.fields || [])) e[f.label] = f.value
+      setEdits(e)
+    }).catch(() => setData({ value: '' }))
+  }, [secret.id])
+
+  const sensitive = (f: any) => f.type === 'password' || /secret|password|token|key|private/i.test(f.label)
+  const copy = (v: string) => { navigator.clipboard.writeText(v); toast.success(String(t.copied)) }
+
+  const save = async () => {
+    if (busy) return
+    setBusy(true)
+    try {
+      const body: any = {}
+      if (keyName.trim() !== secret.key) body.key = keyName.trim()
+      // templated: reconstruit l'objet {field_name: value} via le template
+      if (data?.fields?.length) {
+        const tpl = templates.find((x: any) => x.key === data.template)
+        const values: Record<string, string> = {}
+        for (const f of (tpl?.fields || [])) {
+          const v = edits[f.label]
+          if (v !== undefined && v !== '') values[f.name] = v
+        }
+        if (Object.keys(values).length) body.values = values
+      } else {
+        const raw = edits['__raw__'] ?? data?.value ?? ''
+        if (raw !== '') body.value = raw
+      }
+      if (Object.keys(body).length === 0) { onClose(); setBusy(false); return }
+      await api('PATCH', `/admin/secrets/${secret.id}`, body)
+      toast.success(String(t.secretUpdated))
+      onClose(); onSaved?.()
+    } catch (e: any) { toast.error(e.message) }
+    setBusy(false)
+  }
+
   return (
-    <span className="cursor-pointer text-accent/70 hover:text-accent transition-colors" onClick={() => setShow(true)}>
-      {'•'.repeat(Math.min(value.length, 16))}
-    </span>
+    <Dialog open onOpenChange={o => { if (!o) onClose() }}>
+      <DialogContent
+        title={secret.key}
+        className="max-w-xl max-h-[85vh] overflow-y-auto"
+      >
+        {data === null ? (
+          <div className="grid place-items-center py-10"><LoaderCircle className="animate-spin text-accent" size={22} /></div>
+        ) : data.fields?.length ? (
+          <div className="space-y-3">
+            <div className="flex items-center gap-2">
+              <Badge variant="accent">{data.template}</Badge>
+              <span className="text-[11px] text-fg-3">v{secret.version}</span>
+              <div className="flex-1" />
+              <Button size="sm" variant={editMode ? 'primary' : 'ghost'} onClick={() => setEditMode(!editMode)}>
+                <Pencil size={13} /> {editMode ? String(t.viewMode) : String(t.editBtn)}
+              </Button>
+            </div>
+            {editMode && (
+              <Field label={String(t.secretKey)}>
+                <Input value={keyName} onChange={(e: any) => setKeyName(e.target.value)} className="font-mono" />
+              </Field>
+            )}
+            <div className="space-y-2">
+              {(data.fields || []).map((f: any, i: number) => (
+                <div key={i}>
+                  <div className="flex items-center gap-2 text-[11px] text-fg-3 mb-1">
+                    <span className="uppercase tracking-wide">{f.label}</span>
+                    {editMode ? null : (
+                      <button onClick={() => copy(f.value)} className="opacity-0 group-hover:opacity-100 cursor-pointer hover:text-fg transition-opacity">
+                        <Copy size={11} />
+                      </button>
+                    )}
+                  </div>
+                  {editMode ? (
+                    <Input
+                      value={edits[f.label] ?? ''}
+                      onChange={(e: any) => setEdits((x: any) => ({ ...x, [f.label]: e.target.value }))}
+                      type={sensitive(f) ? 'password' : 'text'}
+                      className="font-mono"
+                      autoComplete="off"
+                    />
+                  ) : sensitive(f) ? (
+                    <div className="flex items-center gap-2">
+                      <span className="font-mono text-xs text-accent break-all cursor-pointer"
+                        onClick={() => setShowMap((x: any) => ({ ...x, [f.label]: !x[f.label] }))}>
+                        {showMap[f.label] ? f.value : '•'.repeat(Math.min(f.value.length, 20))}
+                      </span>
+                      <button onClick={() => copy(f.value)} className="cursor-pointer text-fg-3 hover:text-fg"><Copy size={12} /></button>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2">
+                      <span className="font-mono text-xs text-fg break-all">{f.value || '—'}</span>
+                      <button onClick={() => copy(f.value)} className="cursor-pointer text-fg-3 hover:text-fg"><Copy size={12} /></button>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+            {editMode && (
+              <p className="text-[11px] text-fg-3">{String(t.editFieldHint)}</p>
+            )}
+          </div>
+        ) : (
+          // free-form
+          <div className="space-y-3">
+            <Badge variant="neutral">{String(t.free)}</Badge>
+            {editMode ? (
+              <textarea
+                value={edits['__raw__'] ?? data.value ?? ''}
+                onChange={(e: any) => setEdits((x: any) => ({ ...x, __raw__: e.target.value }))}
+                className="w-full h-40 rounded-lg bg-bg border border-border p-3 font-mono text-xs focus:outline-none focus:border-accent resize-y"
+              />
+            ) : (
+              <pre className="font-mono text-xs text-fg whitespace-pre-wrap break-all bg-bg border border-border rounded-lg p-3">{data.value || '—'}</pre>
+            )}
+          </div>
+        )}
+        <div className="flex justify-end gap-2 pt-2">
+          <Button onClick={onClose}>{String(editMode ? t.cancel : t.close)}</Button>
+          {editMode && (
+            <Button variant="primary" onClick={save} disabled={busy}>
+              {busy ? <LoaderCircle size={15} className="animate-spin" /> : String(t.save)}
+            </Button>
+          )}
+        </div>
+      </DialogContent>
+    </Dialog>
   )
 }
 
@@ -69,27 +165,16 @@ export default function Secrets() {
   const [secrets, setSecrets] = React.useState<any[] | null>(null)
   const [templates, setTemplates] = React.useState<Template[]>([])
   const [open, setOpen] = React.useState(false)
-  const [revealed, setRevealed] = React.useState<Record<string, any>>({})
+  const [dialogSecret, setDialogSecret] = React.useState<any | null>(null)
+  const [dialogMode, setDialogMode] = React.useState<'reveal' | 'edit'>('reveal')
 
   React.useEffect(() => { api('GET', '/admin/vaults').then((v: any[]) => { setVaults(v); if (v.length) setVault(v[0].name) }) }, [])
   React.useEffect(() => { api('GET', '/admin/templates').then(setTemplates).catch(() => {}) }, [])
   React.useEffect(() => { if (vault) load() }, [vault])
 
   const load = () => api('GET', `/admin/secrets?vault=${vault}`).then(setSecrets)
-  const reveal = async (id: string) => {
-    if (revealed[id] !== undefined) { setRevealed(r => { const n = { ...r }; delete n[id]; return n }); return }
-    const d = await api('GET', `/admin/secrets/reveal?id=${id}`)
-    let v = d.value
-    try { v = JSON.stringify(JSON.parse(v), null, 2) } catch {}
-    setRevealed(r => ({ ...r, [id]: { value: v, fields: d.fields, template: d.template } }))
-  }
-  const revealSearch = async (sr: any) => {
-    if (revealed[sr.id] !== undefined) { setRevealed(r => { const n = { ...r }; delete n[sr.id]; return n }); return }
-    const d = await api('GET', `/admin/secrets/reveal?id=${sr.id}`)
-    let v = d.value
-    try { v = JSON.stringify(JSON.parse(v), null, 2) } catch {}
-    setRevealed(r => ({ ...r, [sr.id]: { value: v, fields: d.fields, template: d.template } }))
-  }
+  const reveal = (s: any) => { setDialogMode('reveal'); setDialogSecret(s) }
+  const revealSearch = (sr: any) => { setDialogMode('reveal'); setDialogSecret(sr) }
 
   const del = async (id: string, key: string) => {
     if (!confirm(t.deleteConfirm(key))) return
@@ -97,10 +182,6 @@ export default function Secrets() {
     toast.success(String(t.secretDeleted)); load()
   }
 
-  const [edit, setEdit] = React.useState<any | null>(null)
-  const [editKey, setEditKey] = React.useState('')
-  const [editVal, setEditVal] = React.useState('')
-  const [editBusy, setEditBusy] = React.useState(false)
   const [query, setQuery] = React.useState('')
   const [searchResults, setSearchResults] = React.useState<any[] | null>(null
   )
@@ -119,28 +200,7 @@ export default function Secrets() {
   React.useEffect(() => { runSearch(query) }, [query])
   const searching = query.trim() !== ''
 
-  const openEdit = async (s: any) => {
-    setEdit(s); setEditKey(s.key); setEditVal('')
-    try {
-      const d = await api('GET', `/admin/secrets/reveal?id=${s.id}`)
-      setEditVal(d.value)
-    } catch { /* leave empty = no value change */ }
-  }
-  const saveEdit = async () => {
-    if (!edit || editBusy) return
-    if (!editKey.trim()) { toast.error('String(t.nameRequired)'); return }
-    setEditBusy(true)
-    try {
-      const body: any = {}
-      if (editKey.trim() !== edit.key) body.key = editKey.trim()
-      if (editVal !== '' && editVal !== undefined) body.value = editVal
-      if (!body.key && body.value === undefined) { setEdit(null); setEditBusy(false); return }
-      await api('PATCH', `/admin/secrets/${edit.id}`, body)
-      toast.success(String(t.secretUpdated))
-      setEdit(null); load()
-    } catch (e: any) { toast.error(e.message === 'already_exists' ? String(t.nameExists) : e.message) }
-    setEditBusy(false)
-  }
+  const openEdit = (s: any) => { setDialogMode('edit'); setDialogSecret(s) }
 
   if (!vaults.length) return (
     <div>
@@ -204,14 +264,10 @@ export default function Secrets() {
                 <td className="px-5 py-3"><span className="font-semibold">{sr.key}</span></td>
                 <td className="px-5 py-3"><Badge variant="accent">{sr.vault_name}</Badge></td>
                 <td className="px-5 py-3"><Badge variant={sr.template ? 'neutral' : 'neutral'}>{sr.template || String(t.free)}</Badge></td>
-                <td className="px-5 py-3 max-w-72">
-                  {revealed[sr.id] !== undefined ? (
-                    <SecretValue rev={revealed[sr.id]} t={t} />
-                  ) : (
-                    <Button variant="ghost" size="sm" onClick={() => revealSearch(sr)}>
-                      <Eye size={13} /> {String(t.reveal)}
-                    </Button>
-                  )}
+                <td className="px-5 py-3">
+                  <Button variant="ghost" size="sm" onClick={() => revealSearch(sr)}>
+                    <Eye size={13} /> {String(t.reveal)}
+                  </Button>
                 </td>
                 <td className="px-5 py-3 text-xs text-fg-2">v{sr.version}</td>
                 <td className="px-5 py-3 text-xs text-fg-2">{fmtDateTime(sr.updated_at)}</td>
@@ -250,25 +306,15 @@ export default function Secrets() {
                   <td className="px-5 py-3">
                     <Badge variant={s.template ? 'accent' : 'neutral'}>{s.template || String(t.free)}</Badge>
                   </td>
-                  <td className="px-5 py-3 max-w-72">
-                    {revealed[s.id] !== undefined ? (
-                      <SecretValue rev={revealed[s.id]} t={t}
-                        onCopyAll={() => { navigator.clipboard.writeText(revealed[s.id].value); toast.success(String(t.copied)) }} />
-                    ) : (
-                      <span className="font-mono text-fg-3">••••••••••••</span>
-                    )}
+                  <td className="px-5 py-3">
+                    <span className="font-mono text-fg-3">••••••••••••</span>
                   </td>
                   <td className="px-5 py-3 text-xs text-fg-2">v{s.version}</td>
                   <td className="px-5 py-3 text-xs text-fg-2">{fmtDateTime(s.updated_at)}</td>
                   <td className="px-5 py-3 text-right whitespace-nowrap">
-                    <Button variant="ghost" size="icon" onClick={() => reveal(s.id)}>
-                      {revealed[s.id] !== undefined ? <EyeOff size={15} /> : <Eye size={15} />}
+                    <Button variant="ghost" size="icon" onClick={() => reveal(s)}>
+                      <Eye size={15} />
                     </Button>
-                    {revealed[s.id] !== undefined && (
-                      <Button variant="ghost" size="icon" onClick={() => { navigator.clipboard.writeText(revealed[s.id].value ?? revealed[s.id]); toast.success(String(t.copied)) }}>
-                        <Copy size={15} />
-                      </Button>
-                    )}
                     <Button variant="ghost" size="icon" onClick={() => openEdit(s)}>
                       <Pencil size={15} />
                     </Button>
@@ -289,25 +335,14 @@ export default function Secrets() {
       </div>
       )}
 
-      {/* edit dialog */}
-      <Dialog open={!!edit} onOpenChange={o => { if (!o) setEdit(null) }}>
-        {edit && (
-          <DialogContent title={String(t.editTitle(edit.key))}>
-            <Field label={String(t.secretKey)}>
-              <Input value={editKey} onChange={e => setEditKey(e.target.value)} className="font-mono" />
-            </Field>
-            <Field label="Valeur" help={String(t.valueHelp)}>
-              <Input value={editVal} onChange={e => setEditVal(e.target.value)} className="font-mono" />
-            </Field>
-            <div className="flex justify-end gap-2">
-              <Button onClick={() => setEdit(null)}>{String(t.cancel)}</Button>
-              <Button variant="primary" onClick={saveEdit} disabled={editBusy}>
-                {editBusy ? <LoaderCircle size={15} className="animate-spin" /> : String(t.save)}
-              </Button>
-            </div>
-          </DialogContent>
-        )}
-      </Dialog>
+      {/* secret dialog: reveal + edit (templated = champs, jamais de JSON) */}
+      {dialogSecret && (
+        <SecretDialog
+          secret={dialogSecret} mode={dialogMode} t={t} templates={templates}
+          onClose={() => setDialogSecret(null)}
+          onSaved={load}
+        />
+      )}
 
       <CreateDialog
         open={open} setOpen={setOpen} vault={vault} templates={templates}

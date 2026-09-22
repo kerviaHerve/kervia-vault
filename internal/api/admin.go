@@ -18,6 +18,7 @@ import (
 	"github.com/kerviaHerve/kervia-vault/internal/crypto"
 	"github.com/kerviaHerve/kervia-vault/internal/model"
 	"github.com/kerviaHerve/kervia-vault/internal/store"
+	"github.com/kerviaHerve/kervia-vault/internal/templates"
 )
 
 // AdminServer serves the session-guarded admin API (webui backend).
@@ -420,11 +421,19 @@ func (a *AdminServer) UpdateSecret(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var req struct {
-		Key   string `json:"key,omitempty"`
-		Value string `json:"value,omitempty"`
+		Key    string          `json:"key,omitempty"`
+		Value  string          `json:"value,omitempty"`
+		Values json.RawMessage `json:"values,omitempty"`
 	}
-	if err := jsonBody(r, &req); err != nil || (req.Key == "" && req.Value == "") {
-		writeErr(w, 400, "invalid_request", "key and/or value required")
+	// values (templated edit from the webui field form) → marshalled into the
+	// stored value; the template is NOT changed.
+	if err := jsonBody(r, &req); err != nil {
+		writeErr(w, 400, "invalid_request", "invalid JSON body")
+		return
+	}
+	hasValues := len(req.Values) > 0 && string(req.Values) != "null"
+	if req.Key == "" && req.Value == "" && !hasValues {
+		writeErr(w, 400, "invalid_request", "key, value and/or values required")
 		return
 	}
 	// rename
@@ -442,9 +451,42 @@ func (a *AdminServer) UpdateSecret(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	// value → new version
-	if req.Value != "" {
-		nonce, ct, err := a.enc.Encrypt([]byte(req.Value))
+	// value / values → new version
+	newValue := req.Value
+	if hasValues && newValue == "" {
+		var obj map[string]any
+		if err := json.Unmarshal(req.Values, &obj); err != nil || len(obj) == 0 {
+			writeErr(w, 400, "invalid_request", "values doit être un objet non vide")
+			return
+		}
+		b, err := json.Marshal(obj)
+		if err != nil {
+			writeErr(w, 500, "internal", "")
+			return
+		}
+		newValue = string(b)
+	}
+	if newValue != "" {
+		// templated edit: validate the values against the secret's template
+		if hasValues {
+			sec, _, _, err := a.store.GetSecretByID(id)
+			if err != nil {
+				writeErr(w, 404, "not_found", "")
+				return
+			}
+			if sec.Template != "" {
+				if tpl, ok := templates.ByKey(sec.Template); ok {
+					var vals map[string]any
+					if err := json.Unmarshal(req.Values, &vals); err == nil {
+						if errs := tpl.Validate(vals); len(errs) > 0 {
+							writeErr(w, 400, "validation", strings.Join(errs, "; "))
+							return
+						}
+					}
+				}
+			}
+		}
+		nonce, ct, err := a.enc.Encrypt([]byte(newValue))
 		if err != nil {
 			writeErr(w, 500, "internal", "")
 			return

@@ -16,6 +16,7 @@ RUN ls -la /internal/web/dist/index.html
 
 FROM golang:1.27-alpine AS build
 WORKDIR /src
+ARG VERSION=dev
 COPY go.mod go.sum ./
 RUN go mod download
 COPY . .
@@ -24,7 +25,7 @@ COPY --from=webui /internal/web/dist ./internal/web/dist
 # static binary, no CGO (modernc sqlite is pure Go)
 RUN CGO_ENABLED=0 go build \
     -trimpath \
-    -ldflags="-s -w -X main.version=$(git describe --tags --always 2>/dev/null || echo dev)" \
+    -ldflags="-s -w -X main.version=${VERSION}" \
     -o /out/kervia-vault ./cmd/kervia-vault
 
 FROM gcr.io/distroless/static-debian12:nonroot

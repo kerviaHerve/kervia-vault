@@ -14,7 +14,10 @@ networks:
 
 services:
   kervia-vault:
-    build: .
+    build:
+      context: .
+      args:
+        VERSION: v1.0.0
     # image: ghcr.io/kervia/kervia-vault:latest
     container_name: kervia-vault
     restart: unless-stopped

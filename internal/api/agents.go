@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"reflect"
 	"strings"
 
 	"github.com/google/uuid"
@@ -41,7 +42,25 @@ type apiError struct {
 func writeJSON(w http.ResponseWriter, status int, v any) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
-	_ = json.NewEncoder(w).Encode(v)
+	// nil slices encode as JSON null — the webui expects [] (Go nil-safety:
+	// a fresh instance has empty lists everywhere). Reflect only touches
+	// top-level slices/arrays; maps and structs are untouched.
+	enc := json.NewEncoder(w)
+	enc.SetEscapeHTML(false)
+	_ = enc.Encode(nonNil(v))
+}
+
+// nonNil replaces nil slices/arrays with empty ones so the JSON is []
+// instead of null (the SPA calls .map() on every list response).
+func nonNil(v any) any {
+	rv := reflect.ValueOf(v)
+	switch rv.Kind() {
+	case reflect.Slice, reflect.Array:
+		if rv.IsNil() {
+			return reflect.MakeSlice(rv.Type(), 0, 0).Interface()
+		}
+	}
+	return v
 }
 
 func writeErr(w http.ResponseWriter, status int, code, msg string) {
@@ -151,7 +170,7 @@ func (s *Server) GetSecret(w http.ResponseWriter, r *http.Request, id string) {
 type createSecretReq struct {
 	Vault    string         `json:"vault"`
 	Key      string         `json:"key"`
-	Value    string         `json:"value,omitempty"`  // free-form value (no template)
+	Value    string         `json:"value,omitempty"`    // free-form value (no template)
 	Template string         `json:"template,omitempty"` // template key
 	Values   map[string]any `json:"values,omitempty"`   // template fields
 }
@@ -225,7 +244,7 @@ func (s *Server) UpdateSecret(w http.ResponseWriter, r *http.Request, id string)
 	ok, err := s.store.HasGrant(agent.ID, sec.VaultID, true)
 	if err != nil || !ok {
 		_ = s.store.AppendAudit(agent.ID, model.AuditUpdate, "secret/"+id, "denied:no_grant")
-		writeErr(w,  403, "forbidden", "")
+		writeErr(w, 403, "forbidden", "")
 		return
 	}
 	nonce, ct, err := s.enc.Encrypt([]byte(req.Value))
@@ -313,7 +332,6 @@ func resolveSecretPayload(req createSecretReq) ([]byte, string, string) {
 	}
 	return data, req.Template, ""
 }
-
 
 // ListTemplates returns every credential template (metadata + fields).
 // Public to authenticated agents: structures are not secrets.

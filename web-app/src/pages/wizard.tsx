@@ -378,7 +378,7 @@ The vault is NOT yet wired into your MCP clients. To install it:
 
 **OpenCode** — run this once (any machine that can reach ${origin}):
 \`\`\`bash
-opencode mcp add kervia-vault --global --url ${origin}/mcp --header "Authorization: Bearer ${apiKey}"
+opencode mcp add kervia-vault --global --url ${origin}/mcp --header "Authorization=Bearer ${apiKey}"
 \`\`\`
 or add to ~/.config/opencode/opencode.jsonc:
 \`\`\`json
@@ -386,7 +386,13 @@ or add to ~/.config/opencode/opencode.jsonc:
   "headers": { "Authorization": "Bearer ${apiKey}" } } } }
 \`\`\`
 
-**Hermes** — ~/.hermes/config.yaml:
+**Hermes Agent** — run this once, paste the API key when prompted
+(it is stored in ~/.hermes/.env, not in config.yaml):
+\`\`\`bash
+hermes mcp add kervia-vault --url ${origin}/mcp --auth header
+# → "API key / Bearer token:" → paste: ${apiKey}
+\`\`\`
+or add the block to ~/.hermes/config.yaml:
 \`\`\`yaml
 mcp_servers:
   kervia-vault:
@@ -394,6 +400,7 @@ mcp_servers:
     headers:
       Authorization: "Bearer ${apiKey}"
 \`\`\`
+then reload with /reload-mcp (chat) or restart.
 
 After install, restart the client, then call whoami to confirm access.
 If connection fails: check you can reach ${origin} (VPN/mesh), and that

@@ -21,3 +21,4 @@ data/
 *.db-shm
 web-app/node_modules/
 bin/
+strix_runs/

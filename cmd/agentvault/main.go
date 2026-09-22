@@ -75,6 +75,10 @@ func main() {
 	// admin password changes persist next to the DB (override at boot)
 	authSvc.SetHashPath(filepathOf(cfg.DBPath) + "/admin_hash")
 	authSvc.LoadAdminHashOverride()
+	// expired admin sessions are swept from memory every hour (the map
+	// only ever grew before — one leaked entry per login)
+	sessionSweepStop := authSvc.StartSessionSweeper(time.Hour)
+	defer func() { close(sessionSweepStop) }()
 	// audit retention: 90 days, daily cleanup
 	retentionStop := st.StartRetention(90)
 	defer func() { close(retentionStop) }()

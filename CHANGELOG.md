@@ -1,5 +1,17 @@
 # Changelog
 
+## v1.0.11 (2026-09-22)
+
+- **Security audit (full code Sentinel pass).** All surfaces reviewed —
+  auth chains, per-secret grant re-verification, crypto, webui, MCP,
+  installer, CI, dependencies (govulncheck/npm: clean).
+- **Fix [audit trail]**: the webui secret reveal now leaves a `read`
+  trace in the append-only audit (SPEC: repudiation — every decrypted
+  read is an action; agents were audited, the admin reveal wasn't).
+- **Fix [memory hygiene]**: expired admin sessions are swept every hour
+  — the in-memory session map grew forever before (one leaked entry
+  per login on a long-lived process).
+
 ## v1.0.10 (2026-09-22)
 
 - **Quick copy from the list.** A copy button next to the eye on every

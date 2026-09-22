@@ -170,6 +170,10 @@ func (s *Server) AttachAdmin(adminMux *http.ServeMux) {
 				}
 			}
 		}
+		// audit: every decrypted value read leaves a trace (SPEC: audit
+		// append-only per action — the admin reveal is a read).
+		_ = s.store.AppendAuditDetail("admin", model.AuditRead, "secret/"+id, "webui reveal",
+			store.RequestInfo{Source: "webui", IP: r.RemoteAddr, UserAgent: r.Header.Get("User-Agent"), Method: r.Method, Status: 200, Path: "/admin/secrets/reveal"})
 		respB, _ := json.Marshal(resp)
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write(respB)

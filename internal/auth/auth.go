@@ -197,6 +197,32 @@ func (s *Service) NewAdminSession() string {
 	return id
 }
 
+// StartSessionSweeper periodically removes EXPIRED sessions from the map.
+// Load() ignores expired entries but never deletes them — without a sweep
+// the map grows forever on a long-lived process (one entry per login).
+// A stop channel closes the goroutine; called once from main.
+func (s *Service) StartSessionSweeper(interval time.Duration) (stop chan struct{}) {
+	stop = make(chan struct{})
+	go func() {
+		t := time.NewTicker(interval)
+		defer t.Stop()
+		for {
+			select {
+			case <-stop:
+				return
+			case now := <-t.C:
+				s.sessions.Range(func(k, v any) bool {
+					if exp, ok := v.(time.Time); ok && now.After(exp) {
+						s.sessions.Delete(k)
+					}
+					return true
+				})
+			}
+		}
+	}()
+	return stop
+}
+
 // AdminMiddleware guards admin routes.
 // For browser pages (/ui/*) it redirects to the login screen instead of
 // returning a raw 401 — the admin JSON API (/admin/*) keeps the 401 JSON.

@@ -372,6 +372,33 @@ curl -X POST -H "Authorization: Bearer ${apiKey}" -H "Content-Type: application/
 whoami · list_vaults · list_secrets · get_secret · create_secret ·
 update_secret · delete_secret · list_templates
 
+## Installation (MCP connection setup)
+
+The vault is NOT yet wired into your MCP clients. To install it:
+
+**OpenCode** — run this once (any machine that can reach ${origin}):
+\`\`\`bash
+opencode mcp add kervia-vault --global --url ${origin}/mcp --header "Authorization: Bearer ${apiKey}"
+\`\`\`
+or add to ~/.config/opencode/opencode.jsonc:
+\`\`\`json
+{ "mcp": { "kervia-vault": { "type": "url", "url": "${origin}/mcp",
+  "headers": { "Authorization": "Bearer ${apiKey}" } } } }
+\`\`\`
+
+**Hermes** — ~/.hermes/config.yaml:
+\`\`\`yaml
+mcp_servers:
+  kervia-vault:
+    url: ${origin}/mcp
+    headers:
+      Authorization: "Bearer ${apiKey}"
+\`\`\`
+
+After install, restart the client, then call whoami to confirm access.
+If connection fails: check you can reach ${origin} (VPN/mesh), and that
+the key is still active (revocation kills it instantly).
+
 ## Rules
 1. Start with whoami + list_secrets to see your scope.
 2. ALWAYS prefer templated secrets (list_templates shows 58 structures:

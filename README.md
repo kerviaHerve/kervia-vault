@@ -5,7 +5,8 @@
 <h3 align="center">Ultra-fast multi-agent secrets vault</h3>
 
 <p align="center">
-  <b>One Go binary</b> · REST API + MCP server + embedded WebUI
+  <b>One Go binary</b> · REST API + MCP server + embedded WebUI<br>
+  Built for <b>Hermes Agent</b>, <b>OpenCode</b> and any AI agent that needs credentials
 </p>
 
 <p align="center">

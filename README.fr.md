@@ -5,7 +5,8 @@
 <h3 align="center">Coffre-fort de secrets ultra-rapide pour multi-agents</h3>
 
 <p align="center">
-  <b>Un seul binaire Go</b> · API REST + serveur MCP + WebUI embarquée
+  <b>Un seul binaire Go</b> · API REST + serveur MCP + WebUI embarquée<br>
+  Conçu pour <b>Hermes Agent</b>, <b>OpenCode</b> et tout agent IA qui manipule des credentials
 </p>
 
 <p align="center">

@@ -1,5 +1,12 @@
 # Changelog
 
+## v1.0.7 (2026-09-22)
+
+- **WebUI: elegant secret reveal.** Templated secrets now show a labeled
+  field card (the template's human labels — "API token", not "api_token"),
+  sensitive fields masked until clicked, per-field copy on hover, and a
+  discreet "copy raw JSON" for machine use. Free-form secrets unchanged.
+
 ## v1.0.6 (2026-09-22)
 
 - **SECURITY: the generated skill never contains the API key anymore.**

@@ -4,7 +4,7 @@ import { Plus, Copy, Eye, EyeOff, Trash2, KeyRound, LoaderCircle, Pencil, Search
 import { toast } from 'sonner'
 import { useLang } from '@/i18n'
 import { api } from '@/lib/api'
-import { Button, Badge, Dialog, DialogContent, Input, Field } from '@/components/ui'
+import { Button, Badge, Dialog, DialogContent, Input, PasswordInput, Field } from '@/components/ui'
 import { cn, fmtDateTime } from '@/lib/utils'
 
 interface Template {
@@ -102,13 +102,20 @@ function SecretDialog({ secret, mode, onClose, onSaved, t, templates }: {
                     )}
                   </div>
                   {editMode ? (
-                    <Input
-                      value={edits[f.label] ?? ''}
-                      onChange={(e: any) => setEdits((x: any) => ({ ...x, [f.label]: e.target.value }))}
-                      type={sensitive(f) ? 'password' : 'text'}
-                      className="font-mono"
-                      autoComplete="off"
-                    />
+                    sensitive(f) ? (
+                      <PasswordInput
+                        value={edits[f.label] ?? ''}
+                        onChange={(e: any) => setEdits((x: any) => ({ ...x, [f.label]: e.target.value }))}
+                        autoComplete="off"
+                      />
+                    ) : (
+                      <Input
+                        value={edits[f.label] ?? ''}
+                        onChange={(e: any) => setEdits((x: any) => ({ ...x, [f.label]: e.target.value }))}
+                        className="font-mono"
+                        autoComplete="off"
+                      />
+                    )
                   ) : sensitive(f) ? (
                     <div className="flex items-center gap-2">
                       <span className="font-mono text-xs text-accent break-all cursor-pointer"
@@ -406,13 +413,21 @@ function CreateDialog({ open, setOpen, vault, templates, onCreated }: {
               >
                 {tpl.fields.map(f => (
                   <Field key={f.name} label={<>{f.label}{f.required && <span className="text-danger"> *</span>}</> as any} help={f.help}>
-                    <Input
-                      type={f.type === 'password' ? 'password' : 'text'}
-                      placeholder={f.placeholder}
-                      value={vals[f.name] ?? ''}
-                      onChange={e => setVals(v => ({ ...v, [f.name]: e.target.value }))}
-                      className={f.type === 'password' ? 'font-mono' : ''}
-                    />
+                    {f.type === 'password' ? (
+                      <PasswordInput
+                        placeholder={f.placeholder}
+                        value={vals[f.name] ?? ''}
+                        onChange={e => setVals(v => ({ ...v, [f.name]: e.target.value }))}
+                      />
+                    ) : (
+                      <Input
+                        type="text"
+                        placeholder={f.placeholder}
+                        value={vals[f.name] ?? ''}
+                        onChange={e => setVals(v => ({ ...v, [f.name]: e.target.value }))}
+                        className="font-mono"
+                      />
+                    )}
                   </Field>
                 ))}
               </motion.div>

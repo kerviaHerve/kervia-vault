@@ -1,4 +1,5 @@
 import * as React from 'react'
+import { Eye, EyeOff } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 export const Input = React.forwardRef<HTMLInputElement, React.InputHTMLAttributes<HTMLInputElement>>(
@@ -16,6 +17,30 @@ export const Input = React.forwardRef<HTMLInputElement, React.InputHTMLAttribute
   ),
 )
 Input.displayName = 'Input'
+
+// PasswordInput: un Input password avec l'œil intégré — l'utilisateur PEUT
+// voir la valeur en édition (toggle par champ, jamais masqué à double).
+export function PasswordInput({ className, ...props }: React.InputHTMLAttributes<HTMLInputElement>) {
+  const [show, setShow] = React.useState(false)
+  return (
+    <div className="relative">
+      <Input
+        {...props}
+        type={show ? 'text' : 'password'}
+        className={cn('pr-9 font-mono', className)}
+      />
+      <button
+        type="button"
+        onClick={() => setShow(s => !s)}
+        className="absolute right-2 top-1/2 -translate-y-1/2 text-fg-3 hover:text-fg cursor-pointer"
+        tabIndex={-1}
+        aria-label={show ? 'masquer' : 'afficher'}
+      >
+        {show ? <EyeOff size={14} /> : <Eye size={14} />}
+      </button>
+    </div>
+  )
+}
 
 export const Label = ({ className, ...props }: React.LabelHTMLAttributes<HTMLLabelElement>) => (
   <label className={cn('block text-xs font-semibold text-fg-2 mb-1.5', className)} {...props} />

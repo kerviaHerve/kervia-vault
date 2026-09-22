@@ -1,5 +1,11 @@
 # Changelog
 
+## v1.0.9 (2026-09-22)
+
+- **Eye toggle in edit fields.** Editing a sensitive field (API token,
+  password, secret…) now shows a small eye in the input to reveal the
+  value while editing — both in the secret dialog and the create form.
+
 ## v1.0.8 (2026-09-22)
 
 - **No JSON anywhere in the UI.** Secret reveal and edit moved to a

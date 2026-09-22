@@ -30,6 +30,12 @@ const (
 	TypeTextArea FieldType = "textarea" // multi-line (certificates, JSON keys)
 )
 
+// ByKey returns the template registered under key ("" if unknown).
+func ByKey(key string) (Template, bool) {
+	t, ok := allTemplates[key]
+	return t, ok
+}
+
 // Field describes one credential field.
 type Field struct {
 	Name        string    `json:"name"`

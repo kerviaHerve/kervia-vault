@@ -12,6 +12,56 @@ interface Template {
   fields: { name: string; label: string; type: string; required: boolean; placeholder?: string; help?: string }[]
 }
 
+
+// SecretValue: rendu élégant d'un secret révélé.
+// Templated → carte de champs (label humain + valeur, password masqué au
+// clic possible, copie par champ). Free-form → texte monospace.
+function SecretValue({ rev, onCopyAll, t }: { rev: any; onCopyAll?: () => void; t: any }) {
+  if (rev?.fields?.length) {
+    return (
+      <div className="rounded-lg border border-border bg-bg p-2.5 space-y-1.5 max-w-72">
+        {rev.fields.map((f: any, i: number) => (
+          <div key={i} className="flex items-start gap-2 group">
+            <span className="text-[10px] uppercase tracking-wide text-fg-3 mt-0.5 w-20 shrink-0">{f.label}</span>
+            <span className={`font-mono text-xs break-all flex-1 ${f.type === 'password' ? 'text-accent' : 'text-fg'}`}>
+              {f.type === 'password' || /secret|password|token|key/i.test(f.label) ? (
+                <MaskedValue value={f.value} />
+              ) : f.value}
+            </span>
+            <button
+              onClick={() => { navigator.clipboard.writeText(f.value); toast.success(String(t.copied)) }}
+              className="opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer text-fg-3 hover:text-fg shrink-0 mt-0.5"
+              title={String(t.copied)}><Copy size={11} /></button>
+          </div>
+        ))}
+        {onCopyAll && (
+          <button onClick={onCopyAll} className="text-[10px] text-fg-3 hover:text-fg cursor-pointer pt-1">
+            {String(t.copyRaw)}
+          </button>
+        )}
+      </div>
+    )
+  }
+  return (
+    <motion.pre
+      initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+      className="font-mono text-xs text-fg whitespace-pre-wrap break-all max-w-64"
+    >{rev?.value ?? ''}</motion.pre>
+  )
+}
+
+// MaskedValue: montre •••• par défaut, la vraie valeur au survol/clic (les
+// champs sensibles ne s'affichent pas d'un coup dans la page).
+function MaskedValue({ value }: { value: string }) {
+  const [show, setShow] = React.useState(false)
+  if (show) return <span className="cursor-pointer" onClick={() => setShow(false)}>{value}</span>
+  return (
+    <span className="cursor-pointer text-accent/70 hover:text-accent transition-colors" onClick={() => setShow(true)}>
+      {'•'.repeat(Math.min(value.length, 16))}
+    </span>
+  )
+}
+
 export default function Secrets() {
   const { t } = useLang()
   const [vaults, setVaults] = React.useState<any[]>([])
@@ -19,7 +69,7 @@ export default function Secrets() {
   const [secrets, setSecrets] = React.useState<any[] | null>(null)
   const [templates, setTemplates] = React.useState<Template[]>([])
   const [open, setOpen] = React.useState(false)
-  const [revealed, setRevealed] = React.useState<Record<string, string>>({})
+  const [revealed, setRevealed] = React.useState<Record<string, any>>({})
 
   React.useEffect(() => { api('GET', '/admin/vaults').then((v: any[]) => { setVaults(v); if (v.length) setVault(v[0].name) }) }, [])
   React.useEffect(() => { api('GET', '/admin/templates').then(setTemplates).catch(() => {}) }, [])
@@ -31,14 +81,14 @@ export default function Secrets() {
     const d = await api('GET', `/admin/secrets/reveal?id=${id}`)
     let v = d.value
     try { v = JSON.stringify(JSON.parse(v), null, 2) } catch {}
-    setRevealed(r => ({ ...r, [id]: v }))
+    setRevealed(r => ({ ...r, [id]: { value: v, fields: d.fields, template: d.template } }))
   }
   const revealSearch = async (sr: any) => {
     if (revealed[sr.id] !== undefined) { setRevealed(r => { const n = { ...r }; delete n[sr.id]; return n }); return }
     const d = await api('GET', `/admin/secrets/reveal?id=${sr.id}`)
     let v = d.value
     try { v = JSON.stringify(JSON.parse(v), null, 2) } catch {}
-    setRevealed(r => ({ ...r, [sr.id]: v }))
+    setRevealed(r => ({ ...r, [sr.id]: { value: v, fields: d.fields, template: d.template } }))
   }
 
   const del = async (id: string, key: string) => {
@@ -156,7 +206,7 @@ export default function Secrets() {
                 <td className="px-5 py-3"><Badge variant={sr.template ? 'neutral' : 'neutral'}>{sr.template || String(t.free)}</Badge></td>
                 <td className="px-5 py-3 max-w-72">
                   {revealed[sr.id] !== undefined ? (
-                    <span className="font-mono text-xs whitespace-pre-wrap break-all">{revealed[sr.id]}</span>
+                    <SecretValue rev={revealed[sr.id]} t={t} />
                   ) : (
                     <Button variant="ghost" size="sm" onClick={() => revealSearch(sr)}>
                       <Eye size={13} /> {String(t.reveal)}
@@ -202,10 +252,8 @@ export default function Secrets() {
                   </td>
                   <td className="px-5 py-3 max-w-72">
                     {revealed[s.id] !== undefined ? (
-                      <motion.pre
-                        initial={{ opacity: 0 }} animate={{ opacity: 1 }}
-                        className="font-mono text-xs text-fg whitespace-pre-wrap break-all max-w-64"
-                      >{revealed[s.id]}</motion.pre>
+                      <SecretValue rev={revealed[s.id]} t={t}
+                        onCopyAll={() => { navigator.clipboard.writeText(revealed[s.id].value); toast.success(String(t.copied)) }} />
                     ) : (
                       <span className="font-mono text-fg-3">••••••••••••</span>
                     )}
@@ -217,7 +265,7 @@ export default function Secrets() {
                       {revealed[s.id] !== undefined ? <EyeOff size={15} /> : <Eye size={15} />}
                     </Button>
                     {revealed[s.id] !== undefined && (
-                      <Button variant="ghost" size="icon" onClick={() => { navigator.clipboard.writeText(revealed[s.id]); toast.success(String(t.copied)) }}>
+                      <Button variant="ghost" size="icon" onClick={() => { navigator.clipboard.writeText(revealed[s.id].value ?? revealed[s.id]); toast.success(String(t.copied)) }}>
                         <Copy size={15} />
                       </Button>
                     )}

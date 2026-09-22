@@ -126,19 +126,53 @@ func (s *Server) AttachAdmin(adminMux *http.ServeMux) {
 			http.Error(w, `{"error":"internal"}`, 500)
 			return
 		}
-		// templated secrets: pretty object, one field per line
-		display := string(value)
+		// templated secrets: the webui shows a labeled field card, not raw JSON.
+		// fields[] carries the template's human labels + field types so the
+		// client can render/mask properly. value stays for copy/export.
+		resp := map[string]any{"value": string(value)}
 		if sec.Template != "" {
 			var obj map[string]any
 			if json.Unmarshal(value, &obj) == nil {
-				if pretty, err := json.MarshalIndent(obj, "", "  "); err == nil {
-					display = string(pretty)
+				if tpl, ok := templates.ByKey(sec.Template); ok {
+					type field struct {
+						Label string `json:"label"`
+						Type  string `json:"type"`
+						Value string `json:"value"`
+					}
+					fields := make([]field, 0, len(tpl.Fields))
+					for _, f := range tpl.Fields {
+						v, present := obj[f.Name]
+						if !present {
+							continue
+						}
+						sv, _ := v.(string)
+						fields = append(fields, field{Label: f.Label, Type: string(f.Type), Value: sv})
+					}
+					// unknown keys (not in the template) — surfaced as-is
+					for k, v := range obj {
+						known := false
+						for _, f := range tpl.Fields {
+							if f.Name == k {
+								known = true
+								break
+							}
+						}
+						if !known {
+							sv, _ := v.(string)
+							fields = append(fields, field{Label: k, Type: string(templates.TypeText), Value: sv})
+						}
+					}
+					if pretty, err := json.MarshalIndent(obj, "", "  "); err == nil {
+						resp["value"] = string(pretty)
+					}
+					resp["template"] = sec.Template
+					resp["fields"] = fields
 				}
 			}
 		}
-		resp, _ := json.Marshal(map[string]string{"value": display})
+		respB, _ := json.Marshal(resp)
 		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write(resp)
+		_, _ = w.Write(respB)
 	})
 	adminMux.HandleFunc("POST /admin/secrets/{id}/delete", func(w http.ResponseWriter, r *http.Request) {
 		id := r.PathValue("id")

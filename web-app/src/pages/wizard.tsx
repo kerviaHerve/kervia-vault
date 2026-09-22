@@ -158,7 +158,7 @@ export default function Wizard({ onDone }: { onDone: () => void }) {
     `API key (usage: Authorization: Bearer <key> ou KERVIA_VAULT_API_KEY):`, agent.api_key,
     '', 'Ne partagez jamais cette clé. Elle ne sera plus jamais affichée.'].join('\n') : ''
 
-  const skillText = agent ? skillFor(agent.agent.name, agent.api_key) : ''
+  const skillText = agent ? skillFor(agent.agent.name, agent.api_key, window.location.origin) : ''
 
   const progress = { 1: '1/5', 2: '2/5', 3: '3/5', 4: '4/5', 5: '5/5' } as const
 
@@ -328,8 +328,10 @@ export default function Wizard({ onDone }: { onDone: () => void }) {
   )
 }
 
-// Skill generator (usage + connection, NO master key inside)
-function skillFor(agentName: string, apiKey: string): string {
+// Skill generator (usage + connection, NO master key inside).
+// origin: where the user is RIGHT NOW (window.location.origin) — the skill
+// is ready to paste, no <host>:<port> placeholders to fill.
+function skillFor(agentName: string, apiKey: string, origin: string): string {
   return `---
 name: kervia-vault
 description: Read and write credentials in Kervia-vault — the kervia multi-agent secrets vault. Use when a task needs an API key, password, token, or any credential, when storing/rotating a shared credential, or when the user mentions "vault", "secret", or a credential by name.
@@ -347,7 +349,7 @@ vaults granted to you. Never echo a secret value unless the task requires it.
 \`\`\`yaml
 mcp_servers:
   kervia-vault:
-    url: http://<host>:<port>/mcp
+    url: ${origin}/mcp
     headers:
       Authorization: "Bearer ${apiKey}"
 \`\`\`
@@ -359,10 +361,10 @@ KERVIA_VAULT_API_KEY=${apiKey} ./kervia-vault --mcp-stdio
 
 ### Option C — REST fallback
 \`\`\`bash
-curl -H "Authorization: Bearer ${apiKey}" http://<host>:<port>/v1/whoami
-curl -H "Authorization: Bearer ${apiKey}" "http://<host>:<port>/v1/secrets?vault=<name>"
+curl -H "Authorization: Bearer ${apiKey}" ${origin}/v1/whoami
+curl -H "Authorization: Bearer ${apiKey}" "${origin}/v1/secrets?vault=<name>"
 curl -X POST -H "Authorization: Bearer ${apiKey}" -H "Content-Type: application/json" \\
-  http://<host>:<port>/v1/secrets \\
+  ${origin}/v1/secrets \\
   -d '{"vault":"<name>","key":"NEW_KEY","value":"..."}'
 \`\`\`
 

@@ -180,7 +180,7 @@ export default function Wizard({ onDone }: { onDone: () => void }) {
       >
         {/* logo */}
         <div className="flex flex-col items-center gap-2 mb-6">
-          <img src={logo} alt="Kervia-vault" className="h-10" />
+          <img src={logo} alt="Kervia-vault" className="h-16" />
           {step > 1 && <>
             <p className="text-xs text-fg-2 mt-1">{t.welcome}</p>
             <p className="text-[11px] text-fg-3">{t.sub}</p>
@@ -198,11 +198,11 @@ export default function Wizard({ onDone }: { onDone: () => void }) {
               <div className="flex flex-col gap-2">
                 <button onClick={() => pickLang('fr')}
                   className={`px-4 h-11 rounded-lg border text-sm font-medium transition-colors cursor-pointer ${lang === 'fr' ? 'border-accent bg-accent/10 text-accent' : 'border-border bg-card-2 hover:border-fg-3'}`}>
-                  🇫🇷 Français
+                  Français
                 </button>
                 <button onClick={() => pickLang('en')}
                   className={`px-4 h-11 rounded-lg border text-sm font-medium transition-colors cursor-pointer ${lang === 'en' ? 'border-accent bg-accent/10 text-accent' : 'border-border bg-card-2 hover:border-fg-3'}`}>
-                  🇬🇧 English
+                  English
                 </button>
               </div>
             </motion.div>

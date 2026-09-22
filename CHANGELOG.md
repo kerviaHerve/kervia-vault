@@ -1,5 +1,14 @@
 # Changelog
 
+## v1.0.12 (2026-09-22)
+
+- **[strix vuln-0001, CWE-200, CVSS 5.3] `/setup/info` recon hardening**:
+  once setup is done, the public endpoint returns only `{"setup_done":true}` —
+  the internal listen address and exact version are no longer disclosed
+  unauthenticated (they were only ever needed by the first-boot wizard).
+  Verified by a first autonomous pentest (Strix + DeepSeek V4 Pro) against
+  the production instance; 18 attack surfaces covered, 1 finding, fixed.
+
 ## v1.0.11 (2026-09-22)
 
 - **Security audit (full code Sentinel pass).** All surfaces reviewed —

@@ -1,0 +1,53 @@
+2026-09-22 16:01:46.363 INFO    s-kerviavault-kervia-ch_5608 - strix.core.runner: Starting Strix scan s-kerviavault-kervia-ch_5608 (image=ghcr.io/usestrix/strix-sandbox:1.3.0, max_turns=500, interactive=False, run_dir=/opt/kervia-vault/strix_runs/s-kerviavault-kervia-ch_5608)
+2026-09-22 16:01:46.363 INFO    s-kerviavault-kervia-ch_5608 - strix.core.runner: LLM model resolved: openai/glm-5.3
+2026-09-22 16:01:46.364 INFO    s-kerviavault-kervia-ch_5608 - strix.core.runner: Bringing up sandbox session for scan s-kerviavault-kervia-ch_5608
+2026-09-22 16:01:46.364 DEBUG   s-kerviavault-kervia-ch_5608 - strix.runtime.backends: Selected sandbox backend: docker
+2026-09-22 16:01:46.364 INFO    s-kerviavault-kervia-ch_5608 - strix.runtime.session_manager: Creating sandbox session for scan s-kerviavault-kervia-ch_5608 (backend=docker, image=ghcr.io/usestrix/strix-sandbox:1.3.0)
+2026-09-22 16:01:46.491 DEBUG   s-kerviavault-kervia-ch_5608 - strix.runtime.docker_client: Creating sandbox container: image=ghcr.io/usestrix/strix-sandbox:1.3.0 caps=['NET_ADMIN', 'NET_RAW'] exposed_ports=[48080]
+2026-09-22 16:01:46.831 INFO    s-kerviavault-kervia-ch_5608 - strix.runtime.docker_client: Sandbox container created: id=9355bb1e93f6 image=ghcr.io/usestrix/strix-sandbox:1.3.0
+2026-09-22 16:01:47.239 DEBUG   s-kerviavault-kervia-ch_5608 - strix.runtime.session_manager: Caido host endpoint resolved: http://127.0.0.1:32776
+2026-09-22 16:01:47.239 INFO    s-kerviavault-kervia-ch_5608 - strix.runtime.session_manager: Sandbox session for scan s-kerviavault-kervia-ch_5608 ready and cached
+2026-09-22 16:01:47.239 INFO    s-kerviavault-kervia-ch_5608 - strix.core.runner: Sandbox ready for scan s-kerviavault-kervia-ch_5608
+2026-09-22 16:01:47.242 DEBUG   s-kerviavault-kervia-ch_5608 - strix.skills: Loaded skill: scan_modes/deep -> deep
+2026-09-22 16:01:47.242 DEBUG   s-kerviavault-kervia-ch_5608 - strix.skills: Loaded skill: tooling/agent_browser -> agent_browser
+2026-09-22 16:01:47.243 DEBUG   s-kerviavault-kervia-ch_5608 - strix.skills: Loaded skill: tooling/python -> python
+2026-09-22 16:01:47.243 DEBUG   s-kerviavault-kervia-ch_5608 - strix.skills: Loaded skill: analysis/counterevidence -> counterevidence
+2026-09-22 16:01:47.244 DEBUG   s-kerviavault-kervia-ch_5608 - strix.skills: Loaded skill: analysis/severity_calibration -> severity_calibration
+2026-09-22 16:01:47.244 DEBUG   s-kerviavault-kervia-ch_5608 - strix.skills: Loaded skill: coordination/root_agent -> root_agent
+2026-09-22 16:01:47.244 DEBUG   s-kerviavault-kervia-ch_5608 - strix.skills: load_skills: 6 skill(s) resolved
+2026-09-22 16:01:47.261 DEBUG   s-kerviavault-kervia-ch_5608 - strix.agents.prompt: render_system_prompt: scan_mode=deep root=True whitebox=False skills=6 prompt_len=106268
+2026-09-22 16:01:47.261 INFO    s-kerviavault-kervia-ch_5608 - strix.agents.factory: Built root agent 'Root Agent' (skills=0, tools=41, scan_mode=deep, whitebox=False)
+2026-09-22 16:01:47.262 INFO    s-kerviavault-kervia-ch_5608 - strix.core.agents: agent.register a34bcdb5 (Root Agent) parent=-
+2026-09-22 16:01:47.279 INFO    s-kerviavault-kervia-ch_5608 - strix.runtime.caido_bootstrap: Bootstrapping Caido client (host=http://127.0.0.1:32776, container=http://127.0.0.1:48080)
+2026-09-22 16:01:47.290 DEBUG   s-kerviavault-kervia-ch_5608 - openai.agents: Tracing is disabled. Not creating trace
+2026-09-22 16:01:47.292 DEBUG   s-kerviavault-kervia-ch_5608 - openai.agents: Setting current trace: no-op
+2026-09-22 16:01:47.292 DEBUG   s-kerviavault-kervia-ch_5608 - openai.agents: Tracing is disabled. Not creating span
+2026-09-22 16:01:47.299 DEBUG   s-kerviavault-kervia-ch_5608 - openai.agents: Tracing is disabled. Not creating span
+2026-09-22 16:01:47.299 DEBUG   s-kerviavault-kervia-ch_5608 - openai.agents: Starting turn 1, current_agent=Root Agent
+2026-09-22 16:01:47.299 DEBUG   s-kerviavault-kervia-ch_5608 - openai.agents: Tracing is disabled. Not creating span
+2026-09-22 16:01:47.300 DEBUG   s-kerviavault-kervia-ch_5608 - openai.agents: No conversation_id available for request
+2026-09-22 16:01:47.301 DEBUG   s-kerviavault-kervia-ch_5608 - openai.agents: Tracing is disabled. Not creating span
+2026-09-22 16:01:47.302 DEBUG   s-kerviavault-kervia-ch_5608 - openai.agents: Calling LLM
+2026-09-22 16:01:47.490 INFO    s-kerviavault-kervia-ch_5608 - strix.runtime.caido_bootstrap: Caido project selected: 75b1cb5d-9583-4ed3-8493-794d57416270
+2026-09-22 16:01:50.438 INFO    - - strix.report.coverage: Saved coverage record to: /opt/kervia-vault/strix_runs/s-kerviavault-kervia-ch_5608/coverage.json (0 surface(s), 1 gap(s))
+2026-09-22 16:01:50.439 INFO    - - strix.report.sarif: Wrote SARIF 2.1.0 report: /opt/kervia-vault/strix_runs/s-kerviavault-kervia-ch_5608/findings.sarif (0 results)
+2026-09-22 16:01:50.439 INFO    - - strix.report.state: Essential scan data saved to: /opt/kervia-vault/strix_runs/s-kerviavault-kervia-ch_5608
+2026-09-22 16:01:50.440 INFO    s-kerviavault-kervia-ch_5608 - strix.core.runner: Scan s-kerviavault-kervia-ch_5608 interrupted by the user
+2026-09-22 16:01:50.440 INFO    s-kerviavault-kervia-ch_5608 - strix.core.agents: agent.status a34bcdb5=running
+2026-09-22 16:01:50.441 INFO    s-kerviavault-kervia-ch_5608 - strix.core.runner: Tearing down sandbox session for scan s-kerviavault-kervia-ch_5608
+2026-09-22 16:01:50.908 INFO    s-kerviavault-kervia-ch_5608 - strix.report.coverage: Saved coverage record to: /opt/kervia-vault/strix_runs/s-kerviavault-kervia-ch_5608/coverage.json (0 surface(s), 1 gap(s))
+2026-09-22 16:01:50.909 INFO    s-kerviavault-kervia-ch_5608 - strix.report.sarif: Wrote SARIF 2.1.0 report: /opt/kervia-vault/strix_runs/s-kerviavault-kervia-ch_5608/findings.sarif (0 results)
+2026-09-22 16:01:50.910 INFO    s-kerviavault-kervia-ch_5608 - strix.report.state: Essential scan data saved to: /opt/kervia-vault/strix_runs/s-kerviavault-kervia-ch_5608
+2026-09-22 16:01:51.234 INFO    s-kerviavault-kervia-ch_5608 - strix.report.coverage: Saved coverage record to: /opt/kervia-vault/strix_runs/s-kerviavault-kervia-ch_5608/coverage.json (0 surface(s), 1 gap(s))
+2026-09-22 16:01:51.235 INFO    s-kerviavault-kervia-ch_5608 - strix.report.sarif: Wrote SARIF 2.1.0 report: /opt/kervia-vault/strix_runs/s-kerviavault-kervia-ch_5608/findings.sarif (0 results)
+2026-09-22 16:01:51.235 INFO    s-kerviavault-kervia-ch_5608 - strix.report.state: Essential scan data saved to: /opt/kervia-vault/strix_runs/s-kerviavault-kervia-ch_5608
+2026-09-22 16:01:51.244 INFO    - - strix.report.coverage: Saved coverage record to: /opt/kervia-vault/strix_runs/s-kerviavault-kervia-ch_5608/coverage.json (0 surface(s), 1 gap(s))
+2026-09-22 16:01:51.245 INFO    - - strix.report.sarif: Wrote SARIF 2.1.0 report: /opt/kervia-vault/strix_runs/s-kerviavault-kervia-ch_5608/findings.sarif (0 results)
+2026-09-22 16:01:51.245 INFO    - - strix.report.state: Essential scan data saved to: /opt/kervia-vault/strix_runs/s-kerviavault-kervia-ch_5608
+2026-09-22 16:01:51.579 DEBUG   - - strix.telemetry.posthog: posthog event sent: scan_ended
+2026-09-22 16:01:51.634 INFO    - - strix.report.coverage: Saved coverage record to: /opt/kervia-vault/strix_runs/s-kerviavault-kervia-ch_5608/coverage.json (0 surface(s), 1 gap(s))
+2026-09-22 16:01:51.635 INFO    - - strix.report.sarif: Wrote SARIF 2.1.0 report: /opt/kervia-vault/strix_runs/s-kerviavault-kervia-ch_5608/findings.sarif (0 results)
+2026-09-22 16:01:51.636 INFO    - - strix.report.state: Essential scan data saved to: /opt/kervia-vault/strix_runs/s-kerviavault-kervia-ch_5608
+2026-09-22 16:01:51.644 INFO    - - strix.report.coverage: Saved coverage record to: /opt/kervia-vault/strix_runs/s-kerviavault-kervia-ch_5608/coverage.json (0 surface(s), 1 gap(s))
+2026-09-22 16:01:51.645 INFO    - - strix.report.sarif: Wrote SARIF 2.1.0 report: /opt/kervia-vault/strix_runs/s-kerviavault-kervia-ch_5608/findings.sarif (0 results)
+2026-09-22 16:01:51.645 INFO    - - strix.report.state: Essential scan data saved to: /opt/kervia-vault/strix_runs/s-kerviavault-kervia-ch_5608

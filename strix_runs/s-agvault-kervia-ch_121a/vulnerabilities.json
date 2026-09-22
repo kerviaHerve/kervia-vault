@@ -1,0 +1,38 @@
+[
+  {
+    "id": "vuln-0001",
+    "title": "Unauthenticated information disclosure of internal mesh IP and version via /setup/info",
+    "severity": "medium",
+    "timestamp": "2026-09-22 14:24:57 UTC",
+    "description": "The `GET /setup/info` endpoint is publicly reachable without authentication and discloses the application's internal mesh listen address (`100.100.108.242:8321`) and software version (`v1.0.10`), aiding reconnaissance and internal-infrastructure mapping.",
+    "impact": "An unauthenticated attacker learns the internal Tailscale/mesh IP:port where the service listens and the exact product version. This reveals internal network topology and the software version, which can be used to target version-specific vulnerabilities. The disclosed address is in the CGNAT range (100.64.0.0/10) and is not directly routable from the public internet, limiting immediate impact to reconnaissance value.",
+    "target": "https://vault.kervia.ch",
+    "technical_analysis": "`GET /setup/info` returns HTTP 200 with a JSON body containing `setup_done`, `listen`, and `version` fields, with no authentication required. This is the first-boot setup status endpoint that remains publicly exposed after provisioning completes (`setup_done:true`). The `listen` field reveals the internal mesh bind address `100.100.108.242:8321` (a Tailscale CGNAT address), and `version` discloses the exact build `v1.0.10`.\n\n```http\nGET /setup/info HTTP/1.1\nHost: vault.kervia.ch\n```\n\n```json\n{\"setup_done\":true,\"listen\":\"100.100.108.242:8321\",\"version\":\"v1.0.10\"}\n```\n\nThe endpoint serves no functional need to unauthenticated internet users after first-boot setup has completed and should not be publicly reachable.",
+    "poc_description": "1. Send an unauthenticated `GET` request to `https://vault.kervia.ch/setup/info`.\n2. Observe the HTTP 200 response body discloses the internal listen address and version.",
+    "poc_script_code": "curl -s https://vault.kervia.ch/setup/info\n# {\"setup_done\":true,\"listen\":\"100.100.108.242:8321\",\"version\":\"v1.0.10\"}",
+    "remediation_steps": "Restrict the `/setup/info` endpoint to only respond before first-boot setup completes, or require authentication once `setup_done` is true. Remove the internal `listen` address from the public response (or omit it entirely once provisioned). Avoid exposing exact software versions publicly, or gate them behind authenticated admin access.",
+    "evidence": "Unauthenticated request returns the disclosure:\n\n```http\nHTTP/1.1 200 OK\nContent-Type: application/json\n\n{\"setup_done\":true,\"listen\":\"100.100.108.242:8321\",\"version\":\"v1.0.10\"}\n```\n\nThe `listen` field exposes the internal mesh IP `100.100.108.242:8321`, and `version` exposes `v1.0.10`.",
+    "assumptions": "Assumes the endpoint remains reachable by unauthenticated internet users; confirmed via direct request.",
+    "counterevidence": "The disclosed IP is a CGNAT/Tailscale address (100.64.0.0/10) that is not directly routable from the public internet, and the version string `v1.0.10` is not itself a secret. No credentials, secrets, or restricted data were returned. This bounds the finding to low/informational reconnaissance value rather than direct unauthorized access.",
+    "confidence": "high",
+    "severity_change_conditions": "Confirmation that the disclosed mesh address is reachable from an attacker position (e.g. via an already-compromised node or exposed proxy) would raise the severity to medium by turning topology disclosure into a concrete attack path.",
+    "fix_effort": "trivial",
+    "cvss": 5.3,
+    "cvss_breakdown": {
+      "attack_complexity": "L",
+      "attack_vector": "N",
+      "availability": "N",
+      "confidentiality": "L",
+      "integrity": "N",
+      "privileges_required": "N",
+      "scope": "U",
+      "user_interaction": "N"
+    },
+    "endpoint": "/setup/info",
+    "method": "GET",
+    "cwe": "CWE-200",
+    "finding_class": "dynamic",
+    "agent_id": "b6e79d5b",
+    "agent_name": "Auth & Recovery Logic Agent"
+  }
+]

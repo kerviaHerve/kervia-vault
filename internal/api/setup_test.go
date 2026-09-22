@@ -168,3 +168,44 @@ func TestSetupInfoLeaksNothing(t *testing.T) {
 		t.Fatal("fresh install: setup_done must be false")
 	}
 }
+
+func TestSetupInfoPostSetupRevealsNothing(t *testing.T) {
+	// strix vuln-0001 (CWE-200): once setup is done, the PUBLIC /setup/info
+	// must not disclose the internal listen address or the exact version —
+	// only setup_done remains (recon hardening).
+	ph, _ := bcrypt.GenerateFromPassword([]byte(auth.AdminPlaceholderPassword), bcrypt.MinCost)
+	mgr, authSvc, st := newSetupEnv(t, string(ph))
+	ts := setupMux(t, mgr, authSvc, st)
+
+	// pre-setup: the wizard needs listen + version
+	info := fetchInfo(t, ts.URL)
+	if info.Listen == "" || info.Version == "" {
+		t.Fatal("pre-setup: the wizard needs listen and version")
+	}
+
+	// complete the setup, then re-check
+	if res := postSetup(t, ts.URL, "10.0.0.5", "a-valid-password-123"); res.StatusCode != 200 {
+		t.Fatalf("setup/init = %d", res.StatusCode)
+	}
+	info = fetchInfo(t, ts.URL)
+	if !info.SetupDone {
+		t.Fatal("post-setup: setup_done must be true")
+	}
+	if info.Listen != "" || info.Version != "" {
+		t.Fatalf("post-setup leak: listen=%q version=%q — must be empty (recon hardening)", info.Listen, info.Version)
+	}
+}
+
+func fetchInfo(t *testing.T, base string) SystemInfo {
+	t.Helper()
+	res, err := http.Get(base + "/setup/info")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer res.Body.Close()
+	var info SystemInfo
+	if err := json.NewDecoder(res.Body).Decode(&info); err != nil {
+		t.Fatal(err)
+	}
+	return info
+}

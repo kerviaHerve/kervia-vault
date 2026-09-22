@@ -1,0 +1,50 @@
+{
+  "run_id": "s-kerviavault-kervia-ch_5608",
+  "run_name": "s-kerviavault-kervia-ch_5608",
+  "start_time": "2026-09-22T14:01:45.953398+00:00",
+  "end_time": "2026-09-22T14:01:50.432407+00:00",
+  "status": "interrupted",
+  "auth_mode": "api_key",
+  "targets_info": [
+    {
+      "type": "web_application",
+      "details": {
+        "target_url": "https://vault.kervia.ch"
+      },
+      "original": "https://vault.kervia.ch"
+    }
+  ],
+  "llm_usage": {
+    "requests": 0,
+    "input_tokens": 0,
+    "input_tokens_details": [
+      {
+        "cache_write_tokens": 0,
+        "cached_tokens": 0
+      }
+    ],
+    "output_tokens": 0,
+    "output_tokens_details": [
+      {
+        "reasoning_tokens": 0
+      }
+    ],
+    "total_tokens": 0,
+    "request_usage_entries": [],
+    "cost": 0.0,
+    "agents": []
+  },
+  "scan_mode": "deep",
+  "instruction": "SCOPE: you are ONLY authorized to test https://vault.kervia.ch (this exact host, our own Kervia-vault secrets vault). Do NOT touch any other domain, IP, service or port on this network. Attack surfaces: REST API /v1/* (Bearer av_ keys), MCP /mcp, admin webui /ui/* and /admin/* (session cookie), first-boot setup /setup/*. Test: authentication (Argon2id keys, bcrypt login, recovery codes), access control (per-vault grants, IDOR), setup wizard, rate limiting, sessions, template validation, injection on REST/MCP inputs. No valid credentials provided: unauthenticated recon, auth bypass, logic flaws only. Do NOT brute-force (rate limits are intentional). Report findings with PoC.",
+  "user_instruction": "SCOPE: you are ONLY authorized to test https://vault.kervia.ch (this exact host, our own Kervia-vault secrets vault). Do NOT touch any other domain, IP, service or port on this network. Attack surfaces: REST API /v1/* (Bearer av_ keys), MCP /mcp, admin webui /ui/* and /admin/* (session cookie), first-boot setup /setup/*. Test: authentication (Argon2id keys, bcrypt login, recovery codes), access control (per-vault grants, IDOR), setup wizard, rate limiting, sessions, template validation, injection on REST/MCP inputs. No valid credentials provided: unauthenticated recon, auth bypass, logic flaws only. Do NOT brute-force (rate limits are intentional). Report findings with PoC.",
+  "non_interactive": true,
+  "local_sources": [],
+  "workspace_files": [],
+  "workspace_mount": null,
+  "diff_scope": {
+    "active": false,
+    "mode": "auto"
+  },
+  "scope_mode": "auto",
+  "diff_base": null
+}

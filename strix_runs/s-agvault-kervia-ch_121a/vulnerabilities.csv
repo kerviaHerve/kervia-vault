@@ -1,0 +1,2 @@
+id,title,severity,timestamp,file
+vuln-0001,Unauthenticated information disclosure of internal mesh IP and version via /setup/info,MEDIUM,2026-09-22 14:24:57 UTC,vulnerabilities/vuln-0001.md

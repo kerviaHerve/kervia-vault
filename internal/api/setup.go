@@ -78,9 +78,16 @@ type SystemInfo struct {
 
 // Info returns the wizard-visible system state.
 // Deliberately minimal: it is served PUBLICLY (the wizard needs it before
-// any auth) — no db path, no server paths.
+// any auth) — no db path, no server paths, and post-setup it reveals
+// nothing an attacker could use for recon: only setup_done stays
+// (the wizard closed screen), listen/version are dropped once done
+// (strix vuln-0001: unauthenticated recon disclosed the internal mesh
+// bind address and exact build version).
 func (m *SetupManager) Info() SystemInfo {
-	return SystemInfo{SetupDone: m.Done(), Listen: m.listenAddr, Version: m.version}
+	if m.Done() {
+		return SystemInfo{SetupDone: true}
+	}
+	return SystemInfo{SetupDone: false, Listen: m.listenAddr, Version: m.version}
 }
 
 // Mount registers the setup endpoints (public, but only functional pre-setup).

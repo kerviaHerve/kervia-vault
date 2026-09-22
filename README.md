@@ -71,11 +71,11 @@ opencode mcp add kervia-vault --global \
   -- /opt/kervia-vault/bin/kervia-vault --mcp-stdio
 ```
 
-**HTTP (Hermes — any machine on the mesh, no binary needed):**
+**HTTP (Hermes — any machine that can reach the server, no binary needed):**
 ```yaml
 mcp_servers:
   kervia-vault:
-    url: https://vault.kervia.ch/mcp
+    url: https://your-kerviavault.example.com/mcp   # ← your instance's URL
     headers:
       Authorization: "Bearer av_..."
 ```

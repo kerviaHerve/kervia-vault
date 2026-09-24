@@ -6,6 +6,31 @@ import { useLang } from '@/i18n'
 import { api } from '@/lib/api'
 import { Button, Badge, Dialog, DialogContent, Input, PasswordInput, Field } from '@/components/ui'
 import { cn, fmtDateTime } from '@/lib/utils'
+import { useSort } from '@/lib/useSort'
+
+// SortHeader: cellule <th> cliquable — trie la colonne, flèche sur la colonne active.
+function SortHeader({ label, sortKey, activeKey, dir, onSort, className }: {
+  label: React.ReactNode; sortKey: string; activeKey: string; dir: 'asc' | 'desc';
+  onSort: (k: string) => void; className?: string
+}) {
+  const active = sortKey === activeKey
+  return (
+    <th className={cn('px-5 py-3 text-left text-[11px] font-semibold uppercase tracking-wider', className)}>
+      <button
+        onClick={() => onSort(sortKey)}
+        className={cn(
+          'inline-flex items-center gap-1 cursor-pointer select-none transition-colors',
+          active ? 'text-accent' : 'text-fg-3 hover:text-fg-2',
+        )}
+      >
+        {label}
+        {active && (
+          <span className="text-[9px] leading-none">{dir === 'asc' ? '▲' : '▼'}</span>
+        )}
+      </button>
+    </th>
+  )
+}
 
 interface Template {
   key: string; name: string; category: string
@@ -226,6 +251,10 @@ export default function Secrets() {
 
   const openEdit = (s: any) => { setDialogMode('edit'); setDialogSecret(s) }
 
+  // Tri des secrets du vault actif (client-side, liste déjà chargée)
+  const { sorted: sortedSecrets, sortKey, sortDir, toggle } = useSort<any>(secrets, 'key', 'asc')
+  const { sorted: sortedSearch, sortKey: sKey, sortDir: sDir, toggle: sToggle } = useSort<any>(searchResults, 'key', 'asc')
+
   if (!vaults.length) return (
     <div>
       <h1 className="text-xl font-bold tracking-tight mb-6">Secrets</h1>
@@ -277,13 +306,17 @@ export default function Secrets() {
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-border text-fg-3">
-              {[String(t.key), 'Vault', 'Type', String(t.value), 'Version', 'MàJ', ''].map((h, i) => (
-                <th key={i} className="px-5 py-3 text-left text-[11px] font-semibold uppercase tracking-wider">{h}</th>
-              ))}
+              <SortHeader label={String(t.key)} sortKey="key" activeKey={sKey} dir={sDir} onSort={sToggle} />
+              <SortHeader label="Vault" sortKey="vault_name" activeKey={sKey} dir={sDir} onSort={sToggle} />
+              <SortHeader label="Type" sortKey="template" activeKey={sKey} dir={sDir} onSort={sToggle} />
+              <th className="px-5 py-3 text-left text-[11px] font-semibold uppercase tracking-wider">{String(t.value)}</th>
+              <SortHeader label="Version" sortKey="version" activeKey={sKey} dir={sDir} onSort={sToggle} />
+              <SortHeader label="MàJ" sortKey="updated_at" activeKey={sKey} dir={sDir} onSort={sToggle} />
+              <th></th>
             </tr>
           </thead>
           <tbody>
-            {(searchResults ?? []).map((sr: any) => (
+            {(sortedSearch ?? []).map((sr: any) => (
               <tr key={sr.id} className="border-b border-border/50 last:border-0 hover:bg-card-2/50 transition-colors">
                 <td className="px-5 py-3"><span className="font-semibold">{sr.key}</span></td>
                 <td className="px-5 py-3"><Badge variant="accent">{sr.vault_name}</Badge></td>
@@ -301,7 +334,7 @@ export default function Secrets() {
                 <td></td>
               </tr>
             ))}
-            {searchResults?.length === 0 && (
+            {sortedSearch?.length === 0 && (
               <tr><td colSpan={7} className="py-14 text-center text-fg-3">
                 <Search className="mx-auto mb-3 opacity-50" size={32} />{String(t.noResults)}</td></tr>
             )}
@@ -313,14 +346,17 @@ export default function Secrets() {
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-border text-fg-3">
-              {[String(t.key), 'Type', String(t.value), 'Version', 'MàJ', ''].map((h, i) => (
-                <th key={i} className="px-5 py-3 text-left text-[11px] font-semibold uppercase tracking-wider">{h}</th>
-              ))}
+              <SortHeader label={String(t.key)} sortKey="key" activeKey={sortKey} dir={sortDir} onSort={toggle} />
+              <SortHeader label="Type" sortKey="template" activeKey={sortKey} dir={sortDir} onSort={toggle} />
+              <th className="px-5 py-3 text-left text-[11px] font-semibold uppercase tracking-wider">{String(t.value)}</th>
+              <SortHeader label="Version" sortKey="version" activeKey={sortKey} dir={sortDir} onSort={toggle} />
+              <SortHeader label="MàJ" sortKey="updated_at" activeKey={sortKey} dir={sortDir} onSort={toggle} />
+              <th></th>
             </tr>
           </thead>
           <tbody>
             <AnimatePresence>
-              {(secrets ?? []).map(s => (
+              {(sortedSecrets ?? []).map(s => (
                 <motion.tr
                   key={s.id}
                   layout

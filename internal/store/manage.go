@@ -80,6 +80,21 @@ func (s *Store) GetSecretByVaultAndKey(vaultID, key string) (string, error) {
 	}
 	return id, nil
 }
+
+// MoveSecretToVault moves a secret to another vault. The value is NOT
+// re-encrypted (same master key for every vault), only vault_id changes.
+// UNIQUE(vault_id, key) violation (same key already in target) → ErrConflict.
+func (s *Store) MoveSecretToVault(id, targetVaultID string) error {
+	res, err := s.db.Exec(`UPDATE secrets SET vault_id = ? WHERE id = ?`, targetVaultID, id)
+	if err != nil {
+		return ErrConflict
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
 // SearchSecretsByName finds secrets whose key matches a pattern, across ALL
 // vaults. Returns metadata only (vault name included for display).
 func (s *Store) SearchSecretsByName(pattern string, limit int) ([]*model.Secret, error) {

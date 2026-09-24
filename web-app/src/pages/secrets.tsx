@@ -1,6 +1,6 @@
 import * as React from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
-import { Plus, Copy, Eye, EyeOff, Trash2, KeyRound, LoaderCircle, Pencil, Search, X } from 'lucide-react'
+import { Plus, Copy, Eye, EyeOff, Trash2, KeyRound, LoaderCircle, Pencil, Search, X, FolderInput } from 'lucide-react'
 import { toast } from 'sonner'
 import { useLang } from '@/i18n'
 import { api } from '@/lib/api'
@@ -232,9 +232,63 @@ export default function Secrets() {
   }
 
   const [query, setQuery] = React.useState('')
-  const [searchResults, setSearchResults] = React.useState<any[] | null>(null
-  )
+  const [searchResults, setSearchResults] = React.useState<any[] | null>(null)
   const searchTimer = React.useRef<any>(null)
+
+  // Tri des secrets du vault actif (client-side, liste déjà chargée)
+  const { sorted: sortedSecrets, sortKey, sortDir, toggle } = useSort<any>(secrets, 'key', 'asc')
+  const { sorted: sortedSearch, sortKey: sKey, sortDir: sDir, toggle: sToggle } = useSort<any>(searchResults, 'key', 'asc')
+
+  // sélection multiple (vue vault uniquement — les actions bulk opèrent par id)
+  const [selected, setSelected] = React.useState<Set<string>>(new Set())
+  const [bulkBusy, setBulkBusy] = React.useState(false)
+  const [moveOpen, setMoveOpen] = React.useState(false)
+
+  const toggleSel = (id: string) => setSelected(prev => {
+    const next = new Set(prev)
+    if (next.has(id)) next.delete(id); else next.add(id)
+    return next
+  })
+  const allSelected = (sortedSecrets?.length ?? 0) > 0 && (sortedSecrets ?? []).every((s: any) => selected.has(s.id))
+  const toggleAll = () => setSelected(prev =>
+    allSelected ? new Set() : new Set((sortedSecrets ?? []).map((s: any) => s.id)))
+
+  // vide la sélection quand on change de vault ou qu'on recharge
+  React.useEffect(() => { setSelected(new Set()) }, [vault])
+
+  const bulkDelete = async () => {
+    if (!selected.size || bulkBusy) return
+    if (!confirm(String(t.bulkDeleteConfirm(selected.size)))) return
+    setBulkBusy(true)
+    try {
+      const r = await api('POST', '/admin/secrets/bulk-delete', { ids: [...selected] })
+      const ok = (r.results || []).filter((x: any) => x.ok).length
+      if (ok < selected.size) {
+        toast.error(String(t.bulkPartial(ok, selected.size, 'supprimés')))
+      } else {
+        toast.success(String(t.bulkDeleted(ok)))
+      }
+      setSelected(new Set()); load()
+    } catch (e: any) { toast.error(e.message) }
+    setBulkBusy(false)
+  }
+
+  const bulkMove = async (target: string) => {
+    if (!selected.size || bulkBusy || !target) return
+    if (target === vault) { toast.error(String(t.bulkSameVault)); return }
+    setBulkBusy(true)
+    try {
+      const r = await api('POST', '/admin/secrets/bulk-move', { ids: [...selected], target_vault: target })
+      const ok = (r.results || []).filter((x: any) => x.ok).length
+      if (ok < selected.size) {
+        toast.error(String(t.bulkPartial(ok, selected.size, 'déplacés')))
+      } else {
+        toast.success(String(t.bulkMoved(ok)))
+      }
+      setSelected(new Set()); setMoveOpen(false); load()
+    } catch (e: any) { toast.error(e.message) }
+    setBulkBusy(false)
+  }
 
   const runSearch = (q: string) => {
     if (searchTimer.current) clearTimeout(searchTimer.current)
@@ -250,10 +304,6 @@ export default function Secrets() {
   const searching = query.trim() !== ''
 
   const openEdit = (s: any) => { setDialogMode('edit'); setDialogSecret(s) }
-
-  // Tri des secrets du vault actif (client-side, liste déjà chargée)
-  const { sorted: sortedSecrets, sortKey, sortDir, toggle } = useSort<any>(secrets, 'key', 'asc')
-  const { sorted: sortedSearch, sortKey: sKey, sortDir: sDir, toggle: sToggle } = useSort<any>(searchResults, 'key', 'asc')
 
   if (!vaults.length) return (
     <div>
@@ -297,6 +347,31 @@ export default function Secrets() {
           <Button variant="primary" onClick={() => setOpen(true)} className="ml-2"><Plus size={16} /> {String(t.newSecret)}</Button>
         </div>
       </div>
+
+      {/* barre d'actions groupées — visible dès qu'au moins un secret est sélectionné */}
+      <AnimatePresence>
+        {selected.size > 0 && !searching && (
+          <motion.div
+            initial={{ opacity: 0, y: -6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }}
+            className="mb-3 flex items-center gap-3 rounded-xl border border-accent/40 bg-accent/10 px-4 py-2.5"
+          >
+            <span className="text-sm font-semibold text-accent">{String(t.selected(selected.size))}</span>
+            <div className="flex-1" />
+            <Button variant="ghost" size="sm" onClick={toggleAll}>
+              {allSelected ? String(t.clearSelection) : String(t.selectAll)}
+            </Button>
+            <Button variant="ghost" size="sm" onClick={() => setSelected(new Set())}>
+              <X size={13} />
+            </Button>
+            <Button variant="ghost" size="sm" onClick={() => setMoveOpen(true)}>
+              <FolderInput size={14} /> {String(t.bulkMove)}
+            </Button>
+            <Button variant="ghost" size="sm" className="text-danger hover:bg-danger/10" onClick={bulkDelete} disabled={bulkBusy}>
+              <Trash2 size={14} /> {String(t.bulkDelete)}
+            </Button>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {searching ? (
       <div className="bg-card border border-border rounded-xl overflow-hidden">
@@ -346,6 +421,15 @@ export default function Secrets() {
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-border text-fg-3">
+              <th className="w-10 px-5 py-3">
+                <input
+                  type="checkbox"
+                  checked={allSelected}
+                  onChange={toggleAll}
+                  className="h-4 w-4 cursor-pointer accent-[var(--accent, #ffac02)]"
+                  title={String(t.selectAll)}
+                />
+              </th>
               <SortHeader label={String(t.key)} sortKey="key" activeKey={sortKey} dir={sortDir} onSort={toggle} />
               <SortHeader label="Type" sortKey="template" activeKey={sortKey} dir={sortDir} onSort={toggle} />
               <th className="px-5 py-3 text-left text-[11px] font-semibold uppercase tracking-wider">{String(t.value)}</th>
@@ -365,6 +449,14 @@ export default function Secrets() {
                   exit={{ opacity: 0 }}
                   className="border-b border-border/50 last:border-0 hover:bg-card-2/50 transition-colors"
                 >
+                  <td className="px-5 py-3">
+                    <input
+                      type="checkbox"
+                      checked={selected.has(s.id)}
+                      onChange={() => toggleSel(s.id)}
+                      className="h-4 w-4 cursor-pointer accent-[var(--accent, #ffac02)]"
+                    />
+                  </td>
                   <td className="px-5 py-3"><span className="font-semibold">{s.key}</span></td>
                   <td className="px-5 py-3">
                     <Badge variant={s.template ? 'accent' : 'neutral'}>{s.template || String(t.free)}</Badge>
@@ -392,7 +484,7 @@ export default function Secrets() {
               ))}
             </AnimatePresence>
             {secrets?.length === 0 && (
-              <tr><td colSpan={6} className="py-14 text-center text-fg-3">
+              <tr><td colSpan={7} className="py-14 text-center text-fg-3">
                 <KeyRound className="mx-auto mb-3 opacity-50" size={32} />
                 {String(t.emptyVault)}</td></tr>
             )}
@@ -414,6 +506,34 @@ export default function Secrets() {
         open={open} setOpen={setOpen} vault={vault} templates={templates}
         onCreated={() => { setOpen(false); load() }}
       />
+
+      {/* bulk move: choisir le vault cible */}
+      <Dialog open={moveOpen} onOpenChange={setMoveOpen}>
+        {moveOpen && (
+          <DialogContent title={String(t.bulkMoveTitle)} className="max-w-sm">
+            <p className="text-sm text-fg-2 mb-3">{String(t.selected(selected.size))}</p>
+            <div className="space-y-1.5 max-h-64 overflow-y-auto">
+              {vaults.filter(v => v.name !== vault).map(v => (
+                <button
+                  key={v.id}
+                  onClick={() => bulkMove(v.name)}
+                  disabled={bulkBusy}
+                  className="w-full flex items-center gap-2 rounded-lg border border-border bg-card px-4 py-2.5 text-sm text-fg hover:border-accent hover:text-accent transition-colors cursor-pointer disabled:opacity-50"
+                >
+                  <FolderInput size={14} />
+                  <span className="font-medium">{v.name}</span>
+                </button>
+              ))}
+              {vaults.filter(v => v.name !== vault).length === 0 && (
+                <p className="text-sm text-fg-3 py-4 text-center">{String(t.noVaults)}</p>
+              )}
+            </div>
+            <div className="flex justify-end mt-3">
+              <Button onClick={() => setMoveOpen(false)}>{String(t.cancel)}</Button>
+            </div>
+          </DialogContent>
+        )}
+      </Dialog>
     </div>
   )
 }

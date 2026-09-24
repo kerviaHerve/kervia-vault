@@ -7,6 +7,7 @@ package web
 import (
 	"embed"
 	"encoding/json"
+	"errors"
 	"io/fs"
 	"net/http"
 
@@ -187,6 +188,81 @@ func (s *Server) AttachAdmin(adminMux *http.ServeMux) {
 		_ = s.store.AppendAudit("admin", model.AuditDelete, "secret/"+id, "")
 		w.WriteHeader(200)
 		_, _ = w.Write([]byte(`{"status":"deleted"}`))
+	})
+
+	// Bulk actions: delete or move several secrets in one call.
+	// Body: {"ids": ["...", ...], "target_vault": "name"} (target_vault
+	// only for bulk-move). Per-secret result so the UI can report partial
+	// failures (conflict on move, not_found, …) instead of failing all.
+	adminMux.HandleFunc("POST /admin/secrets/bulk-delete", func(w http.ResponseWriter, r *http.Request) {
+		var req struct {
+			IDs []string `json:"ids"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil || len(req.IDs) == 0 {
+			http.Error(w, `{"error":"invalid_request"}`, 400)
+			return
+		}
+		type res struct {
+			ID    string `json:"id"`
+			OK    bool   `json:"ok"`
+			Error string `json:"error,omitempty"`
+		}
+		results := make([]res, 0, len(req.IDs))
+		for _, id := range req.IDs {
+			if err := s.store.DeleteSecret(id); err != nil {
+				_ = s.store.AppendAuditDetail("admin", model.AuditDelete, "secret/"+id, "bulk delete FAILED",
+					store.RequestInfo{Source: "webui", IP: r.RemoteAddr, UserAgent: r.Header.Get("User-Agent"), Method: r.Method, Status: 404, Path: "/admin/secrets/bulk-delete"})
+				results = append(results, res{ID: id, OK: false, Error: "not_found"})
+				continue
+			}
+			_ = s.store.AppendAudit("admin", model.AuditDelete, "secret/"+id, "bulk delete")
+			results = append(results, res{ID: id, OK: true})
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{"results": results})
+	})
+
+	adminMux.HandleFunc("POST /admin/secrets/bulk-move", func(w http.ResponseWriter, r *http.Request) {
+		var req struct {
+			IDs         []string `json:"ids"`
+			TargetVault string   `json:"target_vault"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil || len(req.IDs) == 0 || req.TargetVault == "" {
+			http.Error(w, `{"error":"invalid_request"}`, 400)
+			return
+		}
+		target, err := s.store.GetVaultByName(req.TargetVault)
+		if err != nil {
+			http.Error(w, `{"error":"vault_not_found"}`, 404)
+			return
+		}
+		type res struct {
+			ID    string `json:"id"`
+			OK    bool   `json:"ok"`
+			Error string `json:"error,omitempty"`
+		}
+		results := make([]res, 0, len(req.IDs))
+		for _, id := range req.IDs {
+			if err := s.store.MoveSecretToVault(id, target.ID); err != nil {
+				kind := "internal"
+				status := 500
+				if errors.Is(err, store.ErrConflict) {
+					kind = "conflict" // same key already exists in target vault
+					status = 409
+				} else if errors.Is(err, store.ErrNotFound) {
+					kind = "not_found"
+					status = 404
+				}
+				_ = s.store.AppendAuditDetail("admin", model.AuditUpdate, "secret/"+id, "bulk move FAILED: "+kind,
+					store.RequestInfo{Source: "webui", IP: r.RemoteAddr, UserAgent: r.Header.Get("User-Agent"), Method: r.Method, Status: status, Path: "/admin/secrets/bulk-move"})
+				results = append(results, res{ID: id, OK: false, Error: kind})
+				continue
+			}
+			_ = s.store.AppendAudit("admin", model.AuditUpdate, "secret/"+id, "bulk move → vault/"+req.TargetVault)
+			results = append(results, res{ID: id, OK: true})
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{"results": results})
 	})
 }
 

@@ -71,6 +71,9 @@ func (s *Server) Routes(adminMux *http.ServeMux) {
 				}
 				w.Header().Set("Content-Type", ct)
 				w.Header().Set("Cache-Control", "no-store")
+				// #nosec G705 -- b provient de l'embed FS du build (nom de
+				// fichier racine sans '/' : pas de traversal possible), jamais
+				// d'une entrée utilisateur — pas de XSS ici.
 				_, _ = w.Write(b)
 				return
 			}

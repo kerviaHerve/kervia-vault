@@ -141,7 +141,7 @@ func TestValidateAPIKeyFormat(t *testing.T) {
 // TestHashAPIKeyGolden verrouille la dérivation Argon2id : sel public et
 // paramètres. Ce hash correspond à la clé réelle des agents en production —
 // si ce test échoue, TOUTES les clés API existantes (hashées avec le sel
-// historique "agentvault-api-key-v1") seraient rejetées. Ne jamais mettre à
+// historique "ag-vault-api-key-v1") seraient rejetées. Ne jamais mettre à
 // jour la valeur attendue sans un plan de rotation des clés.
 func TestHashAPIKeyGolden(t *testing.T) {
 	const key = "av_" + "0000000000000000000000000000000000000000000000000000000000000000"

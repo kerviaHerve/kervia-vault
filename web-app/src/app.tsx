@@ -5,10 +5,15 @@ import { Toaster, toast } from 'sonner'
 import { LayoutDashboard, Bot, Archive, KeyRound, Shield, ScrollText, LogOut, Settings as SettingsIcon } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import '@/index.css'
-import emblem from '@/assets/emblem-dark.png'
+import kerviaLogoDark from '@/assets/kervia-logo-dark.svg'
+import kerviaLogoClair from '@/assets/kervia-logo-clair.svg'
+import kerviaIconeDark from '@/assets/kervia-icone-dark.svg'
+import kerviaIconeClair from '@/assets/kervia-icone-claire.svg'
 import { LangProvider } from '@/i18n'
 import { LangSwitch } from '@/i18n/LangSwitch'
 import { useLang } from '@/i18n'
+import { useTheme } from '@/theme'
+import { ThemeToggle } from '@/components/ThemeToggle'
 
 import Dashboard from '@/pages/dashboard'
 import Agents from '@/pages/agents'
@@ -57,12 +62,17 @@ function App() {
     return () => window.removeEventListener('hashchange', onHash)
   }, [])
 
+  // hooks d'affichage — toujours appelés, avant tout early return (règles de hooks)
+  const { t } = useLang()
+  const { theme } = useTheme()
+  const kerviaLogo = theme === 'dark' ? kerviaLogoDark : kerviaLogoClair
+  const kerviaIcone = theme === 'dark' ? kerviaIconeDark : kerviaIconeClair
+
   if (authed === null || setupInfo === null) {
-    return <div className="grid place-items-center h-screen"><img src={emblem} className="w-12 h-12 animate-pulse" alt="Kervia-vault" /></div>
+    return <div className="grid place-items-center h-screen"><img src={kerviaIcone} className="w-12 h-12 animate-pulse" alt="Kervia" /></div>
   }
 
   const go = (p: string) => { window.location.hash = p }
-  const { t } = useLang()
 
   const logout = async () => {
     await fetch('/admin/logout', { method: 'POST', credentials: 'same-origin' })
@@ -77,7 +87,7 @@ function App() {
         <Toaster
           position="bottom-right"
           toastOptions={{
-            style: { background: '#1B2336', border: '1px solid #2E3A54', color: '#F8FAFC' },
+            style: { background: 'var(--color-card-2)', border: '1px solid var(--color-border)', color: 'var(--color-fg)' },
           }}
         />
       </>
@@ -92,7 +102,7 @@ function App() {
         <Toaster
           position="bottom-right"
           toastOptions={{
-            style: { background: '#1B2336', border: '1px solid #2E3A54', color: '#F8FAFC' },
+            style: { background: 'var(--color-card-2)', border: '1px solid var(--color-border)', color: 'var(--color-fg)' },
           }}
         />
       </>
@@ -103,9 +113,10 @@ function App() {
     <div className="flex min-h-screen">
       {/* sidebar */}
       <aside className="w-56 bg-card border-r border-border sticky top-0 h-screen flex flex-col">
-        <div className="flex items-center gap-2.5 px-5 h-16 border-b border-border">
-          <img src={emblem} alt="" className="w-8 h-8" />
-          <span className="font-bold text-[15px] tracking-tight text-accent">Kervia-vault</span>
+        {/* bloc marque — logo Kervia officiel intact + nom du produit séparé (règle kit) */}
+        <div className="flex flex-col gap-1 px-5 pt-4 pb-3 border-b border-border">
+          <img src={kerviaLogo} alt="Kervia" className="h-7 w-auto" />
+          <span className="text-[12px] leading-[1.4] font-semibold tracking-[0.1em] ml-[31px]">Kervia-vault</span>
         </div>
         <nav className="flex-1 p-3 space-y-0.5">
           {NAV.map(({ id, label, icon: Icon }) => (
@@ -134,6 +145,7 @@ function App() {
             </button>
           )}
           <LangSwitch />
+          <ThemeToggle />
           <button
             onClick={logout}
             className="flex items-center gap-2 px-3 h-8 mt-1.5 w-full rounded-lg text-[11px] font-bold cursor-pointer transition-colors border bg-card-2 border-border text-fg-2 hover:text-danger hover:border-danger/40"
@@ -174,7 +186,7 @@ function App() {
       <Toaster
         position="bottom-right"
         toastOptions={{
-          style: { background: '#1B2336', border: '1px solid #2E3A54', color: '#F8FAFC' },
+          style: { background: 'var(--color-card-2)', border: '1px solid var(--color-border)', color: 'var(--color-fg)' },
         }}
       />
     </div>

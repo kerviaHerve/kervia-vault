@@ -3,10 +3,15 @@ import { motion } from 'framer-motion'
 import { LoaderCircle, Globe } from 'lucide-react'
 import { Button, Input, Field } from '@/components/ui'
 import { useLang } from '@/i18n'
-import emblem from '@/assets/emblem-dark.png'
+import { useTheme } from '@/theme'
+import { ThemeToggle } from '@/components/ThemeToggle'
+import kerviaLogoDark from '@/assets/kervia-logo-dark.svg'
+import kerviaLogoClair from '@/assets/kervia-logo-clair.svg'
 
 export default function Login({ onLogin }: { onLogin: () => void }) {
   const { t, lang, setLang } = useLang()
+  const { theme } = useTheme()
+  const kerviaLogo = theme === 'dark' ? kerviaLogoDark : kerviaLogoClair
   const [pw, setPw] = React.useState('')
   const [err, setErr] = React.useState(false)
   const [busy, setBusy] = React.useState(false)
@@ -48,15 +53,18 @@ export default function Login({ onLogin }: { onLogin: () => void }) {
 
   return (
     <div className="grid place-items-center min-h-screen relative">
-      {/* sélecteur de langue — coin haut droit */}
-      <button
-        onClick={() => setLang(lang === 'fr' ? 'en' : 'fr')}
-        className="absolute top-4 right-4 flex items-center gap-1.5 h-8 px-3 rounded-lg text-[11px] font-bold cursor-pointer transition-colors border bg-card-2 border-border text-fg-2 hover:text-fg"
-        title="FR / EN"
-      >
-        <Globe size={13} />
-        {lang === 'fr' ? 'FR' : 'EN'}
-      </button>
+      {/* sélecteur de langue + bascule de thème — coin haut droit */}
+      <div className="absolute top-4 right-4 flex items-center gap-2">
+        <button
+          onClick={() => setLang(lang === 'fr' ? 'en' : 'fr')}
+          className="flex items-center gap-1.5 h-8 px-3 rounded-lg text-[11px] font-bold cursor-pointer transition-colors border bg-card-2 border-border text-fg-2 hover:text-fg"
+          title="FR / EN"
+        >
+          <Globe size={13} />
+          {lang === 'fr' ? 'FR' : 'EN'}
+        </button>
+        <ThemeToggle className="!w-auto" />
+      </div>
 
       <motion.div
         initial={{ opacity: 0, y: 16, scale: 0.98 }}
@@ -64,11 +72,12 @@ export default function Login({ onLogin }: { onLogin: () => void }) {
         transition={{ duration: 0.25, ease: 'easeOut' }}
         className="w-[360px] bg-card border border-border rounded-2xl p-8 shadow-2xl"
       >
-        <div className="flex flex-col items-center gap-3 mb-6">
-          <img src={emblem} alt="Kervia-vault" className="w-16 h-16" />
+        {/* bloc marque — logo Kervia officiel intact + nom du produit séparé (règle kit) */}
+        <div className="flex flex-col items-center gap-2.5 mb-6">
+          <img src={kerviaLogo} alt="Kervia" className="h-12 w-auto" />
           <div className="text-center">
-            <div className="font-bold text-xl tracking-tight text-accent">Kervia-vault</div>
-            <div className="text-xs text-fg-2">{String(t.loginTitle)}</div>
+            <div className="text-[12px] font-semibold tracking-[0.1em] text-fg-2">Kervia-vault</div>
+            <div className="text-xs text-fg-3 mt-1">{String(t.loginTitle)}</div>
           </div>
         </div>
         <form onSubmit={submit}>

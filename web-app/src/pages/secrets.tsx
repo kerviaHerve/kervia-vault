@@ -339,7 +339,7 @@ export default function Secrets() {
             <button key={v.id} onClick={() => setVault(v.name)}
               className={cn(
                 'h-9 px-4 rounded-lg text-sm font-medium cursor-pointer transition-colors',
-                v.name === vault ? 'bg-accent text-[#0F172A] font-semibold' : 'bg-card-2 text-fg-2 hover:text-fg border border-border',
+                v.name === vault ? 'bg-accent text-accent-text font-semibold' : 'bg-card-2 text-fg-2 hover:text-fg border border-border',
               )}>
               {v.name}
             </button>
@@ -426,7 +426,7 @@ export default function Secrets() {
                   type="checkbox"
                   checked={allSelected}
                   onChange={toggleAll}
-                  className="h-4 w-4 cursor-pointer accent-[var(--accent, #ffac02)]"
+                  className="h-4 w-4 cursor-pointer accent-[var(--color-accent)]"
                   title={String(t.selectAll)}
                 />
               </th>
@@ -454,7 +454,7 @@ export default function Secrets() {
                       type="checkbox"
                       checked={selected.has(s.id)}
                       onChange={() => toggleSel(s.id)}
-                      className="h-4 w-4 cursor-pointer accent-[var(--accent, #ffac02)]"
+                      className="h-4 w-4 cursor-pointer accent-[var(--color-accent)]"
                     />
                   </td>
                   <td className="px-5 py-3"><span className="font-semibold">{s.key}</span></td>

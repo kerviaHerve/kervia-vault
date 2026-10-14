@@ -7,7 +7,9 @@ import { toast } from 'sonner'
 import { api } from '@/lib/api'
 import { Button, Input, Field } from '@/components/ui'
 import { useLang } from '@/i18n'
-import logo from '@/assets/logo-dark.png'
+import { useTheme } from '@/theme'
+import kerviaLogoDark from '@/assets/kervia-logo-dark.svg'
+import kerviaLogoClair from '@/assets/kervia-logo-clair.svg'
 
 // Step texts are kept bilingual inline: the wizard's FIRST step picks the
 // language, so it must render both before any choice exists.
@@ -100,6 +102,8 @@ const T = {
 
 export default function Wizard({ onDone }: { onDone: () => void }) {
   const { lang, setLang } = useLang()
+  const { theme } = useTheme()
+  const logo = theme === 'dark' ? kerviaLogoDark : kerviaLogoClair
   const t = T[lang] || T.fr
   // 0=language (ALWAYS first — the user must pick before reading anything),
   // 1=terms, 2=password, 3=codes, 4=agent, 5=done
@@ -266,7 +270,7 @@ export default function Wizard({ onDone }: { onDone: () => void }) {
               <label className="flex items-start gap-2.5 cursor-pointer select-none mb-4">
                 <input type="checkbox" checked={accepted}
                   onChange={e => setAccepted(e.target.checked)}
-                  className="mt-0.5 accent-[#22C55E] w-4 h-4 cursor-pointer" />
+                  className="mt-0.5 accent-[var(--color-accent)] w-4 h-4 cursor-pointer" />
                 <span className="text-xs font-medium">{t.accept}</span>
               </label>
               <Button variant="primary" className="w-full" disabled={!accepted} onClick={() => setStep(2)}>

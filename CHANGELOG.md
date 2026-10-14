@@ -1,5 +1,27 @@
 # Changelog
 
+## v1.1.0 (2026-10-14)
+
+- **Rebranding complet Kervia-vault → Kervia-vault** (kit KERVIA-BRANDING-APPS-v01) :
+  - Palette Kervia officielle (charbon #171B19, citron #B8E263, menthe #7FD4B8) —
+    les valeurs hexadécimales locales sont remplacées par des rôles de tokens.
+  - **Thème clair ajouté** : bascule sombre/clair (persistée, `data-theme` sur
+    `<html>`, boot sans flash via `theme-boot.js` servi en externe — CSP stricte
+    inchangée), logo Kervia officiel swapé par thème.
+  - Typographie : Space Grotesk locale (OFL, embarquée — aucun chargement
+    externe) ; JetBrains Mono conservé pour les valeurs de secrets.
+  - Logo Kervia intact + nom produit séparé dans la sidebar, le login et le
+    wizard (règle du kit) ; favicons/manifest/android-chrome remplacés.
+  - Fixes de service embarqué : les fichiers racine de la WebUI (favicon,
+    manifest, theme-boot.js) sont maintenant servis avec leur vrai type MIME
+    (ils étaient avalés par le fallback SPA en `text/html`).
+  - Focus clavier : anneau 2 px menthe, espacement 3 px, respecté par les
+    transitions existantes.
+  - Identité technique : module `github.com/kerviaHerve/kervia-vault`, binaire
+    `kervia-vault`, variables `KERVIA_VAULT_*`. Le préfixe des clés API `av_`
+    et le cookie `av_session` sont inchangés (compatibilité des agents
+    existants).
+
 ## v1.0.12 (2026-09-22)
 
 - **[strix vuln-0001, CWE-200, CVSS 5.3] `/setup/info` recon hardening**:

@@ -2,7 +2,7 @@ import * as React from 'react'
 import { cn } from '@/lib/utils'
 
 const variants = {
-  primary: 'bg-accent text-[#0F172A] hover:bg-accent-hover font-semibold',
+  primary: 'bg-accent text-accent-text hover:bg-accent-hover font-semibold',
   secondary: 'bg-card-2 text-fg hover:bg-muted border border-border',
   ghost: 'text-fg-2 hover:text-fg hover:bg-card-2',
   destructive: 'text-danger hover:bg-danger/10 border border-danger/30',

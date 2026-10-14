@@ -9,7 +9,10 @@ import (
 	"encoding/json"
 	"errors"
 	"io/fs"
+	"mime"
 	"net/http"
+	"path"
+	"strings"
 
 	"github.com/kerviaHerve/kervia-vault/internal/auth"
 	"github.com/kerviaHerve/kervia-vault/internal/crypto"
@@ -46,8 +49,29 @@ func (s *Server) Routes(adminMux *http.ServeMux) {
 	fileServer := http.FileServer(http.FS(sub))
 	// assets with hashed names: immutable cache
 	adminMux.Handle("GET /ui/assets/", cacheImmutable(http.StripPrefix("/ui/", fileServer)))
-	// SPA fallback: every /ui/* path serves index.html (client-side hash routing)
-	adminMux.HandleFunc("GET /ui/", func(w http.ResponseWriter, _ *http.Request) {
+	// SPA: root static files are served from the embedded dist with their real
+	// MIME type (favicon, manifest, theme-boot.js…); every other /ui/* path
+	// serves index.html (client-side hash routing).
+	adminMux.HandleFunc("GET /ui/", func(w http.ResponseWriter, r *http.Request) {
+		p := strings.TrimPrefix(r.URL.Path, "/ui/")
+		if p != "" && !strings.Contains(p, "/") {
+			if b, err := fs.ReadFile(spaFS, p); err == nil {
+				ct := mime.TypeByExtension(path.Ext(p))
+				switch {
+				case p == "favicon.ico":
+					ct = "image/x-icon" // index.html declares type image/x-icon
+				case path.Ext(p) == ".webmanifest":
+					ct = "application/manifest+json" // absent de la table MIME par défaut
+				}
+				if ct == "" {
+					ct = "application/octet-stream"
+				}
+				w.Header().Set("Content-Type", ct)
+				w.Header().Set("Cache-Control", "no-store")
+				_, _ = w.Write(b)
+				return
+			}
+		}
 		b, err := fs.ReadFile(spaFS, "index.html")
 		if err != nil {
 			http.Error(w, "webui missing", 500)

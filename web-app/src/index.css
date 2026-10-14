@@ -1,39 +1,89 @@
 @import "tailwindcss" source(none);
 @source "../src/**/*.{ts,tsx}";
-@import "@fontsource/ibm-plex-sans/400.css";
-@import "@fontsource/ibm-plex-sans/500.css";
-@import "@fontsource/ibm-plex-sans/600.css";
-@import "@fontsource/ibm-plex-sans/700.css";
 @import "@fontsource-variable/jetbrains-mono";
 
-/* Palette Kervia-vault — issue du kit logo officiel (palette.json) :
-   orange #F46B35, anthracite #202122, ivoire #F7F1E7 */
+/* Kervia-vault — Police locale Space Grotesk (OFL, kit KERVIA-BRANDING-APPS-v01).
+   Aucun chargement de police externe. */
+@font-face {
+  font-family: "Space Grotesk";
+  src: url("./assets/fonts/space-grotesk-variable.woff2") format("woff2");
+  font-weight: 300 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* Palette Kervia — valeurs exactes de 02-systeme-apps/kervia.tokens.json (v1.0.0).
+   Le thème sombre est le défaut ; le clair redéfinit les mêmes variables via
+   [data-theme="light"] ci-dessous. Les composants n'utilisent que des rôles. */
 @theme {
-  --color-bg: #202122;          /* anthracite — fond */
-  --color-card: #2A2B2D;        /* anthracite +1 */
-  --color-card-2: #333436;      /* anthracite +2 (hover) */
-  --color-muted: #3B3C3E;
-  --color-fg: #F7F1E7;          /* ivoire — texte principal */
-  --color-fg-2: #C9C2B4;        /* ivoire atténué */
-  --color-fg-3: #8A8478;        /* ivoire muted */
-  --color-border: #43444A;
-  --color-border-2: #575A63;
-  --color-accent: #F46B35;      /* orange — actions, focus */
-  --color-accent-hover: #FF7E4D;
-  --color-danger: #EF4444;
-  --color-warn: #FFB454;
-  --font-sans: "IBM Plex Sans", system-ui, sans-serif;
+  --color-bg: #171B19;          /* bg-canvas — charbon */
+  --color-card: #222A25;        /* bg-surface — panneau */
+  --color-card-2: #2B352E;      /* bg-raised — surface relevée */
+  --color-muted: #3A483F;      /* border-subtle */
+  --color-fg: #F4F5F1;          /* text-primary — blanc doux */
+  --color-fg-2: #C1CEC4;        /* text-secondary */
+  --color-fg-3: #A5B5AA;        /* text-muted */
+  --color-border: #3A483F;      /* border-subtle */
+  --color-border-2: #7C9082;    /* border-control */
+  --color-accent: #B8E263;      /* action-bg — citron : actions et sélections */
+  --color-accent-hover: #C8EC83;/* action-hover */
+  --color-accent-pressed: #A8D451;
+  --color-accent-text: #19251A; /* action-text — texte sur citron */
+  --color-focus: #7FD4B8;      /* focus — menthe */
+  --color-link: #7FD4B8;       /* link — menthe sur sombre */
+  --color-danger: #FFADA7;
+  --color-danger-bg: #4A272B;
+  --color-warn: #F1C28C;
+  --color-warn-bg: #493523;
+  --color-success: #7FD4B8;
+  --color-success-bg: #193D32;
+  --color-info: #A7C7FF;
+  --color-info-bg: #233752;
+  --color-selection-bg: #303E24;
+  --color-selection-text: #D0EE96;
+  --font-sans: "Space Grotesk", system-ui, sans-serif;
   --font-mono: "JetBrains Mono Variable", ui-monospace, monospace;
 }
 
+/* Thème clair — mêmes rôles, valeurs light de kervia.tokens.json. */
+html[data-theme="light"] {
+  --color-bg: #F4F6F2;
+  --color-card: #FFFFFF;
+  --color-card-2: #E8EEE5;
+  --color-muted: #D3DDD1;
+  --color-fg: #19271F;
+  --color-fg-2: #425A4C;
+  --color-fg-3: #586A5D;
+  --color-border: #D3DDD1;
+  --color-border-2: #738574;
+  --color-accent: #B8E263;
+  --color-accent-hover: #C8EC83;
+  --color-accent-pressed: #A8D451;
+  --color-accent-text: #19251A;
+  --color-focus: #166D4C;
+  --color-link: #166D4C;
+  --color-danger: #B02C3C;
+  --color-danger-bg: #FBEAED;
+  --color-warn: #80501C;
+  --color-warn-bg: #FFF0DA;
+  --color-success: #166D4C;
+  --color-success-bg: #E3F3EC;
+  --color-info: #295BA8;
+  --color-info-bg: #E9F0FC;
+  --color-selection-bg: #E8F2D7;
+  --color-selection-text: #35590E;
+}
+
 html { color-scheme: dark; }
+html[data-theme="light"] { color-scheme: light; }
 body { background: var(--color-bg); color: var(--color-fg); font-family: var(--font-sans); }
 
-::selection { background: color-mix(in srgb, var(--color-accent) 35%, transparent); color: var(--color-fg); }
+::selection { background: var(--color-selection-bg); color: var(--color-selection-text); }
 
+/* Focus visible : anneau 2 px, espacement 3 px (règle du kit). */
 *:focus-visible {
-  outline: 2px solid var(--color-accent);
-  outline-offset: 2px;
+  outline: 2px solid var(--color-focus);
+  outline-offset: 3px;
 }
 
 ::-webkit-scrollbar { width: 10px; height: 10px; }

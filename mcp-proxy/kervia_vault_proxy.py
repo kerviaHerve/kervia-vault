@@ -61,12 +61,40 @@ def main():
                 ct = r.headers.get("Content-Type", "")
                 body = r.read().decode()
         except urllib.error.HTTPError as e:
-            err = e.read().decode(errors="replace")[:200]
-            out = {"jsonrpc": "2.0", "id": msg.get("id"),
-                   "error": {"code": -32000, "message": f"HTTP {e.code}: {err}"}}
-            sys.stdout.write(json.dumps(out) + "\n")
-            sys.stdout.flush()
-            continue
+            # 401 avec une session en cache : le serveur a redémarré —
+            # on jette la session périmée et on rejoue UNE fois sans elle.
+            if e.code == 401 and session_id:
+                session_id = None
+                retry = urllib.request.Request(
+                    BASE_URL + "/mcp",
+                    data=line.encode(),
+                    headers={
+                        "Content-Type": "application/json",
+                        "Accept": "application/json, text/event-stream",
+                        "Authorization": f"Bearer {key}",
+                    },
+                    method="POST",
+                )
+                try:
+                    with urllib.request.urlopen(retry, timeout=120) as r:
+                        sid = r.headers.get("Mcp-Session-Id")
+                        if sid:
+                            session_id = sid
+                        ct = r.headers.get("Content-Type", "")
+                        body = r.read().decode()
+                except Exception as e2:  # noqa: BLE001 — proxy must never crash
+                    out = {"jsonrpc": "2.0", "id": msg.get("id"),
+                           "error": {"code": -32000, "message": f"retry: {e2}"}}
+                    sys.stdout.write(json.dumps(out) + "\n")
+                    sys.stdout.flush()
+                    continue
+            else:
+                err = e.read().decode(errors="replace")[:200]
+                out = {"jsonrpc": "2.0", "id": msg.get("id"),
+                       "error": {"code": -32000, "message": f"HTTP {e.code}: {err}"}}
+                sys.stdout.write(json.dumps(out) + "\n")
+                sys.stdout.flush()
+                continue
         except Exception as e:  # noqa: BLE001 — proxy must never crash the client
             out = {"jsonrpc": "2.0", "id": msg.get("id"),
                    "error": {"code": -32000, "message": f"proxy: {e}"}}

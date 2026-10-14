@@ -22,3 +22,5 @@ data/
 web-app/node_modules/
 bin/
 strix_runs/
+__pycache__/
+*.pyc

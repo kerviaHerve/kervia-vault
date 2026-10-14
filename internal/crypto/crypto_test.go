@@ -137,3 +137,21 @@ func TestValidateAPIKeyFormat(t *testing.T) {
 	}
 }
 
+
+// TestHashAPIKeyGolden verrouille la dérivation Argon2id : sel public et
+// paramètres. Ce hash correspond à la clé réelle des agents en production —
+// si ce test échoue, TOUTES les clés API existantes (hashées avec le sel
+// historique "agentvault-api-key-v1") seraient rejetées. Ne jamais mettre à
+// jour la valeur attendue sans un plan de rotation des clés.
+func TestHashAPIKeyGolden(t *testing.T) {
+	const key = "av_" + "0000000000000000000000000000000000000000000000000000000000000000"
+	got := HashAPIKey(key)
+	want := "argon2id:v=19$m=65536,t=3,p=2$" +
+		"c06000479807cb2144871c0e0a7a6a450810f2511d9592a0b489a50da9847822"
+	if got != want {
+		t.Fatalf("golden mismatch:\n got: %s\nwant: %s\nle sel public a-t-il été modifié ?", got, want)
+	}
+	if !VerifyAPIKey(key, want) {
+		t.Fatal("VerifyAPIKey a rejeté la clé golden — dérivation incohérente")
+	}
+}

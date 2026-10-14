@@ -128,7 +128,15 @@ func HashAPIKey(key string) string {
 	// is WRONG for password hashing, but here the "password" IS high-entropy
 	// random (256 bits), so a fixed public salt is acceptable and standard
 	// practice for API keys (no rainbow table can precompute 2^256 keys).
-	salt := []byte("kervia-vault-api-key-v1")
+	//
+	// ⚠ COMPATIBILITÉ — NE JAMAIS MODIFIER CE SEL. Tous les hash de clés
+	// stockés en base (agents existants : rita, hermes, opencode, privy…)
+	// sont dérivés avec cette valeur exacte depuis la v1.0. Le rebranding
+	// Kervia-vault l'a volontairement préservée, comme le préfixe `av_` et
+	// le cookie `av_session` : renommer le sel invalide l'authentification
+	// de TOUS les agents existants. Un test golden (TestHashAPIKeyGolden)
+	// verrouille ce comportement.
+	salt := []byte("ag-vault-api-key-v1")
 	dk := argon2.IDKey([]byte(key), salt, argon2Time, argon2Memory, argon2Threads, 32)
 	return fmt.Sprintf("argon2id:v=%d$m=%d,t=%d,p=%d$%x",
 		argon2.Version, argon2Memory, argon2Time, argon2Threads, dk)

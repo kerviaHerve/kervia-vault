@@ -56,6 +56,9 @@ func (s *Server) Routes(adminMux *http.ServeMux) {
 		p := strings.TrimPrefix(r.URL.Path, "/ui/")
 		if p != "" && !strings.Contains(p, "/") {
 			if b, err := fs.ReadFile(spaFS, p); err == nil {
+				// #nosec G705 -- p est un nom de fichier racine de l'embed FS
+				// (aucun "/" admis : pas de traversal) et b provient de nos
+				// propres assets statiques buildés, jamais d'une entrée utilisateur.
 				ct := mime.TypeByExtension(path.Ext(p))
 				switch {
 				case p == "favicon.ico":

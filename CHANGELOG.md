@@ -2,7 +2,7 @@
 
 ## v1.1.0 (2026-10-14)
 
-- **Rebranding complet Kervia-vault → Kervia-vault** (kit KERVIA-BRANDING-APPS-v01) :
+- **Rebranding complet vers Kervia-vault** (kit KERVIA-BRANDING-APPS-v01) :
   - Palette Kervia officielle (charbon #171B19, citron #B8E263, menthe #7FD4B8) —
     les valeurs hexadécimales locales sont remplacées par des rôles de tokens.
   - **Thème clair ajouté** : bascule sombre/clair (persistée, `data-theme` sur

@@ -7,7 +7,7 @@
 //   - the sha256 checksum file is mandatory: an unsigned binary is refused
 //   - the new binary must answer `--version` before the swap
 //   - the swap is a rename(2) — atomic; the running process keeps its inode,
-//     systemd Restart=on-failure brings the new binary up on exit(0)
+//     systemd Restart=always brings the new binary up (self-update exits 0 cleanly)
 //   - data (/var/lib/kervia-vault) is NEVER touched: only /usr/local/bin is
 //
 // SPDX-License-Identifier: AGPL-3.0
@@ -264,7 +264,7 @@ func (m *Manager) Apply() (string, error) {
 
 	// 6. atomic swap: copy the verified binary NEXT TO the live one (same
 	// filesystem — rename(2) cannot cross devices), then rename over it.
-	// The running process keeps its inode; systemd Restart=on-failure
+	// The running process keeps its inode; systemd Restart=always
 	// brings the new file up.
 	newPath := m.selfPath + ".new"
 	nf, err := os.OpenFile(newPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o755) // #nosec G304,G302 -- beside the live binary; must be executable

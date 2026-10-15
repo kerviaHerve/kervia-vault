@@ -8,6 +8,8 @@ import (
 	"embed"
 	"errors"
 	"fmt"
+	"strconv"
+	"strings"
 	"time"
 
 	_ "modernc.org/sqlite" // pure-Go SQLite driver, no CGO
@@ -47,26 +49,50 @@ func Open(path string) (*Store, error) {
 func (s *Store) Close() error { return s.db.Close() }
 
 // migrate applies every embedded migration in order, exactly once.
+// The version is the leading number of the filename (001.sql,
+// 001_init.sql, 004_coffre.sql → 1, 1, 4). embed ReadDir is sorted,
+// so the order is deterministic.
 func (s *Store) migrate() error {
 	if _, err := s.db.Exec(`CREATE TABLE IF NOT EXISTS schema_migrations (
 		version INTEGER PRIMARY KEY, applied_at TEXT NOT NULL)`); err != nil {
 		return fmt.Errorf("store: migration table: %w", err)
 	}
-	for i := 1; ; i++ {
-		name := fmt.Sprintf("migrations/%03d_init.sql", i)
-		if i > 1 {
-			name = fmt.Sprintf("migrations/%03d.sql", i)
+	entries, err := migrationsFS.ReadDir("migrations")
+	if err != nil {
+		return fmt.Errorf("store: migrations dir: %w", err)
+	}
+	seen := make(map[int]bool)
+	for _, e := range entries {
+		name := e.Name()
+		if !strings.HasSuffix(name, ".sql") {
+			continue
 		}
-		data, err := migrationsFS.ReadFile(name)
-		if err != nil {
-			break // no more migrations
+		// version = leading digits ("001_init.sql" → 1, "002.sql" → 2)
+		digits := name
+		for i, c := range name {
+			if c < '0' || c > '9' {
+				digits = name[:i]
+				break
+			}
 		}
+		version, err := strconv.Atoi(digits)
+		if err != nil || version < 1 {
+			return fmt.Errorf("store: migration name %q: want NNN[...].sql", name)
+		}
+		if seen[version] {
+			return fmt.Errorf("store: duplicate migration version %d (%s)", version, name)
+		}
+		seen[version] = true
 		var done int
-		if err := s.db.QueryRow(`SELECT COUNT(*) FROM schema_migrations WHERE version = ?`, i).Scan(&done); err != nil {
+		if err := s.db.QueryRow(`SELECT COUNT(*) FROM schema_migrations WHERE version = ?`, version).Scan(&done); err != nil {
 			return fmt.Errorf("store: migration check: %w", err)
 		}
 		if done > 0 {
 			continue
+		}
+		data, err := migrationsFS.ReadFile("migrations/" + name)
+		if err != nil {
+			return fmt.Errorf("store: migration read %s: %w", name, err)
 		}
 		tx, err := s.db.Begin()
 		if err != nil {
@@ -74,9 +100,9 @@ func (s *Store) migrate() error {
 		}
 		if _, err := tx.Exec(string(data)); err != nil {
 			_ = tx.Rollback()
-			return fmt.Errorf("store: migration %d: %w", i, err)
+			return fmt.Errorf("store: migration %s: %w", name, err)
 		}
-		if _, err := tx.Exec(`INSERT INTO schema_migrations (version, applied_at) VALUES (?, ?)`, i, time.Now().UTC().Format(time.RFC3339)); err != nil {
+		if _, err := tx.Exec(`INSERT INTO schema_migrations (version, applied_at) VALUES (?, ?)`, version, time.Now().UTC().Format(time.RFC3339)); err != nil {
 			_ = tx.Rollback()
 			return fmt.Errorf("store: migration record: %w", err)
 		}

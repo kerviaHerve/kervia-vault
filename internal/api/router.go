@@ -51,6 +51,22 @@ func (s *Server) Router(authSvc *auth.Service, admin *AdminServer, adminExtender
 	adminMux.HandleFunc("PATCH /admin/secrets/{id}", admin.UpdateSecret)
 	adminMux.HandleFunc("GET /admin/versions/{id}", admin.versionsHandler)
 
+	// ---- coffre: personal password manager (session-guarded ONLY —
+	// zero agent surface: nothing under /v1, nothing under /mcp; the
+	// data is end-to-end encrypted in the browser) ----
+	adminMux.HandleFunc("GET /admin/coffre", admin.CoffreHeader)
+	adminMux.HandleFunc("POST /admin/coffre", admin.CoffreCreate)
+	adminMux.HandleFunc("POST /admin/coffre/rekey", admin.CoffreRekey)
+	adminMux.HandleFunc("DELETE /admin/coffre", admin.CoffreDestroy)
+	adminMux.HandleFunc("GET /admin/coffre/items", admin.CoffreListItems)
+	adminMux.HandleFunc("POST /admin/coffre/items", admin.CoffreCreateItem)
+	adminMux.HandleFunc("POST /admin/coffre/items/batch", admin.CoffreImportItems)
+	adminMux.HandleFunc("PATCH /admin/coffre/items/{id}", admin.CoffreUpdateItem)
+	adminMux.HandleFunc("DELETE /admin/coffre/items/{id}", admin.CoffreDeleteItem)
+	adminMux.HandleFunc("POST /admin/coffre/items/{id}/restore", admin.CoffreRestoreItem)
+	adminMux.HandleFunc("POST /admin/coffre/items/{id}/purge", admin.CoffrePurgeItem)
+	adminMux.HandleFunc("POST /admin/coffre/trash/purge", admin.CoffrePurgeTrash)
+
 	if adminExtender != nil {
 		adminExtender(adminMux)
 	}

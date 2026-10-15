@@ -85,3 +85,50 @@ const (
 	AuditKeyRotate    = "key_rotate"
 	AuditRateLimited  = "rate_limited"
 )
+
+// Coffre audit actions. The coffre is the personal password manager:
+// audit entries carry ONLY actions and opaque item IDs — never item
+// names or content (those are end-to-end encrypted, the server cannot
+// know them).
+const (
+	AuditCoffreCreate     = "coffre_create"     // coffre initialised (first unlock setup)
+	AuditCoffreRekey      = "coffre_rekey"      // master password rewrap (new KDF params)
+	AuditCoffreDestroy    = "coffre_destroy"    // coffre + all items wiped
+	AuditCoffreItemCreate = "coffre_item_create"
+	AuditCoffreItemUpdate = "coffre_item_update"
+	AuditCoffreItemDelete = "coffre_item_delete"  // moved to trash
+	AuditCoffreItemRestore = "coffre_item_restore"
+	AuditCoffreItemPurge  = "coffre_item_purge"    // hard delete of one item
+	AuditCoffreTrashPurge = "coffre_trash_purge"   // hard delete of all trash
+	AuditCoffreImport    = "coffre_import"        // batch create (import)
+)
+
+// CoffreMeta is the zero-knowledge header of the coffre. Every field is
+// opaque to the server: kdf_algo/kdf_params/kdf_salt let the browser
+// re-derive the master key from the master password; wrapped_key is the
+// coffre key sealed by that master key; verifier is a known constant
+// sealed by the coffre key so the client can detect a wrong password.
+// The server can NEVER decrypt coffre items.
+type CoffreMeta struct {
+	ID         int       `json:"-"`
+	KDFAlgo    string    `json:"kdf_algo"`
+	KDFParams  string    `json:"kdf_params"`
+	KDFSalt    []byte    `json:"kdf_salt_b64"`
+	WrappedKey []byte    `json:"wrapped_key_b64"`
+	Verifier   []byte    `json:"verifier_b64"`
+	CreatedAt  time.Time `json:"created_at"`
+	UpdatedAt  time.Time `json:"updated_at"`
+}
+
+// CoffreItem is one end-to-end encrypted item of the coffre. Blob is
+// ciphertext produced in the browser (WebCrypto AES-256-GCM); the
+// server never sees names, URLs, usernames or passwords — all are
+// inside the encrypted blob.
+type CoffreItem struct {
+	ID        string     `json:"id"`
+	Blob      []byte     `json:"blob_b64"`
+	Version   int        `json:"version"`
+	CreatedAt time.Time  `json:"created_at"`
+	UpdatedAt time.Time  `json:"updated_at"`
+	DeletedAt *time.Time `json:"deleted_at,omitempty"`
+}

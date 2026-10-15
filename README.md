@@ -191,9 +191,14 @@ Agent distribution kit: `kerviavault-agent-kit.zip` (binary + skill + guide).
 | Insider/eavesdropping | append-only audit log, secrets never in lists/logs, values revealed only on explicit action |
 | Brute force | per-key rate limiting, failed logins audited |
 | Escalation | grants re-verified in every handler (defense in depth), deny by default |
+| Agents reading personal passwords | **the Coffre (personal password manager) is end-to-end encrypted in the browser — the server only stores opaque blobs, and there is NO agent surface for it** (session-guarded routes only, tested) |
 
-Threat model: no client-side E2E (self-hosted trust), TLS terminated by the
-reverse proxy, encryption at rest protects DB file exfiltration.
+Threat model: no client-side E2E for the shared agent vaults (self-hosted
+trust), TLS terminated by the reverse proxy, encryption at rest protects
+DB file exfiltration. The personal Coffre is the exception: it IS
+client-side E2E (zero-knowledge) because it must stay invisible to
+agents even in theory — losing the master password means losing the
+coffre (no server-side recovery, by design).
 
 ## Development
 

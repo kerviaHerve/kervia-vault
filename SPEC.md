@@ -109,6 +109,34 @@ CREATE INDEX idx_audit_agent ON audit_log(agent_id, ts);
 
 Conventions : JSON partout, timestamps RFC3339 UTC, IDs UUIDv7, erreurs `{error, message, request_id}`, request_id dans chaque réponse (slog corrélé).
 
+### API coffre — gestionnaire de mot de passe personnel (v1.2, zero-knowledge)
+
+**Invariant central : le coffre n'est JAMAIS accessible aux agents.** Trois barrières cumulées :
+1. **Surface** : routes uniquement dans le mux admin (session webui). Aucune route `/v1/coffre*`, aucun tool MCP. Testé en intégration (clé agent → 401/404) + tripwire source (`TestNoCoffreInAgentSurface`).
+2. **Crypto** : chiffrement de bout en bout **dans le navigateur** (WebCrypto AES-256-GCM). Le serveur ne stocke que des blobs opaques — une compromission totale du serveur (DB + binaire) ne révèle RIEN.
+3. **Audit** : actions + IDs opaques uniquement, jamais de noms d'items (chiffrés de toute façon).
+
+Schéma client : `masterPassword → PBKDF2-SHA256 600k → masterKey` scelle la `coffreKey` (32 B aléatoire, `wrapped_key`). `verifier` = constante scellée par la coffreKey (détection de mauvais mot de passe **côté client**). Rekey = rescellage de la même coffreKey (aucun re-chiffrement des items). KDF paramétré dans `coffre_meta.kdf_algo/kdf_params` (extensible — argon2id WASM plus tard).
+
+| Méthode | Chemin | Description |
+|---|---|---|
+| GET | `/admin/coffre` | enveloppe KDF (ou 404 `coffre_not_created`) + compteurs |
+| POST | `/admin/coffre` | initialiser (une seule fois) |
+| POST | `/admin/coffre/rekey` | changement de mot de passe maître (rescellage) |
+| DELETE | `/admin/coffre` | destruction totale (`confirm: "DESTROY"`) |
+| GET | `/admin/coffre/items` | blobs de tous les items (corbeille incluse) |
+| POST | `/admin/coffre/items` | créer un item (blob ≤ 128 KiB) |
+| POST | `/admin/coffre/items/batch` | import lot (≤ 500 items, transaction) |
+| PATCH | `/admin/coffre/items/<id>` | update + concurrence optimiste (`expected_version` → 409) |
+| DELETE | `/admin/coffre/items/<id>` | corbeille (soft delete, restaurable) |
+| POST | `/admin/coffre/items/<id>/restore` | restaurer |
+| POST | `/admin/coffre/items/<id>/purge` | suppression définitive |
+| POST | `/admin/coffre/trash/purge` | vider la corbeille |
+
+Fonctionnalités webui : logins + notes, dossiers/favoris, recherche locale, TOTP (RFC 6238, HMAC-SHA1 WebCrypto), générateur (caractères/passphrase), force (entropie), historique de mots de passe, corbeille, import/export Bitwarden/Vaultwarden JSON, auto-lock paramétrable (défaut 5 min — la clé ne vit qu'en mémoire JS, un reload reverrouille).
+
+**Récupération : AUCUNE.** Zero-knowledge ⇒ mot de passe maître perdu = coffre perdu. Documenté à la création (écran + warning). C'est la contrepartie assumée de la garantie ci-dessus.
+
 ## 4. MCP (intégré, même binaire)
 
 | Tool | Annotations |
@@ -137,6 +165,7 @@ Serveur MCP : instructions intégrées (usage + sécurité), auth = même clé A
 - Rotation master key : endpoint admin `POST /admin/rotate-key` → re-chiffre tout (transaction).
 - Clés API : 32 bytes CSPRNG, format `av_<hex64>` ; stockage Argon2id(m=64MB, t=3, p=2) ; vérification par prefix-lookup puis constant-time.
 - Mots de passe webui : bcrypt cost 12.
+- **Coffre personnel (v1.2)** : tout se passe dans le navigateur — WebCrypto AES-256-GCM, PBKDF2-SHA256 600k (pas de WASM, CSP inchangée), coffreKey 32 B aléatoire scellée par la masterKey, verifier chiffré. Le serveur n'a **aucune** clé du coffre : `internal/store/coffre.go` ne contient aucun appel de décryptage, et aucun handler ne peut lire un blob. Les blobs (nonce 12 B + ciphertext) sont opaques de bout en bout.
 
 ## 7. Non-fonctionnel
 

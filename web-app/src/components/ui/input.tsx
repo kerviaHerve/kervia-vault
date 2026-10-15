@@ -46,9 +46,9 @@ export const Label = ({ className, ...props }: React.LabelHTMLAttributes<HTMLLab
   <label className={cn('block text-xs font-semibold text-fg-2 mb-1.5', className)} {...props} />
 )
 
-export function Field({ label, help, children }: { label: string; help?: string; children: React.ReactNode }) {
+export function Field({ label, help, className, children }: { label: string; help?: string; className?: string; children: React.ReactNode }) {
   return (
-    <div className="mb-4">
+    <div className={cn('mb-4', className)}>
       <Label>{label}</Label>
       {children}
       {help && <p className="text-[11px] text-fg-3 mt-1.5">{help}</p>}

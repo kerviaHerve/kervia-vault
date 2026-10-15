@@ -1,5 +1,31 @@
 # Changelog
 
+## v1.2.0 (2026-10-15)
+
+- **Coffre personnel : un vrai gestionnaire de mots de passe, invisible des agents.**
+  Un coffre pour vos identifiants personnels, chiffré **de bout en bout dans le
+  navigateur** (zero-knowledge, comme Bitwarden) — les agents n'y ont
+  **jamais** accès, même en théorie :
+  - **Chiffrement client** : mot de passe maître → PBKDF2-SHA256 600k
+    (WebCrypto natif, pas de WASM, CSP stricte inchangée) → masterKey qui
+    scelle la coffreKey (32 B aléatoire). Le serveur ne stocke **que des
+    blobs opaques** : une compromission totale du serveur ne révèle rien,
+    et aucun mot de passe maître ne transite jamais.
+  - **Triple isolation agents** : routes uniquement dans l'API admin
+    (session), zéro surface `/v1`/MCP (testée en intégration + tripwire
+    source), audit actions + IDs opaques uniquement.
+  - Fonctionnalités : logins + notes sécurisées, dossiers, favoris,
+    recherche locale, TOTP 2FA générés dans la webui (seed chiffré),
+    générateur (caractères / passphrase) + indicateur de force, historique
+    des mots de passe, corbeille (restauration + purge), import/export JSON
+    Bitwarden/Vaultwarden, concurrence optimiste par version, copie
+    presse-papier avec effacement auto (30 s).
+  - **Verrouillage** : auto-lock paramétrable (1/5/15/60 min, défaut 5),
+    la clé ne vit qu'en mémoire JS — un rechargement de page reverrouille.
+  - **Aucune récupération possible** (zero-knowledge) : mot de passe maître
+    perdu = coffre perdu — c'est la contrepartie de la garantie
+    d'inaccessibilité. Warning explicite à la création.
+
 ## v1.1.0 (2026-10-14)
 
 - **Rebranding complet vers Kervia-vault** (kit KERVIA-BRANDING-APPS-v01) :

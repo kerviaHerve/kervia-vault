@@ -194,10 +194,14 @@ renvoient des objets `values` structurés. Skill pour agents :
 | Initié/écoute | audit append-only, secrets jamais dans les listes/logs, valeurs révélées uniquement sur action explicite |
 | Force brute | rate limiting par clé, échecs de login audités |
 | Élévation | grants revérifiés dans chaque handler (défense en profondeur), refus par défaut |
+| Agents lisant vos mots de passe perso | **le Coffre (gestionnaire personnel) est chiffré de bout en bout dans le navigateur — le serveur ne stocke que des blobs opaques et il n'existe AUCUNE surface agent** (routes session uniquement, testées) |
 
-Modèle de menace : pas d'E2E côté client (confiance self-hosted), TLS
-terminé par le reverse proxy, le chiffrement au repos protège contre
-l'exfiltration du fichier DB.
+Modèle de menace : pas d'E2E côté client pour les vaults agents partagés
+(confiance self-hosted), TLS terminé par le reverse proxy, le chiffrement au
+repos protège contre l'exfiltration du fichier DB. Le Coffre personnel est
+l'exception : il EST en E2E côté client (zero-knowledge) parce qu'il doit
+rester invisible des agents même en théorie — perdre le mot de passe
+maître = perdre le coffre (aucune récupération serveur, par conception).
 
 ## Développement
 

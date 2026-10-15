@@ -2,7 +2,7 @@ import * as React from 'react'
 import { createRoot } from 'react-dom/client'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Toaster, toast } from 'sonner'
-import { LayoutDashboard, Bot, Archive, KeyRound, Shield, ScrollText, LogOut, Settings as SettingsIcon } from 'lucide-react'
+import { LayoutDashboard, Bot, Archive, KeyRound, Shield, ScrollText, LogOut, Lock, Settings as SettingsIcon } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import '@/index.css'
 import kerviaLogoDark from '@/assets/kervia-logo-dark.svg'
@@ -19,6 +19,7 @@ import Dashboard from '@/pages/dashboard'
 import Agents from '@/pages/agents'
 import Vaults from '@/pages/vaults'
 import Secrets from '@/pages/secrets'
+import Coffre from '@/pages/coffre'
 import Grants from '@/pages/grants'
 import Audit from '@/pages/audit'
 import Settings from '@/pages/settings'
@@ -30,6 +31,7 @@ const NAV = [
   { id: 'agents', label: 'agents', icon: Bot },
   { id: 'vaults', label: 'vaults', icon: Archive },
   { id: 'secrets', label: 'secrets', icon: KeyRound },
+  { id: 'coffre', label: 'coffre', icon: Lock },
   { id: 'grants', label: 'permissions', icon: Shield },
   { id: 'audit', label: 'audit', icon: ScrollText },
   { id: 'settings', label: 'settings', icon: SettingsIcon },
@@ -175,6 +177,7 @@ function App() {
             {page === 'agents' ? <Agents />
               : page === 'vaults' ? <Vaults />
               : page === 'secrets' ? <Secrets />
+              : page === 'coffre' ? <Coffre />
               : page === 'grants' ? <Grants />
               : page === 'audit' ? <Audit />
               : page === 'settings' ? <Settings />

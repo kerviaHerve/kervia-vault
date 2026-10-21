@@ -1,5 +1,31 @@
 # Changelog
 
+## v1.4.0 (2026-10-21)
+
+- **Webui : design system Apple** (skill apple-design — principes WWDC
+  *Designing Fluid Interfaces* traduits pour le web, appliqués dans les
+  tokens du kit Kervia) :
+  - **Springs partout** : navigation en spring amorti critique (bounce 0,
+    response ~0.3) — pas d'overshoot sur une action qui n'en porte pas,
+    motion interruptible par construction ;
+    `MotionConfig reducedMotion="user"` global côté framer-motion.
+  - **Press au pointer-down** : feedback `scale(0.97)` avec transition de
+    transform 100 ms sur boutons, nav et contrôles — le clic s'enfonce
+    instantanément, il ne claque plus.
+  - **Dialogs symétriques** : enter/exit le long du même chemin
+    (popin/popout en miroir, courbe sheet Apple `cubic-bezier(0.32,0.72,0,1)`) ;
+    le scrim se **matérialise** — le blur anime avec l'opacité, la surface
+    lit comme un vrai matériau qui arrive.
+  - **Matériaux translucides** : toasts en verre `kv-glass`
+    (`backdrop-filter: blur + saturate`), le contenu défile dessous —
+    couche fonctionnelle flottante, pas un bloc opaque.
+  - **Typographie optique** : tracking spécifique à la taille (h1 −0.015em,
+    h2 −0.01em, h3 −0.005em, corps 0) — plus de letter-spacing fixe.
+  - **Accessibilité** : `prefers-reduced-transparency` (verres rendus
+    opaques), `prefers-contrast: more` (fonds solides + bord net),
+    reduced-motion en équivalent doux (cross-fades), jamais une absence
+    de feedback.
+
 ## v1.3.0 (2026-10-21)
 
 - **Support macOS — Apple Silicon & Intel.** Kervia-vault tourne nativement

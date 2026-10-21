@@ -79,6 +79,9 @@ func (s *Server) Router(authSvc *auth.Service, admin *AdminServer, adminExtender
 	// la vue publique est montée sur le mux racine ci-dessous ----
 	adminMux.HandleFunc("POST /admin/secrets/{id}/share", admin.ShareSecret)
 
+	// ---- export DR chiffré (bundle KVX1 passphrase-scellé) ----
+	adminMux.HandleFunc("POST /admin/export", admin.ExportHandler)
+
 	if adminExtender != nil {
 		adminExtender(adminMux)
 	}

@@ -39,6 +39,10 @@ func main() {
 			// helper: bcrypt a password from stdin/argv for KERVIA_VAULT_ADMIN_HASH
 			runHashPw(os.Args[2:])
 			return
+		case "import":
+			// DR restore: a KVX1 bundle into a fresh instance
+			runImport(os.Args[2:])
+			return
 		}
 	}
 

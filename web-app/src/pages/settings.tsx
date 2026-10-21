@@ -71,6 +71,33 @@ export default function Settings() {
     setFaBusy(false)
   }
 
+  // export DR : bundle KVX1 scellé par passphrase — confirmation exigée,
+  // une typo rendrait le bundle inutilisable
+  const [expPass, setExpPass] = React.useState('')
+  const [expPass2, setExpPass2] = React.useState('')
+  const [expBusy, setExpBusy] = React.useState(false)
+  const downloadExport = async () => {
+    if (expBusy || expPass.length < 12 || expPass !== expPass2) return
+    setExpBusy(true)
+    try {
+      const res = await fetch('/admin/export', {
+        method: 'POST', credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ passphrase: expPass }),
+      })
+      if (!res.ok) throw new Error('HTTP ' + res.status)
+      const blob = await res.blob()
+      const a = document.createElement('a')
+      a.href = URL.createObjectURL(blob)
+      a.download = 'kervia-vault-export-' + new Date().toISOString().slice(0, 10) + '.kvx'
+      a.click()
+      URL.revokeObjectURL(a.href)
+      setExpPass(''); setExpPass2('')
+      toast.success(String(t.exportDone))
+    } catch (e: any) { toast.error(String(e.message || e)) }
+    setExpBusy(false)
+  }
+
   // after an update: poll until the server is back and shows the NEW
   // version, then reload the page automatically — the user never stays
   // stuck on "restarting…".
@@ -354,6 +381,31 @@ export default function Settings() {
               </div>
             </motion.div>
           )}
+        </CardBody>
+      </Card>
+
+      <Card className="mt-5">
+        <CardHeader>
+          <span className="flex items-center gap-2"><Download size={15} /> {String(t.backupTitle)}</span>
+        </CardHeader>
+        <CardBody>
+          <p className="text-xs text-fg-2 mb-4">{String(t.backupIntro)}</p>
+          <div className="grid grid-cols-2 gap-2">
+            <Field label={String(t.backupPass)}>
+              <Input type="password" value={expPass} onChange={e => setExpPass(e.target.value)} />
+            </Field>
+            <Field label={String(t.backupConfirm)}>
+              <Input type="password" value={expPass2} onChange={e => setExpPass2(e.target.value)} />
+            </Field>
+          </div>
+          {expPass.length > 0 && expPass !== expPass2 && (
+            <p className="text-xs text-warn font-medium -mt-2 mb-3">{String(t.backupMismatch)}</p>
+          )}
+          <Button variant="primary" onClick={downloadExport} disabled={expBusy || expPass.length < 12 || expPass !== expPass2}>
+            {expBusy ? <LoaderCircle size={15} className="animate-spin" /> : <Download size={15} />}
+            {String(t.backupBtn)}
+          </Button>
+          <p className="text-[10px] text-fg-3 mt-3">{String(t.backupRestore)}</p>
         </CardBody>
       </Card>
     </div>

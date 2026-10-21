@@ -66,13 +66,11 @@ a single ~15 MB static executable:
   data at rest: AES-256-GCM per secret · versions immutable · audit append-only
 ```
 
-## Install — one command (Linux, systemd)
+## Install — one command (Linux & macOS)
 
-> **Platforms**: Linux (amd64/arm64) is fully supported — installer,
-> systemd service, self-update. **macOS support is coming** — the code
-> base is fully portable (pure Go, no CGO) and compiles for darwin
-> out of the box; what's missing is the launchd installer/service.
-> Docker works on any platform.
+> **Platforms**: Linux (amd64/arm64) and macOS (Apple Silicon & Intel) are
+> fully supported — installer, hardened service (systemd unit / launchd
+> daemon), self-update. Docker works on any platform.
 
 ```bash
 sudo bash install.sh
@@ -83,8 +81,9 @@ That's it. The installer:
 1. **Asks where to bind** — detects your addresses, highlights VPN ones
    (NetBird/Tailscale), warns in red before any public-IP exposure
 2. **Downloads the release binary** from GitHub and verifies its **sha256**
-3. Installs a **hardened systemd service** (dedicated user,
-   `ProtectSystem=strict`, no root)
+3. Installs a **hardened service** — systemd unit on Linux (`ProtectSystem=strict`),
+   LaunchDaemon on macOS (`KeepAlive`), both under a dedicated no-shell
+   user, master key in a `600` root-only file
 4. Opens the **setup wizard** at `http://<bind>:8321/ui/` — pick your
    language → accept the terms → set the admin password → download your
    recovery codes → create your first agent (its API key + a

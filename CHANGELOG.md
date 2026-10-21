@@ -1,5 +1,36 @@
 # Changelog
 
+## v1.3.0 (2026-10-21)
+
+- **Support macOS — Apple Silicon & Intel.** Kervia-vault tourne nativement
+  sur Mac avec le même modèle de sécurité que sur Linux :
+  - **Binaires darwin** (arm64 + amd64) publiés dans chaque release GitHub,
+    vérifiés sha256 comme les autres plateformes. L'auto-mise à jour de la
+    webui détecte l'OS et télécharge `kervia-vault-darwin-*.tar.gz`.
+  - **Installeur macOS** : `curl … | sudo bash` détecte macOS et installe le
+    même parcours que Linux — binaire sha256-vérifié, compte de service
+    dédié `_kerviavault` (dscl, sans shell, masqué de l'écran de login),
+    LaunchDaemon `ch.kervia.vault` avec `KeepAlive` (l'équivalent exact de
+    `Restart=always` : la self-update quitte proprement, launchd relance
+    le nouveau binaire).
+  - **Mêmes propriétés de sécurité** : le daemon ne tourne pas en root,
+    la master key ne vit que dans le plist `600` root:wheel, le binaire
+    réside dans le data dir (`/usr/local/var/kervia-vault/bin`) pour que la
+    self-update puisse écrire SON propre binaire — symlink root-owned dans
+    `/usr/local/bin`.
+  - **Updater cross-OS** : résolution du binaire réel sur darwin via
+    `os.Executable` + `EvalSymlinks` (`/proc/self/exe` n'existe pas sur
+    macOS) ; le mode `launchd` est reporté à la webui à la place de
+    `systemd`.
+  - **install.sh compatible bash 3.2** (macOS stock) — `mapfile` retiré ;
+    réseau via `ifconfig`, checksums via `shasum`, port via `lsof`.
+    La source des releases est overridable (`KERVIA_VAULT_RELEASES_URL`)
+    pour les tests et les miroirs privés, en miroir de
+    `KERVIA_VAULT_UPDATE_URL` côté binaire.
+  - La config par défaut de la DB devient OS-aware (`/usr/local/var` sur
+    macOS) — l'installeur la fixe explicitement, le défaut ne sert qu'aux
+    lancements manuels.
+
 ## v1.2.0 (2026-10-15)
 
 - **Coffre personnel : un vrai gestionnaire de mots de passe, invisible des agents.**

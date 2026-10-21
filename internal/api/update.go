@@ -1,6 +1,7 @@
 // Update endpoints (admin, session-guarded): see the current version, check
 // for a newer release, apply it. The apply flow ends with os.Exit(0) so
-// systemd Restart=on-failure brings the NEW binary up immediately.
+// the service manager (systemd Restart=always, launchd KeepAlive) brings
+// the NEW binary up immediately.
 //
 // SPDX-License-Identifier: AGPL-3.0
 
@@ -57,8 +58,9 @@ func (u *UpdateServer) Mount(mux *http.ServeMux) {
 		if f, ok := w.(http.Flusher); ok {
 			f.Flush()
 		}
-		// exit(0) lets systemd Restart=always bring the NEW binary up.
-		// Data is untouched: only the binary was swapped.
+		// exit(0) lets the service manager (systemd Restart=always / launchd
+		// KeepAlive) bring the NEW binary up. Data is untouched: only the
+		// binary was swapped.
 		go func() {
 			time.Sleep(300 * time.Millisecond) // let the socket drain
 			os.Exit(0)

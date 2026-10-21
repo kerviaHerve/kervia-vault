@@ -7,8 +7,10 @@
 //   - the sha256 checksum file is mandatory: an unsigned binary is refused
 //   - the new binary must answer `--version` before the swap
 //   - the swap is a rename(2) — atomic; the running process keeps its inode,
-//     systemd Restart=always brings the new binary up (self-update exits 0 cleanly)
-//   - data (/var/lib/kervia-vault) is NEVER touched: only /usr/local/bin is
+//     the service manager (systemd Restart=always, launchd KeepAlive on macOS)
+//     brings the new binary up (self-update exits 0 cleanly)
+//   - data (/var/lib/kervia-vault — /usr/local/var/kervia-vault on macOS) is
+//     NEVER touched: only the service binary is
 //
 // SPDX-License-Identifier: AGPL-3.0
 package update
@@ -66,26 +68,42 @@ type Status struct {
 	Latest      string `json:"latest,omitempty"`
 	UpdateAvail bool   `json:"update_available"`
 	Notes       string `json:"notes,omitempty"`
-	Mode        string `json:"mode"` // systemd (self-update OK) | docker (manual)
+	Mode        string `json:"mode"` // systemd/launchd (self-update OK) | docker (manual)
 	LastError   string `json:"last_error,omitempty"`
 	CheckedAt   string `json:"checked_at,omitempty"`
 }
 
-// New builds the manager; selfPath is resolved from /proc/self/exe so the
-// swap always targets the real file, not a symlink chain.
+// New builds the manager; selfPath is resolved to the REAL file behind any
+// symlink chain (the swap must replace the file the service runs, not create
+// a new target next to a symlink). Linux: /proc/self/exe. macOS:
+// os.Executable + Abs + EvalSymlinks (resolves the /usr/local/bin
+// convenience symlink down to the daemon binary in the data dir).
 func New(current string) *Manager {
 	self, err := os.Readlink("/proc/self/exe")
 	if err != nil {
 		self, _ = os.Executable()
+		if self != "" {
+			if abs, aerr := filepath.Abs(self); aerr == nil {
+				self = abs
+			}
+			if ev, eerr := filepath.EvalSymlinks(self); eerr == nil {
+				self = ev
+			}
+		}
 	}
 	return &Manager{selfPath: self, current: current}
 }
 
 // Mode detects how this instance was deployed. Docker (distroless) is
 // read-only: self-update is impossible → the webui says so instead of failing.
+// Otherwise the service manager: systemd (Linux) or launchd (macOS) — both
+// restart the job after the clean exit that ends the swap.
 func (m *Manager) Mode() string {
 	if _, err := os.Stat("/.dockerenv"); err == nil {
 		return "docker"
+	}
+	if runtime.GOOS == "darwin" {
+		return "launchd"
 	}
 	return "systemd"
 }
@@ -198,7 +216,7 @@ func (m *Manager) Apply() (string, error) {
 	}
 	defer func() { _ = os.RemoveAll(dir) }()
 
-	tarName := "kervia-vault-linux-" + arch() + ".tar.gz"
+	tarName := "kervia-vault-" + platform() + ".tar.gz"
 	client := &http.Client{Timeout: 10 * time.Minute}
 
 	// 1. checksums first (small) — the binary download is the big one
@@ -351,14 +369,21 @@ func fileSHA256(path string) (string, error) {
 	return hex.EncodeToString(h.Sum(nil)), nil
 }
 
-// arch maps runtime.GOARCH to the release archive naming.
-func arch() string {
+// platform maps GOOS/GOARCH to the release archive naming — the same matrix
+// the release workflow builds: linux/darwin × amd64/arm64. Anything else
+// yields an "unsupported" name that simply won't resolve in the checksums.
+func platform() string {
+	switch runtime.GOOS {
+	case "linux", "darwin":
+	default:
+		return "unsupported-" + runtime.GOOS
+	}
 	switch runtime.GOARCH {
 	case "amd64", "arm64":
-		return runtime.GOARCH
 	default:
-		return "unsupported"
+		return runtime.GOOS + "-unsupported-" + runtime.GOARCH
 	}
+	return runtime.GOOS + "-" + runtime.GOARCH
 }
 
 // extractTarGz pulls the single "kervia-vault" member out of the tarball.

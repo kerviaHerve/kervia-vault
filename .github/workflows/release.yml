@@ -28,18 +28,19 @@ jobs:
       - uses: actions/setup-go@v5
         with: { go-version: "1.27" }
 
-      - name: Build static binaries (amd64 + arm64)
+      - name: Build static binaries (linux/darwin × amd64/arm64)
         run: |
           VERSION="${GITHUB_REF_NAME#v}"
-          for ARCH in amd64 arm64; do
-            CGO_ENABLED=0 GOOS=linux GOARCH=$ARCH go build \
+          for TARGET in linux/amd64 linux/arm64 darwin/amd64 darwin/arm64; do
+            OS="${TARGET%/*}"; ARCH="${TARGET#*/}"
+            CGO_ENABLED=0 GOOS="$OS" GOARCH="$ARCH" go build \
               -trimpath \
               -ldflags="-s -w -X main.version=${GITHUB_REF_NAME}" \
               -o build/kervia-vault ./cmd/kervia-vault
-            tar -czf "kervia-vault-linux-${ARCH}.tar.gz" -C build kervia-vault
+            tar -czf "kervia-vault-${OS}-${ARCH}.tar.gz" -C build kervia-vault
             rm -f build/kervia-vault
           done
-          sha256sum kervia-vault-linux-*.tar.gz > kervia-vault_checksums.txt
+          sha256sum kervia-vault-*.tar.gz > kervia-vault_checksums.txt
           echo "RELEASE_VERSION=${VERSION}" >> "$GITHUB_ENV"
 
       # Release notes: extract this tag's section from CHANGELOG.md
@@ -66,6 +67,8 @@ jobs:
           files: |
             kervia-vault-linux-amd64.tar.gz
             kervia-vault-linux-arm64.tar.gz
+            kervia-vault-darwin-amd64.tar.gz
+            kervia-vault-darwin-arm64.tar.gz
             kervia-vault_checksums.txt
           body_path: RELEASE_NOTES.md
       - name: Verify release assets are downloadable

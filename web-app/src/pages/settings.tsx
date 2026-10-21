@@ -1,6 +1,6 @@
 import * as React from 'react'
 import { motion } from 'framer-motion'
-import { KeyRound, ShieldCheck, Clock, LoaderCircle, RotateCcw, Download, AlertTriangle, RefreshCw, ArrowUpCircle, CheckCircle2 } from 'lucide-react'
+import { KeyRound, ShieldCheck, Clock, LoaderCircle, RotateCcw, Download, AlertTriangle, RefreshCw, ArrowUpCircle, CheckCircle2, Smartphone, Copy } from 'lucide-react'
 import { toast } from 'sonner'
 import { api } from '@/lib/api'
 import { useLang } from '@/i18n'
@@ -22,12 +22,54 @@ export default function Settings() {
   const [restarting, setRestarting] = React.useState(false)
   const restartTimer = React.useRef<number | null>(null)
 
+  // 2FA (TOTP) : state serveur + enrôlement en cours (seed affiché UNE fois)
+  const [faState, setFaState] = React.useState('none')
+  const [faSeed, setFaSeed] = React.useState('')
+  const [faUri, setFaUri] = React.useState('')
+  const [faConfirm, setFaConfirm] = React.useState('')
+  const [faPass, setFaPass] = React.useState('')
+  const [faCode, setFaCode] = React.useState('')
+  const [faBusy, setFaBusy] = React.useState(false)
+
   React.useEffect(() => {
     api('GET', '/admin/settings').then(setInfo).catch(() => {})
     api('GET', '/admin/recovery/status').then((d: any) => setRecStatus(d.remaining)).catch(() => {})
     api('GET', '/admin/update/status?force=1').then(setUpd).catch(() => {})
+    api('GET', '/admin/2fa/state').then((d: any) => setFaState(d.state)).catch(() => {})
     return () => { if (restartTimer.current) window.clearInterval(restartTimer.current) }
   }, [])
+
+  const faEnroll = async () => {
+    if (faBusy) return
+    setFaBusy(true)
+    try {
+      const d = await api('POST', '/admin/2fa/enroll')
+      setFaSeed(d.seed); setFaUri(d.uri); setFaConfirm(''); setFaState('pending')
+    } catch (e: any) { toast.error(String(e.message || e)) }
+    setFaBusy(false)
+  }
+
+  const faConfirmSubmit = async () => {
+    if (faBusy || faConfirm.length !== 6) return
+    setFaBusy(true)
+    try {
+      await api('POST', '/admin/2fa/confirm', { code: faConfirm })
+      setFaState('active'); setFaSeed(''); setFaUri(''); setFaConfirm('')
+      toast.success(String(t.faActive))
+    } catch { toast.error(String(t.faBadCode)) }
+    setFaBusy(false)
+  }
+
+  const faDisable = async () => {
+    if (faBusy || !faPass || faCode.length !== 6) return
+    setFaBusy(true)
+    try {
+      await api('POST', '/admin/2fa/disable', { password: faPass, code: faCode })
+      setFaState('none'); setFaPass(''); setFaCode('')
+      toast.success(String(t.faDisabled))
+    } catch { toast.error(String(t.loginError)) }
+    setFaBusy(false)
+  }
 
   // after an update: poll until the server is back and shows the NEW
   // version, then reload the page automatically — the user never stays
@@ -208,6 +250,70 @@ export default function Settings() {
             <span className="text-fg-2">{String(t.minPassword)}</span>
             <span className="font-semibold">{info?.min_password_length ?? 12} {String(t.chars)}</span>
           </div>
+        </CardBody>
+      </Card>
+
+      <Card className="mt-5">
+        <CardHeader>
+          <span className="flex items-center gap-2"><Smartphone size={15} /> {String(t.faTitle)}</span>
+          <span className={`text-xs font-semibold ${faState === 'active' ? 'text-success' : faState === 'pending' ? 'text-warn' : 'text-fg-3'}`}>
+            {faState === 'active' ? String(t.faStateActive) : faState === 'pending' ? String(t.faStatePending) : String(t.faStateNone)}
+          </span>
+        </CardHeader>
+        <CardBody>
+          {faState === 'none' && (
+            <>
+              <p className="text-xs text-fg-2 mb-4">{String(t.faIntro)}</p>
+              <Button variant="primary" onClick={faEnroll} disabled={faBusy}>
+                {faBusy ? <LoaderCircle size={15} className="animate-spin" /> : <Smartphone size={15} />}
+                {String(t.faStart)}
+              </Button>
+            </>
+          )}
+          {faState === 'pending' && !faSeed && (
+            <>
+              <p className="text-xs text-warn mb-4">{String(t.faPending)}</p>
+              <Button onClick={faEnroll} disabled={faBusy}>{String(t.faRegenerate)}</Button>
+            </>
+          )}
+          {faState === 'pending' && faSeed && (
+            <>
+              <p className="text-xs text-fg-2 mb-3">{String(t.faSeedTitle)}</p>
+              <div className="flex items-center gap-2 mb-1">
+                <code className="flex-1 text-xs font-mono bg-card-2 border border-border rounded-lg px-3 py-2 select-all break-all">{faSeed}</code>
+                <Button size="sm" onClick={() => { navigator.clipboard.writeText(faSeed); toast.success(String(t.copied)) }}><Copy size={13} /></Button>
+              </div>
+              <div className="flex items-center gap-2 mb-4">
+                <code className="flex-1 text-[10px] font-mono text-fg-3 truncate" title={faUri}>{faUri}</code>
+                <Button size="sm" onClick={() => { navigator.clipboard.writeText(faUri); toast.success(String(t.copied)) }}><Copy size={13} /></Button>
+              </div>
+              <p className="text-xs text-fg-3 mb-4">{String(t.faSeedOnce)}</p>
+              <Field label={String(t.faConfirmTitle)}>
+                <Input value={faConfirm} inputMode="numeric" maxLength={6} className="font-mono tracking-[0.25em]"
+                  onChange={e => setFaConfirm(e.target.value.replace(/\D/g, ''))} placeholder="123456" />
+              </Field>
+              <Button variant="primary" onClick={faConfirmSubmit} disabled={faBusy || faConfirm.length !== 6}>
+                {String(t.faConfirmBtn)}
+              </Button>
+            </>
+          )}
+          {faState === 'active' && (
+            <>
+              <p className="text-xs text-fg-2 mb-4">{String(t.faActiveNote)}</p>
+              <div className="grid grid-cols-2 gap-2">
+                <Field label={String(t.currentPassword)}>
+                  <Input type="password" value={faPass} onChange={e => setFaPass(e.target.value)} />
+                </Field>
+                <Field label={String(t.faCodeLabel)}>
+                  <Input value={faCode} inputMode="numeric" maxLength={6} className="font-mono tracking-[0.25em]"
+                    onChange={e => setFaCode(e.target.value.replace(/\D/g, ''))} placeholder="123456" />
+                </Field>
+              </div>
+              <Button variant="destructive" onClick={faDisable} disabled={faBusy || !faPass || faCode.length !== 6}>
+                {String(t.faDisableBtn)}
+              </Button>
+            </>
+          )}
         </CardBody>
       </Card>
 

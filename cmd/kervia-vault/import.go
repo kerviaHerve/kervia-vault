@@ -19,6 +19,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
 
 	"github.com/google/uuid"
 
@@ -81,6 +82,13 @@ func runImport(args []string) {
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "master key invalide:", err)
 		os.Exit(1)
+	}
+	// la cible peut être un chemin neuf : le serveur fait MkdirAll, la CLI aussi
+	if dir := filepath.Dir(dbPath); dir != "" && dir != "." {
+		if err := os.MkdirAll(dir, 0o700); err != nil {
+			fmt.Fprintln(os.Stderr, "répertoire cible:", err)
+			os.Exit(1)
+		}
 	}
 	st, err := store.Open(dbPath)
 	if err != nil {

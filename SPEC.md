@@ -184,14 +184,14 @@ kervia-vault/
 ├── internal/
 │   ├── crypto/                   — AES-GCM, Argon2id, keygen (aucun log de secret)
 │   ├── store/                    — SQLite, migrations embed, requêtes
+│   │   └── migrations/           — .sql versionnées → go:embed (001-005)
 │   ├── model/                    — types Agent/Vault/Grant/Secret
-│   ├── auth/                     — middleware clé API + sessions webui + rate limit
+│   ├── auth/                     — middleware clé API + sessions webui + rate limit + TOTP
 │   ├── api/                      — handlers REST (agents + admin)
 │   ├── mcp/                      — serveur MCP (tools, annotations, instructions)
 │   ├── audit/                    — append-only, nettoyage optionnel (rétention)
 │   └── config/                   — load/validate (fail-closed)
 ├── web/                          — HTML/HTMX/Tailwind → go:embed
-├── migrations/                   — .sql versionnées → go:embed
 ├── .golangci.yml                 — gosec ON, errcheck ON, strict
 ├── Dockerfile                    — distroless/static, multi-stage
 └── go.mod                        — deps minimales : mcp-go, go/modernc.org/sqlite, golang.org/x/crypto

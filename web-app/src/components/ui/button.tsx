@@ -24,8 +24,11 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
     <button
       ref={ref}
       className={cn(
-        'inline-flex items-center justify-center cursor-pointer transition-colors duration-150 select-none',
-        'disabled:opacity-50 disabled:pointer-events-none active:scale-[0.98]',
+        'inline-flex items-center justify-center cursor-pointer select-none',
+        /* Press : feedback AU pointer-down, transition de transform 100 ms
+           ease-out (§1 response) — le scale ne claque plus, il s'enfonce. */
+        'transition-[color,background-color,border-color,transform] duration-150 ease-out',
+        'disabled:opacity-50 disabled:pointer-events-none active:scale-[0.97]',
         variants[variant], sizes[size], className,
       )}
       {...props}

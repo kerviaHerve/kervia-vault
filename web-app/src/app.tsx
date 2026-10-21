@@ -1,6 +1,6 @@
 import * as React from 'react'
 import { createRoot } from 'react-dom/client'
-import { motion, AnimatePresence } from 'framer-motion'
+import { motion, AnimatePresence, MotionConfig } from 'framer-motion'
 import { Toaster, toast } from 'sonner'
 import { LayoutDashboard, Bot, Archive, KeyRound, Shield, ScrollText, LogOut, Lock, Settings as SettingsIcon } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -25,6 +25,17 @@ import Audit from '@/pages/audit'
 import Settings from '@/pages/settings'
 import Login from '@/pages/login'
 import Wizard from '@/pages/wizard'
+
+/* Toast = couche flottante au-dessus du contenu → matériau translucide
+   (skill §12) : le contenu défile dessous, la surface lit comme un vrai
+   matériau. Sous prefers-reduced-transparency, .kv-glass la rend opaque. */
+const toastGlass: React.CSSProperties = {
+  background: 'color-mix(in srgb, var(--color-card-2) 72%, transparent)',
+  backdropFilter: 'blur(20px) saturate(180%)',
+  WebkitBackdropFilter: 'blur(20px) saturate(180%)',
+  border: '1px solid var(--color-border)',
+  color: 'var(--color-fg)',
+}
 
 const NAV = [
   { id: 'dashboard', label: 'overview', icon: LayoutDashboard },
@@ -88,9 +99,7 @@ function App() {
         <Wizard onDone={() => { setupSet({ setup_done: true }); window.location.reload() }} />
         <Toaster
           position="bottom-right"
-          toastOptions={{
-            style: { background: 'var(--color-card-2)', border: '1px solid var(--color-border)', color: 'var(--color-fg)' },
-          }}
+          toastOptions={{ style: toastGlass, className: 'kv-glass' }}
         />
       </>
     )
@@ -103,9 +112,7 @@ function App() {
         <Login onLogin={() => { setAuthed(true); go('dashboard') }} />
         <Toaster
           position="bottom-right"
-          toastOptions={{
-            style: { background: 'var(--color-card-2)', border: '1px solid var(--color-border)', color: 'var(--color-fg)' },
-          }}
+          toastOptions={{ style: toastGlass, className: 'kv-glass' }}
         />
       </>
     )
@@ -126,7 +133,8 @@ function App() {
               key={id}
               onClick={() => go(id)}
               className={cn(
-                'w-full flex items-center gap-2.5 px-3 h-9 rounded-lg text-[13px] font-medium cursor-pointer transition-colors duration-150',
+                'w-full flex items-center gap-2.5 px-3 h-9 rounded-lg text-[13px] font-medium cursor-pointer',
+                'transition-[color,background-color,transform] duration-150 ease-out active:scale-[0.98]',
                 page === id ? 'bg-accent/12 text-accent' : 'text-fg-2 hover:text-fg hover:bg-card-2',
               )}
             >
@@ -172,7 +180,12 @@ function App() {
             initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -4 }}
-            transition={{ duration: 0.15 }}
+            /* Spring amorti critique (damping 1.0, response ~0.3) — le
+               standard Apple pour la navigation : pas d'overshoot sur une
+               action qui n'en porte pas (skill §4), interruptible par
+               construction, et réduit automatiquement sous
+               prefers-reduced-motion via MotionConfig. */
+            transition={{ type: 'spring', bounce: 0, duration: 0.3 }}
           >
             {page === 'agents' ? <Agents />
               : page === 'vaults' ? <Vaults />
@@ -188,12 +201,16 @@ function App() {
 
       <Toaster
         position="bottom-right"
-        toastOptions={{
-          style: { background: 'var(--color-card-2)', border: '1px solid var(--color-border)', color: 'var(--color-fg)' },
-        }}
+        toastOptions={{ style: toastGlass, className: 'kv-glass' }}
       />
     </div>
   )
 }
 
-createRoot(document.getElementById('root')!).render(<LangProvider><App /></LangProvider>)
+createRoot(document.getElementById('root')!).render(
+  /* reducedMotion="user" : framer bascule en cross-fade dès que l'utilisateur
+     demande moins de mouvement (skill §14) — équivalent doux, pas l'absence. */
+  <MotionConfig reducedMotion="user">
+    <LangProvider><App /></LangProvider>
+  </MotionConfig>
+)

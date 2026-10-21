@@ -1,5 +1,44 @@
 # Changelog
 
+## v1.5.0 (2026-10-22)
+
+- **Double authentification (TOTP) sur le login admin.** Second facteur
+  opt-in, standard RFC 6238 :
+  - enrôlement en deux temps depuis Paramètres — la clé (seed base32)
+    s'affiche UNE fois avec son URI `otpauth://` (Google Authenticator,
+    1Password, Aegis…) ; un code valide confirme et active.
+  - au login : mot de passe + code, **échec uniforme** — rien ne désigne
+    le facteur fautif. HMAC-SHA1/30 s/6 chiffres/±1 pas (dérive d'horloge).
+  - désactivation exige les DEUX facteurs ; une récupération par code
+    réinitialise AUSSI le TOTP (issue de secours officielle du téléphone
+    perdu). Persistance fichier `0600` à côté de la DB.
+- **Rappels de rotation.** Badge d'âge en jours sur chaque secret (couleur
+  par ancienneté : frais < 30 j · à surveiller 30-90 j · à rotationner
+  > 90 j) — répond au besoin historique des « rotation prévoir » griffonnés
+  à la main dans les noms de clés.
+- **Liens de partage éphémères.** Un secret, un lien à UNE consultation :
+  - token 32 octets CSPRNG retourné une seule fois, seul son SHA-256 en
+    base (migration 005) ; consommation atomique one-time, TTL borné
+    1 min plancher / 24 h plafond (défaut 30 min).
+  - page publique autonome **sans JavaScript** (CSP-proof), bilingue,
+    no-store, deny-frame ; consommé / expiré / inconnu → la même page,
+    l'énumération n'apprend rien. Audit complet, jamais le token.
+- **Export DR chiffré + restauration CLI.** Paramètres → Sauvegarde :
+  un bundle de TOUS les vaults scellé par une passphrase (PBKDF2-SHA256
+  600k + AES-256-GCM, format `KVX1`) — **pas la master key** : il restaure
+  sur n'importe quelle instance neuve. Restauration :
+  `kervia-vault import <fichier.kvx>` (fail-closed, aucune fusion
+  silencieuse), valeurs re-scellées avec la master key de la cible.
+  Cycle complet testé E2E : export (master key A) → import (master key B
+  différente) → valeur restaurée intacte.
+- **PWA.** L'webui s'installe comme app (iPhone/Android) : manifest
+  `standalone`, métas iOS, icône maskable. Pas de service worker — le
+  coffre vit avec son serveur, un SW n'apporterait que du cache à
+  invalider.
+- **Fix interne (attrapé par l'E2E)** : les migrations vivent dans
+  `internal/store/migrations/` (le `go:embed` est relatif au package) —
+  le résiduel `/migrations/` racine de la v1.0.0 a été supprimé.
+
 ## v1.4.0 (2026-10-21)
 
 - **Webui : design system Apple** (skill apple-design — principes WWDC

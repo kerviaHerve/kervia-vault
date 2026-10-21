@@ -85,6 +85,7 @@ func runImport(args []string) {
 	}
 	// la cible peut être un chemin neuf : le serveur fait MkdirAll, la CLI aussi
 	if dir := filepath.Dir(dbPath); dir != "" && dir != "." {
+		// #nosec G703 -- the operator names the target path via env: creating the parent of their own --db is the feature
 		if err := os.MkdirAll(dir, 0o700); err != nil {
 			fmt.Fprintln(os.Stderr, "répertoire cible:", err)
 			os.Exit(1)

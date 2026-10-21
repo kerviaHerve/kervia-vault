@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"runtime"
 	"strings"
 )
 
@@ -48,7 +49,7 @@ func FromEnv() (*Config, error) {
 
 	cfg := &Config{
 		ListenAddr: envOr("KERVIA_VAULT_LISTEN", "127.0.0.1:8321"),
-		DBPath:     envOr("KERVIA_VAULT_DB", "/var/lib/kervia-vault/kervia-vault.db"),
+		DBPath:     envOr("KERVIA_VAULT_DB", defaultDBPath()),
 		MasterKey:  masterKey,
 		AdminHash:  adminHash,
 		RatePerMin: envIntOr("KERVIA_VAULT_RATE_PER_MIN", 60),
@@ -56,6 +57,16 @@ func FromEnv() (*Config, error) {
 		KeyFile:    os.Getenv("KERVIA_VAULT_TLS_KEY"),
 	}
 	return cfg, nil
+}
+
+// defaultDBPath: /var/lib on Linux, /usr/local/var on macOS (the daemon
+// convention there). The installer always sets KERVIA_VAULT_DB explicitly —
+// this default only serves bare manual runs.
+func defaultDBPath() string {
+	if runtime.GOOS == "darwin" {
+		return "/usr/local/var/kervia-vault/kervia-vault.db"
+	}
+	return "/var/lib/kervia-vault/kervia-vault.db"
 }
 
 func envOr(key, def string) string {

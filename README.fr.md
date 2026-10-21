@@ -66,13 +66,12 @@ un seul exécutable statique d'environ 15 Mo :
   données au repos : AES-256-GCM par secret · versions immuables · audit append-only
 ```
 
-## Installation — une seule commande (Linux, systemd)
+## Installation — une seule commande (Linux & macOS)
 
-> **Plateformes** : Linux (amd64/arm64) est pleinement supporté —
-> installeur, service systemd, auto-mise à jour. **macOS en approche** —
-> la base de code est 100 % portable (pur Go, sans CGO) et compile pour
-> darwin telle quelle ; il manque l'installeur launchd + le service.
-> Docker fonctionne sur toutes les plateformes.
+> **Plateformes** : Linux (amd64/arm64) et macOS (Apple Silicon & Intel)
+> pleinement supportés — installeur, service durci (unit systemd /
+> LaunchDaemon), auto-mise à jour. Docker fonctionne sur toutes les
+> plateformes.
 
 ```bash
 sudo bash install.sh
@@ -83,8 +82,10 @@ C'est tout. L'installeur :
 1. **Demande où binder** — détecte vos adresses, met en avant les VPN
    (NetBird/Tailscale), avertit en rouge avant toute exposition d'IP publique
 2. **Télécharge le binaire de la release** GitHub et vérifie son **sha256**
-3. Installe un **service systemd durci** (utilisateur dédié,
-   `ProtectSystem=strict`, sans root)
+3. Installe un **service durci** — unit systemd sur Linux
+   (`ProtectSystem=strict`), LaunchDaemon sur macOS (`KeepAlive`), les deux
+   sous un utilisateur dédié sans shell, master key dans un fichier `600`
+   root-only
 4. Ouvre le **wizard de configuration** sur `http://<bind>:8321/ui/` —
    choisissez la langue → acceptez les conditions → définissez le mot de
    passe admin → téléchargez vos codes de récupération → créez votre

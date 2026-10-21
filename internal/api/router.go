@@ -75,6 +75,10 @@ func (s *Server) Router(authSvc *auth.Service, admin *AdminServer, adminExtender
 	adminMux.HandleFunc("POST /admin/2fa/confirm", admin.TOTPConfirmHandler)
 	adminMux.HandleFunc("POST /admin/2fa/disable", admin.TOTPDisableHandler)
 
+	// ---- liens de partage éphémères (one-time) : création session-guardée ;
+	// la vue publique est montée sur le mux racine ci-dessous ----
+	adminMux.HandleFunc("POST /admin/secrets/{id}/share", admin.ShareSecret)
+
 	if adminExtender != nil {
 		adminExtender(adminMux)
 	}
@@ -84,6 +88,8 @@ func (s *Server) Router(authSvc *auth.Service, admin *AdminServer, adminExtender
 	// public : le login form doit savoir s'il faut un champ code — révèle
 	// seulement « cette instance utilise le 2FA », pas un secret.
 	mux.HandleFunc("GET /totp/status", TOTPStatus(authSvc))
+	// public : la page de partage — autonome, sans JS, jetable
+	mux.HandleFunc("GET /share/", admin.ViewShare)
 	mux.HandleFunc("POST /recovery/recover", func(w http.ResponseWriter, r *http.Request) {
 		var req struct {
 			Code        string `json:"code"`

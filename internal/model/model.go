@@ -86,6 +86,13 @@ const (
 	AuditRateLimited  = "rate_limited"
 )
 
+// Share-link audit actions — the ephemeral one-time links. The audit NEVER
+// carries the token (only the secret id); the share page logs the viewer IP.
+const (
+	AuditShareCreate = "share_create" // admin minted a one-time link (ttl in the detail)
+	AuditShareView   = "share_view"    // link consumed — value disclosed once
+)
+
 // 2FA (TOTP) audit actions — the admin second factor lifecycle.
 const (
 	Audit2FAEnroll  = "2fa_enroll"   // pending seed generated (not yet active)

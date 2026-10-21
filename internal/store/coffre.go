@@ -77,7 +77,7 @@ func (s *Store) ListCoffreItems() ([]model.CoffreItem, error) {
 	if err != nil {
 		return nil, fmt.Errorf("store: coffre list: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	items := []model.CoffreItem{}
 	for rows.Next() {
 		var it model.CoffreItem

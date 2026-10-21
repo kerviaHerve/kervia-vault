@@ -175,13 +175,18 @@ func (s *Service) CheckAdmin(password string) bool {
 	return bcrypt.CompareHashAndPassword([]byte(s.adminHashString()), []byte(password)) == nil
 }
 
-// LoginAdmin verifies the password with throttling (brute-force protection).
-// Returns the session id on success, "" on failure (audited by the caller).
-func (s *Service) LoginAdmin(r *http.Request, password string) string {
+// LoginAdmin verifies the password (+ TOTP when enrolled) with throttling
+// (brute-force protection). Returns the session id on success, "" on failure
+// (audited by the caller). Échec uniforme : ni le mot de passe ni le code ne
+// sont révélés comme étant LE facteur fautif.
+func (s *Service) LoginAdmin(r *http.Request, password, totp string) string {
 	if !s.failRate.allow("admin:" + clientIP(r)) {
 		return ""
 	}
 	if !s.CheckAdmin(password) {
+		return ""
+	}
+	if s.TOTPRequired() && !s.TOTPCheck(totp) {
 		return ""
 	}
 	return s.NewAdminSession()

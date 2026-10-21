@@ -86,6 +86,14 @@ const (
 	AuditRateLimited  = "rate_limited"
 )
 
+// 2FA (TOTP) audit actions — the admin second factor lifecycle.
+const (
+	Audit2FAEnroll  = "2fa_enroll"   // pending seed generated (not yet active)
+	Audit2FAEnable  = "2fa_enabled"  // enrollment confirmed, login now requires a code
+	Audit2FADisable = "2fa_disabled" // both factors provided, factor removed
+	Audit2FAReset   = "2fa_reset"    // recovery-driven reset (code consumed, TOTP wiped)
+)
+
 // Coffre audit actions. The coffre is the personal password manager:
 // audit entries carry ONLY actions and opaque item IDs — never item
 // names or content (those are end-to-end encrypted, the server cannot

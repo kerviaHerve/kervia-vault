@@ -64,16 +64,18 @@ func sessionCookie(value string, r *http.Request, maxAge int) *http.Cookie {
 	}
 }
 
-// Login handles POST /admin/login {password} → session cookie.
+// Login handles POST /admin/login {password, totp} → session cookie.
+// Le champ totp n'est exigé que si le 2FA est actif ; l'échec est uniforme.
 func (a *AdminServer) Login(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Password string `json:"password"`
+		Totp     string `json:"totp"`
 	}
 	if err := jsonBody(r, &req); err != nil || req.Password == "" {
 		writeErr(w, 400, "invalid_request", "")
 		return
 	}
-	sid := a.authSvc.LoginAdmin(r, req.Password)
+	sid := a.authSvc.LoginAdmin(r, req.Password, req.Totp)
 	if sid == "" {
 		_ = a.store.AppendAudit("admin", model.AuditLoginFail, "admin/login", "")
 		writeErr(w, 401, "invalid_credentials", "")

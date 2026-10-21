@@ -67,12 +67,23 @@ func (s *Server) Router(authSvc *auth.Service, admin *AdminServer, adminExtender
 	adminMux.HandleFunc("POST /admin/coffre/items/{id}/purge", admin.CoffrePurgeItem)
 	adminMux.HandleFunc("POST /admin/coffre/trash/purge", admin.CoffrePurgeTrash)
 
+	// ---- 2FA (TOTP) : gestion session-guardée ; le status public est
+	// monté plus bas sur le mux racine (le formulaire de login en a besoin
+	// AVANT authentification) ----
+	adminMux.HandleFunc("GET /admin/2fa/state", admin.TOTPStateHandler)
+	adminMux.HandleFunc("POST /admin/2fa/enroll", admin.TOTPEnrollHandler)
+	adminMux.HandleFunc("POST /admin/2fa/confirm", admin.TOTPConfirmHandler)
+	adminMux.HandleFunc("POST /admin/2fa/disable", admin.TOTPDisableHandler)
+
 	if adminExtender != nil {
 		adminExtender(adminMux)
 	}
 	mux.Handle("/admin/", authSvc.AdminMiddleware(admin.AdminAudit(adminMux)))
 	mux.Handle("POST /admin/login", admin.AdminAudit(http.HandlerFunc(admin.Login)))
 	mux.Handle("POST /admin/logout", http.HandlerFunc(admin.Logout))
+	// public : le login form doit savoir s'il faut un champ code — révèle
+	// seulement « cette instance utilise le 2FA », pas un secret.
+	mux.HandleFunc("GET /totp/status", TOTPStatus(authSvc))
 	mux.HandleFunc("POST /recovery/recover", func(w http.ResponseWriter, r *http.Request) {
 		var req struct {
 			Code        string `json:"code"`

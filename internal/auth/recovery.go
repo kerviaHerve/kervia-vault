@@ -132,6 +132,8 @@ func (s *Service) RegenerateRecoveryCodes(currentPassword string) []string {
 
 // RecoverWithCode validates a recovery code and resets the admin password.
 // Returns true if the code was valid and the password was changed.
+// Un reset par code réinitialise AUSSI le TOTP : c'est l'issue de secours
+// officielle d'un téléphone perdu (ré-enrôler le 2FA après).
 func (s *Service) RecoverWithCode(code, newPassword string) bool {
 	if len(newPassword) < 12 {
 		return false
@@ -143,6 +145,7 @@ func (s *Service) RecoverWithCode(code, newPassword string) bool {
 		return false
 	}
 	s.mu.Unlock()
+	s.totpReset()
 	_ = s.SetAdminPassword(newPassword)
 	s.persistRecovery()
 	return true

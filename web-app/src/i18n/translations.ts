@@ -195,6 +195,8 @@ export const translations = {
     faDisableBtn: "Désactiver le 2FA",
     faDisabled: "2FA désactivée.",
     loginTotp: "Code 2FA (TOTP)",
+    ageHint: "Âge du secret — pensez à le rotationner s'il est ancien",
+    dayShort: "j",
     update: "Mettre à jour",
     // generic
     internal: "interne",
@@ -486,6 +488,8 @@ export const translations = {
     faDisableBtn: "Disable 2FA",
     faDisabled: "2FA disabled.",
     loginTotp: "2FA code (TOTP)",
+    ageHint: "Secret age — consider rotating old credentials",
+    dayShort: "d",
     update: "Update",
     internal: "internal",
     notFound: "Not found",

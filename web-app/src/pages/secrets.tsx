@@ -8,6 +8,20 @@ import { Button, Badge, Dialog, DialogContent, Input, PasswordInput, Field } fro
 import { cn, fmtDateTime } from '@/lib/utils'
 import { useSort } from '@/lib/useSort'
 
+// AgeBadge : âge du secret en jours — rappel de rotation au fil de la liste.
+// La couleur suit l'ancienneté : frais < 30 j · à surveiller 30-90 j ·
+// à rotationner > 90 j (le seuil n'est qu'un repère, pas une règle).
+function AgeBadge({ iso }: { iso: string }) {
+  const { t } = useLang()
+  const days = Math.floor((Date.now() - new Date(iso).getTime()) / 86_400_000)
+  const tone = days > 90 ? 'text-danger' : days > 30 ? 'text-warn' : 'text-fg-3'
+  return (
+    <span className={`ml-1.5 text-[10px] font-bold ${tone}`} title={String(t.ageHint)}>
+      {days}{String(t.dayShort)}
+    </span>
+  )
+}
+
 // SortHeader: cellule <th> cliquable — trie la colonne, flèche sur la colonne active.
 function SortHeader({ label, sortKey, activeKey, dir, onSort, className }: {
   label: React.ReactNode; sortKey: string; activeKey: string; dir: 'asc' | 'desc';
@@ -405,7 +419,9 @@ export default function Secrets() {
                   </Button>
                 </td>
                 <td className="px-5 py-3 text-xs text-fg-2">v{sr.version}</td>
-                <td className="px-5 py-3 text-xs text-fg-2">{fmtDateTime(sr.updated_at)}</td>
+                <td className="px-5 py-3 text-xs text-fg-2 whitespace-nowrap">
+                  {fmtDateTime(sr.updated_at)} <AgeBadge iso={sr.updated_at} />
+                </td>
                 <td></td>
               </tr>
             ))}
@@ -465,7 +481,9 @@ export default function Secrets() {
                     <span className="font-mono text-fg-3">••••••••••••</span>
                   </td>
                   <td className="px-5 py-3 text-xs text-fg-2">v{s.version}</td>
-                  <td className="px-5 py-3 text-xs text-fg-2">{fmtDateTime(s.updated_at)}</td>
+                  <td className="px-5 py-3 text-xs text-fg-2 whitespace-nowrap">
+                    {fmtDateTime(s.updated_at)} <AgeBadge iso={s.updated_at} />
+                  </td>
                   <td className="px-5 py-3 text-right whitespace-nowrap">
                     <Button variant="ghost" size="icon" onClick={() => reveal(s)} title={String(t.reveal)}>
                       <Eye size={15} />

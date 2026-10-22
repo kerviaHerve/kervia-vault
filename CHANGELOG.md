@@ -1,5 +1,22 @@
 # Changelog
 
+## v1.6.3 (2026-10-22)
+
+- **Coffre réparé : écran blanc au premier clic.** Le coffre personnel était
+  cassé depuis sa naissance (v1.2.0) : les cinq dialogs (nouvel item,
+  générateur, import, export, réglages) étaient rendus sans le `<Dialog>`
+  Root de Radix — Radix jette « must be used within Dialog » au premier
+  rendu et React démonte l'arbre complet. Résultat : déverrouiller le
+  coffre marchait, mais cliquer « Nouveau » (ou tout autre bouton ouvrant
+  un dialog) provoquait un écran blanc. Personne ne l'avait vu car la
+  validation E2E de l'époque couvrait la crypto (Node/WebCrypto) et les
+  API (HTTP) — jamais l'UI au clic. Chaque dialog est désormais enveloppé
+  dans son `<Dialog open onOpenChange>`, le même pattern que les pages
+  secrets/agents. Validé par un parcours complet en navigateur headless :
+  création du coffre, nouvel item, vue détaillée, générateur, import,
+  export, réglages, verrouillage/déverrouillage, item TOTP — 12/12 verts,
+  zéro erreur console.
+
 ## v1.6.2 (2026-10-22)
 
 - **Journal des versions dans Paramètres.** Un panneau à droite affiche les

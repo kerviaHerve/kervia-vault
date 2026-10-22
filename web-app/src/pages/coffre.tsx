@@ -3,7 +3,7 @@
 // (lib/coffre) : le serveur ne voit que des blobs. La clé ne vit qu'en
 // mémoire — auto-lock après inactivité, reload = reverrouillé.
 import * as React from 'react'
-import { AnimatePresence, motion } from 'framer-motion'
+import { motion } from 'framer-motion'
 import { toast } from 'sonner'
 import {
   Lock, Plus, Search, Star, Copy, Eye, EyeOff, Trash2, RotateCcw, Pencil,
@@ -325,20 +325,20 @@ export default function Coffre() {
         <ShieldCheck size={12} /> {t.cofE2E} <Clock size={12} className="ml-3" /> {t.cofAutolock} : {autoLockMin > 0 ? `${autoLockMin} min` : t.cofAutolockOff}
       </p>
 
-      <AnimatePresence>
+      <>
         {dialog?.kind === 'item' && (
-          <ItemDialog key="item" item={dialog.item} items={items} onClose={() => setDialog(null)} onSaved={saveItem} onDeleted={trashItem} />
+          <ItemDialog item={dialog.item} items={items} onClose={() => setDialog(null)} onSaved={saveItem} onDeleted={trashItem} />
         )}
-        {dialog?.kind === 'generator' && <GeneratorDialog key="gen" onClose={() => setDialog(null)} />}
-        {dialog?.kind === 'import' && <ImportDialog key="imp" onClose={() => setDialog(null)} onImported={reload} />}
-        {dialog?.kind === 'export' && <ExportDialog key="exp" items={items.filter(i => !i._broken)} onClose={() => setDialog(null)} />}
+        {dialog?.kind === 'generator' && <GeneratorDialog onClose={() => setDialog(null)} />}
+        {dialog?.kind === 'import' && <ImportDialog onClose={() => setDialog(null)} onImported={reload} />}
+        {dialog?.kind === 'export' && <ExportDialog items={items.filter(i => !i._broken)} onClose={() => setDialog(null)} />}
         {dialog?.kind === 'settings' && (
-          <SettingsDialog key="set" header={header} autoLockMin={autoLockMin} setAutoLockMin={setAutoLockMin}
+          <SettingsDialog header={header} autoLockMin={autoLockMin} setAutoLockMin={setAutoLockMin}
             onDestroyed={() => { setDialog(null); C.lockCoffre(); setPhase('setup') }}
             onRekeyed={async env => { setHeader(env); toast.success(String(t.cofChangePwDone)) }}
             onClose={() => setDialog(null)} />
         )}
-      </AnimatePresence>
+      </>
     </div>
   )
 }
@@ -484,7 +484,10 @@ function ItemDialog({ item, items, onClose, onSaved, onDeleted }: {
   }
 
   return (
-    <DialogContent className="max-w-lg" title={isNew ? t.cofNew : item!.name}>
+    // Dialog (Root Radix) obligatoire autour de DialogContent — sans lui,
+    // le contexte manque et Radix jette au premier rendu (écran blanc).
+    <Dialog open onOpenChange={o => { if (!o) onClose() }}>
+      <DialogContent className="max-w-lg" title={isNew ? t.cofNew : item!.name}>
       {!edit ? (
         <div className="space-y-4">
           <div className="flex items-center gap-2">
@@ -607,7 +610,8 @@ function ItemDialog({ item, items, onClose, onSaved, onDeleted }: {
           </div>
         </div>
       )}
-    </DialogContent>
+      </DialogContent>
+    </Dialog>
   )
 }
 
@@ -651,7 +655,8 @@ function GeneratorDialog({ onClose }: { onClose: () => void }) {
 
   const st = C.passwordStrength(value)
   return (
-    <DialogContent title={t.cofGenTitle}>
+    <Dialog open onOpenChange={o => { if (!o) onClose() }}>
+      <DialogContent title={t.cofGenTitle}>
       <div className="grid grid-cols-2 gap-2 mb-4">
         {(['chars', 'phrase'] as const).map(m => (
           <button key={m} onClick={() => setMode(m)}
@@ -694,7 +699,8 @@ function GeneratorDialog({ onClose }: { onClose: () => void }) {
           <Button variant="primary" onClick={() => { copy(value); onClose() }}><Copy size={14} />{t.cofGenCopy}</Button>
         </div>
       </div>
-    </DialogContent>
+      </DialogContent>
+    </Dialog>
   )
 }
 
@@ -733,7 +739,8 @@ function ImportDialog({ onClose, onImported }: { onClose: () => void; onImported
   }
 
   return (
-    <DialogContent title={t.cofImportTitle}>
+    <Dialog open onOpenChange={o => { if (!o) onClose() }}>
+      <DialogContent title={t.cofImportTitle}>
       <p className="text-xs text-fg-3 leading-relaxed mb-4">{t.cofImportHint}</p>
       <label className="block border border-dashed border-border rounded-xl p-8 text-center cursor-pointer hover:bg-card-2/50 transition-colors">
         <input type="file" accept="application/json,.json" className="hidden"
@@ -752,7 +759,8 @@ function ImportDialog({ onClose, onImported }: { onClose: () => void; onImported
           {busy ? <LoaderCircle className="animate-spin" /> : null} {t.cofImportBtn}
         </Button>
       </div>
-    </DialogContent>
+      </DialogContent>
+    </Dialog>
   )
 }
 
@@ -771,7 +779,8 @@ function ExportDialog({ items, onClose }: { items: C.DecryptedItem[]; onClose: (
     onClose()
   }
   return (
-    <DialogContent title={t.cofExportTitle}>
+    <Dialog open onOpenChange={o => { if (!o) onClose() }}>
+      <DialogContent title={t.cofExportTitle}>
       <div className="flex gap-2 text-xs text-fg-3 my-4 rounded-lg bg-card-2 border border-border p-3">
         <AlertTriangle size={14} className="text-warn shrink-0 mt-0.5" />
         <span className="leading-relaxed">{t.cofExportWarning}</span>
@@ -785,7 +794,8 @@ function ExportDialog({ items, onClose }: { items: C.DecryptedItem[]; onClose: (
           <Download size={14} /> {t.cofExportBtn}
         </Button>
       </div>
-    </DialogContent>
+      </DialogContent>
+    </Dialog>
   )
 }
 
@@ -837,7 +847,8 @@ function SettingsDialog({ header, autoLockMin, setAutoLockMin, onRekeyed, onDest
   }
 
   return (
-    <DialogContent title={t.cofSettings}>
+    <Dialog open onOpenChange={o => { if (!o) onClose() }}>
+      <DialogContent title={t.cofSettings}>
       <div className="max-h-[65vh] overflow-auto pr-1 space-y-6">
         <div>
           <Label className="mb-2 block">{t.cofAutolock}</Label>
@@ -877,6 +888,7 @@ function SettingsDialog({ header, autoLockMin, setAutoLockMin, onRekeyed, onDest
       <div className="flex justify-end mt-5">
         <Button variant="ghost" onClick={onClose}><X size={14} />{t.cofClose}</Button>
       </div>
-    </DialogContent>
+      </DialogContent>
+    </Dialog>
   )
 }

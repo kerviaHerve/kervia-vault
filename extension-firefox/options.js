@@ -3,14 +3,21 @@
 
 const $ = (id) => document.getElementById(id)
 
+// verrouillage auto : contrôle segmenté (boutons data-al)
+function alBtns() { return document.querySelectorAll('#al-seg button') }
+function selectAl(v) {
+  for (const b of alBtns()) b.classList.toggle('active', Number(b.dataset.al) === v)
+}
+
 async function load() {
   const p = await browser.storage.local.get(['serverUrl', 'autoLockMin', 'extToken'])
   $('opt-url').value = p.serverUrl || 'https://vault.kervia.ch'
   $('opt-token').value = p.extToken || ''
-  const al = typeof p.autoLockMin === 'number' ? p.autoLockMin : 5
-  for (const r of document.querySelectorAll('input[name=al]')) {
-    r.checked = Number(r.value) === al
-  }
+  selectAl(typeof p.autoLockMin === 'number' ? p.autoLockMin : 5)
+}
+
+for (const b of alBtns()) {
+  b.onclick = () => selectAl(Number(b.dataset.al))
 }
 
 $('btn-test').onclick = async () => {
@@ -53,8 +60,8 @@ $('btn-save').onclick = async () => {
     }
   }
   let al = 5
-  for (const r of document.querySelectorAll('input[name=al]')) {
-    if (r.checked) al = Number(r.value)
+  for (const b of alBtns()) {
+    if (b.classList.contains('active')) al = Number(b.dataset.al)
   }
   const token = $('opt-token').value.trim()
   if (token && !token.startsWith('kvext_')) {

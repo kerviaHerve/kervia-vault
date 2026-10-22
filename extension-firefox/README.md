@@ -26,6 +26,18 @@ jamais d'icône dans les champs, jamais de bulle flottante.
   du meilleur élément correspondant).
 - **Auto-lock** : 1/5/15/60 min ou jamais (réglages).
 
+## Design
+
+- **Icônes : Lucide uniquement (shadcn/ui), aucune image, aucun emoji.**
+  Chaque icône est un SVG inline (géométrie exacte de
+  [lucide-static](https://lucide.dev), ISC) défini dans `js/lucide.js` :
+  gabarets statiques via `<span data-lucide="search" data-size="18">`
+  (hydratés au chargement), lignes dynamiques via `lucide('copy', 14)`.
+  Pour ajouter une icône : ajouter son chemin dans `LUCIDE_PATHS`.
+- **Design system** : tokens de `kervia.tokens.json` (charbon / citron /
+  menthe) dans `css/popup.css`, police **Space Grotesk** embarquée dans
+  `fonts/` (aucun chargement externe).
+
 ## Modèle de sécurité
 
 - **Zero-knowledge identique à la webui** : PBKDF2-SHA256 600k → masterKey

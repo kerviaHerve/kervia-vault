@@ -1,5 +1,24 @@
 # Changelog
 
+## v1.8.1 (2026-10-22)
+
+- **Extension Firefox — refonte visuelle.** Le popup et les réglages
+  passent au design system Kervia : tokens exacts de
+  `kervia.tokens.json` v1.0.0 (charbon, citron, menthe), police
+  **Space Grotesk** embarquée (woff2 local, 22 Ko — aucune requête
+  externe), anneaux de focus menthe, états survol/actif, défilement
+  fin. **Uniquement des icônes Lucide (celles de shadcn/ui) en SVG
+  inline — zéro image, zéro emoji** : géométrie exacte de
+  lucide-static v0.548.0 (ISC) via `js/lucide.js`, hydratation
+  `data-lucide` pour les gabarits statiques et helper `lucide()` pour
+  les lignes dynamiques. Écran verrouillé repensé (tuile citron, œil
+  afficher/masquer), TOTP en pastille mono menthe, liste avec états
+  survol, générateur en carte, toasts avec icône, réglages avec cartes
+  titrées et verrouillage auto en contrôle segmenté.
+- **Correctif popup.** `no_token` : l'élément `#session-url` inexistant
+  faisait planter le handler avant l'ouverture des paramètres webui ;
+  l'onglet s'ouvre désormais via l'URL du serveur configuré.
+
 ## v1.8.0 (2026-10-22)
 
 - **Extension Firefox pour le Coffre.** Remplis tes sites directement

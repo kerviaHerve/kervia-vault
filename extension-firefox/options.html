@@ -4,59 +4,117 @@
   <meta charset="utf-8" />
   <link rel="stylesheet" href="css/popup.css" />
   <style>
-    body { width: auto; max-width: 520px; margin: 24px auto; }
-    h1 { font-size: 16px; margin-bottom: 4px; display: flex; align-items: center; gap: 8px }
-    .card {
-      background: var(--card); border: 1px solid var(--border);
-      border-radius: 10px; padding: 14px; margin-top: 14px;
+    body {
+      width: auto; max-width: 580px;
+      margin: 0 auto; padding: 34px 24px 56px;
     }
-    .card h2 { font-size: 12px; margin-bottom: 10px; color: var(--fg-2) }
-    label.block { display: block; font-size: 11px; color: var(--fg-3); margin-bottom: 4px }
-    .note { font-size: 11px; color: var(--fg-3); margin-top: 8px; line-height: 1.5 }
-    #save-msg { font-size: 11px; margin-top: 8px; color: var(--accent) }
-    #save-msg.err { color: var(--danger) }
-    input[type=text] { margin-bottom: 10px }
+    h1 { font-size: 17px; letter-spacing: -.015em }
+    .page-head { display: flex; gap: 13px; align-items: center }
+    .page-head .brand-tile { width: 40px; height: 40px; border-radius: 12px }
+    .page-sub {
+      color: var(--fg-3); font-size: 11.5px; line-height: 1.55;
+      margin-top: 3px; max-width: 470px;
+    }
+    .card { margin-top: 18px }
+    .card-title {
+      display: flex; align-items: center; gap: 8px;
+      font-size: 12.5px; font-weight: 600;
+      margin-bottom: 13px;
+    }
+    .card-title .lucide-wrap { color: var(--accent) }
+    .block { display: block; font-size: 11px; color: var(--fg-3); margin-bottom: 5px }
+    .card input[type=text] { margin-bottom: 12px }
+    .note { font-size: 11px; color: var(--fg-3); margin-top: 10px; line-height: 1.6 }
+    .test-row { display: flex; align-items: center; gap: 10px }
+    #test-msg { font-size: 11px; color: var(--fg-3) }
+    .segmented { display: flex; gap: 6px }
+    .segmented button {
+      flex: 1; height: 30px; border-radius: 7px;
+      background: var(--card-2); color: var(--fg-3);
+      font-size: 11.5px; font-weight: 500;
+      border: 1px solid transparent;
+      transition: background .12s ease, color .12s ease, border-color .12s ease;
+    }
+    .segmented button:hover { color: var(--fg-2) }
+    .segmented button.active {
+      background: rgba(184, 226, 99, .13);
+      border-color: rgba(184, 226, 99, .35);
+      color: var(--accent);
+    }
+    .sec-list { display: flex; flex-direction: column; gap: 8px }
+    .sec-list .row { gap: 9px; align-items: flex-start }
+    .sec-list .lucide-wrap { color: var(--focus); margin-top: 1px }
+    .sec-list p { font-size: 11px; color: var(--fg-3); line-height: 1.55 }
+    .actions { display: flex; align-items: center; gap: 12px; margin-top: 20px }
+    .actions .primary { width: auto; padding: 0 18px }
+    #save-msg { font-size: 11.5px }
+    #save-msg:not(.err):not(:empty) { color: var(--focus) }
   </style>
 </head>
 <body>
-  <h1><img src="icons/kervia-icone-claire.svg" class="logo" alt="" /> Kervia-vault — Coffre : réglages</h1>
-  <p class="hint">L'extension accède au coffre via un token dédié : crée-le dans la webui (Paramètres → Extension), colle-le ci-dessous, puis déverrouille depuis l'icône.</p>
-
-  <div class="card">
-    <h2>Serveur + token</h2>
-    <label class="block" for="opt-url">URL du coffre (webui)</label>
-    <input type="text" id="opt-url" placeholder="https://vault.kervia.ch" />
-    <label class="block" for="opt-token" style="margin-top:10px">Token d'extension (webui → Paramètres → Extension → Créer)</label>
-    <input type="text" id="opt-token" placeholder="kvext_…" class="mono" />
-    <button id="btn-test" class="primary small" style="width:auto;height:26px">Tester la connexion</button>
-    <span id="test-msg" class="hint small"></span>
-    <p class="note">Une URL autre que vault.kervia.ch demandera une permission d'origine à l'enregistrement.</p>
-  </div>
-
-  <div class="card">
-    <h2>Verrouillage automatique</h2>
-    <div class="row small">
-      <label><input type="radio" name="al" value="1" /> 1 min</label>
-      <label><input type="radio" name="al" value="5" checked /> 5 min</label>
-      <label><input type="radio" name="al" value="15" /> 15 min</label>
-      <label><input type="radio" name="al" value="60" /> 60 min</label>
-      <label><input type="radio" name="al" value="0" /> jamais</label>
+  <div class="page-head">
+    <div class="brand-tile"><span data-lucide="shield-check" data-size="21"></span></div>
+    <div>
+      <h1>Coffre — réglages</h1>
+      <p class="page-sub">
+        L'extension accède au coffre via un token dédié : crée-le dans la webui
+        (Paramètres → Extension), colle-le ci-dessous, puis déverrouille depuis l'icône.
+      </p>
     </div>
   </div>
 
   <div class="card">
-    <h2>Sécurité — ce que fait (et ne fait pas) l'extension</h2>
-    <p class="note">
-      • Zero-knowledge : le mot de passe maître et la clé ne vivent qu'en mémoire, jamais sur disque.<br />
-      • Aucune interface n'est jamais injectée dans les pages web (pas d'icône dans les champs, pas de bulle) : le remplissage n'agit que sur ton clic dans le popup.<br />
-      • Le coffre déchiffré reste dans le processus d'arrière-plan ; verrouillage auto après inactivité.<br />
-      • Les éléments ne quittent jamais l'origine de ton coffre : le contenu n'est envoyé que vers les champs du formulaire, sur ton ordinateur.
-    </p>
+    <h2 class="card-title"><span data-lucide="server" data-size="15"></span>Serveur + token</h2>
+    <label class="block" for="opt-url">URL du coffre (webui)</label>
+    <input type="text" id="opt-url" placeholder="https://vault.kervia.ch" />
+    <label class="block" for="opt-token">Token d'extension (webui → Paramètres → Extension → Créer)</label>
+    <input type="text" id="opt-token" placeholder="kvext_…" class="mono" />
+    <div class="test-row">
+      <button id="btn-test" class="primary small"><span data-lucide="plug-zap" data-size="13"></span>Tester la connexion</button>
+      <span id="test-msg" class="hint small"></span>
+    </div>
+    <p class="note">Une URL autre que vault.kervia.ch demandera une permission d'origine à l'enregistrement.</p>
   </div>
 
-  <button id="btn-save" class="primary" style="width:auto;padding:6px 18px">Enregistrer</button>
-  <span id="save-msg"></span>
+  <div class="card">
+    <h2 class="card-title"><span data-lucide="timer" data-size="15"></span>Verrouillage automatique</h2>
+    <div class="segmented" id="al-seg">
+      <button type="button" data-al="1">1 min</button>
+      <button type="button" data-al="5">5 min</button>
+      <button type="button" data-al="15">15 min</button>
+      <button type="button" data-al="60">60 min</button>
+      <button type="button" data-al="0">Jamais</button>
+    </div>
+  </div>
 
+  <div class="card">
+    <h2 class="card-title"><span data-lucide="shield-check" data-size="15"></span>Sécurité — ce que fait (et ne fait pas) l'extension</h2>
+    <div class="sec-list">
+      <div class="row">
+        <span data-lucide="check" data-size="13"></span>
+        <p>Zero-knowledge : le mot de passe maître et la clé ne vivent qu'en mémoire, jamais sur disque.</p>
+      </div>
+      <div class="row">
+        <span data-lucide="check" data-size="13"></span>
+        <p>Aucune interface n'est jamais injectée dans les pages web (pas d'icône dans les champs, pas de bulle) : le remplissage n'agit que sur ton clic dans le popup.</p>
+      </div>
+      <div class="row">
+        <span data-lucide="check" data-size="13"></span>
+        <p>Le coffre déchiffré reste dans le processus d'arrière-plan ; verrouillage auto après inactivité.</p>
+      </div>
+      <div class="row">
+        <span data-lucide="check" data-size="13"></span>
+        <p>Les éléments ne quittent jamais l'origine de ton coffre : le contenu n'est envoyé que vers les champs du formulaire, sur ton ordinateur.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="actions">
+    <button id="btn-save" class="primary"><span data-lucide="save" data-size="14"></span>Enregistrer</button>
+    <span id="save-msg"></span>
+  </div>
+
+  <script src="js/lucide.js"></script>
   <script src="options.js"></script>
 </body>
 </html>

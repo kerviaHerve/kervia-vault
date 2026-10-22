@@ -1,7 +1,7 @@
 {
   "manifest_version": 2,
   "name": "Kervia-vault — Coffre",
-  "version": "1.8.0",
+  "version": "1.8.1",
   "description": "Remplissage web depuis le coffre Kervia-vault (zero-knowledge, session webui). Aucune surcouche n'est jamais injectée dans les pages.",
   "author": "kervia",
   "browser_specific_settings": {

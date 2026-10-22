@@ -11,9 +11,14 @@ const send = (msg) => browser.runtime.sendMessage(msg)
 const secretsCache = new Map()
 let currentPageUrl = ''
 
-function toast(text) {
+function toast(text, icon = 'check', err = false) {
   const t = $('toast')
-  t.textContent = text
+  t.textContent = ''
+  t.classList.toggle('err', err)
+  t.appendChild(lucide(icon, 13))
+  const span = document.createElement('span')
+  span.textContent = text
+  t.appendChild(span)
   t.hidden = false
   clearTimeout(toast._t)
   toast._t = setTimeout(() => { t.hidden = true }, 1600)
@@ -26,7 +31,7 @@ async function copy(text) {
     setTimeout(() => {
       if (document.hasFocus()) navigator.clipboard.writeText('').catch(() => {})
     }, 30000)
-  } catch (e) { toast('Copie impossible') }
+  } catch (e) { toast('Copie impossible', 'x', true) }
 }
 
 // ---- onglet visé : même logique que le background (actif web, sinon
@@ -92,10 +97,13 @@ async function renderAll(q) {
   const box = $('all-items')
   box.textContent = ''
   if (!res.matches.length) {
-    const p = document.createElement('p')
-    p.className = 'hint small'
+    const empty = document.createElement('div')
+    empty.className = 'empty'
+    empty.appendChild(lucide(q ? 'search' : 'vault', 22))
+    const p = document.createElement('span')
     p.textContent = q ? 'Aucun résultat.' : 'Coffre vide.'
-    box.appendChild(p)
+    empty.appendChild(p)
+    box.appendChild(empty)
     return
   }
   for (const m of res.matches.slice(0, 100)) {
@@ -134,18 +142,18 @@ async function itemRow(m, opts) {
     b.textContent = 'Remplir'
     b.onclick = async () => {
       const res = await send({ cmd: 'fill', idx: m.idx })
-      if (res && res.error === 'no_form_page') toast('Aucun champ de formulaire sur cette page')
+      if (res && res.error === 'no_form_page') toast('Aucun champ de formulaire sur cette page', 'x', true)
       else if (res && (res.filled || res.password)) toast('Rempli')
-      else toast('Champs introuvables')
+      else toast('Champs introuvables', 'x', true)
     }
     actions.appendChild(b)
   }
 
   if (secrets.username) {
-    actions.appendChild(actionBtn('⧉', 'Copier l\'identifiant', () => copy(secrets.username)))
+    actions.appendChild(actionBtn('user', 'Copier l\'identifiant', () => copy(secrets.username)))
   }
   if (secrets.password) {
-    actions.appendChild(actionBtn('🔑', 'Copier le mot de passe', () => copy(secrets.password)))
+    actions.appendChild(actionBtn('key-round', 'Copier le mot de passe', () => copy(secrets.password)))
   }
   if (secrets.totpSeed) {
     const totp = document.createElement('span')
@@ -154,17 +162,17 @@ async function itemRow(m, opts) {
     tickTotp(totp, secrets.totpSeed)
   }
   if (secrets.uri) {
-    actions.appendChild(actionBtn('↗', 'Ouvrir', () => browser.tabs.create({ url: secrets.uri })))
+    actions.appendChild(actionBtn('external-link', 'Ouvrir', () => browser.tabs.create({ url: secrets.uri })))
   }
   row.appendChild(actions)
   return row
 }
 
-function actionBtn(label, title, fn) {
+function actionBtn(icon, title, fn) {
   const b = document.createElement('button')
   b.className = 'icon-btn'
-  b.textContent = label
   b.title = title
+  b.appendChild(lucide(icon, 14))
   b.onclick = fn
   return b
 }
@@ -202,8 +210,8 @@ async function doUnlock() {
   if (res.error === 'no_token') {
     showErr('Pas de token d\'extension.')
     $('session-hint').hidden = false
-    $('session-url').textContent = 'webui → Paramètres → Extension'
-    browser.tabs.create({ url: 'https://vault.kervia.ch/ui/#settings' })
+    const st = await send({ cmd: 'state' }).catch(() => null)
+    if (st && st.serverUrl) browser.tabs.create({ url: st.serverUrl + '/ui/#settings' })
     return
   }
   if (res.error === 'invalid_token') { showErr('Token invalide ou révoqué — recrée-le dans la webui.'); return }
@@ -216,13 +224,22 @@ async function doUnlock() {
 $('btn-unlock').onclick = doUnlock
 $('master').addEventListener('keydown', e => { if (e.key === 'Enter') doUnlock() })
 
+// afficher / masquer le mot de passe maître
+$('btn-eye').onclick = () => {
+  const inp = $('master')
+  const show = inp.type === 'password'
+  inp.type = show ? 'text' : 'password'
+  $('btn-eye').replaceChildren(lucide(show ? 'eye-off' : 'eye', 14))
+  inp.focus()
+}
+
 $('btn-lock').onclick = async () => { await send({ cmd: 'lock' }); showUnlocked(false) }
 $('btn-options').onclick = () => browser.runtime.openOptionsPage()
 $('btn-sync').onclick = async () => {
   const res = await send({ cmd: 'syncNow' })
   if (res && !res.error) { toast('Synchronisé (' + res.count + ')'); await renderMatches(); await renderAll($('search').value) }
-  else if (res && res.error === 'no_session') toast('Session webui expirée — reconnecte-toi')
-  else if (res && res.error === 'locked') { showUnlocked(false); toast('Coffre verrouillé') }
+  else if (res && res.error === 'no_session') toast('Session webui expirée — reconnecte-toi', 'x', true)
+  else if (res && res.error === 'locked') { showUnlocked(false); toast('Coffre verrouillé', 'lock', true) }
 }
 
 let searchT = null

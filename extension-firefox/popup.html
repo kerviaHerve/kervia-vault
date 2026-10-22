@@ -6,62 +6,72 @@
 </head>
 <body>
   <header>
-    <img src="icons/kervia-icone-claire.svg" class="logo" alt="" />
+    <div class="brand-tile"><span data-lucide="shield-check" data-size="17"></span></div>
     <div class="brand">
       <strong>Coffre</strong>
       <span class="sub" id="server-label">Kervia-vault</span>
     </div>
     <span class="grow"></span>
-    <button id="btn-sync" class="icon-btn" title="Resynchroniser depuis le coffre">⟳</button>
-    <button id="btn-lock" class="icon-btn" title="Verrouiller" hidden>🔒</button>
-    <button id="btn-options" class="icon-btn" title="Réglages">⚙</button>
+    <button id="btn-sync" class="icon-btn" title="Resynchroniser depuis le coffre"><span data-lucide="refresh-cw"></span></button>
+    <button id="btn-lock" class="icon-btn" title="Verrouiller" hidden><span data-lucide="lock"></span></button>
+    <button id="btn-options" class="icon-btn" title="Réglages"><span data-lucide="settings"></span></button>
   </header>
 
   <!-- écran verrouillé -->
-  <section id="locked" class="pad">
+  <section id="locked" class="locked-screen">
+    <div class="lock-tile"><span data-lucide="lock" data-size="21"></span></div>
+    <h2 class="locked-title">Coffre verrouillé</h2>
     <p class="hint" id="locked-hint">Déverrouille ton coffre avec le mot de passe maître.</p>
-    <input type="password" id="master" placeholder="Mot de passe maître" autofocus />
-    <button id="btn-unlock" class="primary">Déverrouiller</button>
+    <div class="pw-wrap">
+      <input type="password" id="master" placeholder="Mot de passe maître" autofocus />
+      <button id="btn-eye" class="icon-btn pw-eye" title="Afficher / masquer"><span data-lucide="eye" data-size="14"></span></button>
+    </div>
+    <button id="btn-unlock" class="primary"><span data-lucide="lock-open" data-size="15"></span>Déverrouiller</button>
     <p class="err" id="unlock-err" hidden></p>
     <p class="hint small" id="session-hint" hidden>
-      Token manquant — crée-le dans la webui → Paramètres → Extension, colle-le dans les réglages de l'extension (⚙).
+      Token manquant — crée-le dans la webui → Paramètres → Extension, colle-le dans les réglages de l'extension.
     </p>
   </section>
 
   <!-- écran déverrouillé -->
   <section id="main" hidden>
-    <div class="pad row">
-      <input type="search" id="search" placeholder="Rechercher…" />
-      <button id="btn-generator" class="icon-btn" title="Générateur">🎲</button>
+    <div class="searchbar row">
+      <div class="search-wrap">
+        <span data-lucide="search" data-size="14" class="lead-icon"></span>
+        <input type="search" id="search" placeholder="Rechercher…" />
+      </div>
+      <button id="btn-generator" class="icon-btn" title="Générateur de mots de passe"><span data-lucide="dices"></span></button>
     </div>
 
     <div id="page-section" hidden>
       <div class="section-title" id="page-title">Cette page</div>
-      <div id="matches"></div>
+      <div id="matches" class="items"></div>
     </div>
 
     <div class="section-title">Tous les éléments</div>
-    <div id="all-items" class="pad-h"></div>
+    <div id="all-items" class="items scroll"></div>
 
-    <div id="generator" hidden class="pad">
+    <div id="generator" hidden class="card">
       <div class="row">
         <output id="gen-out" class="mono"></output>
-        <button id="gen-copy" class="icon-btn" title="Copier">⧉</button>
+        <button id="gen-copy" class="icon-btn" title="Copier"><span data-lucide="copy" data-size="14"></span></button>
       </div>
-      <div class="row small">
-        <label>Longueur <input type="range" id="gen-len" min="8" max="64" value="20" />
-          <span id="gen-len-val">20</span></label>
+      <div class="row small gen-row">
+        <span class="gen-label">Longueur</span>
+        <input type="range" id="gen-len" min="8" max="64" value="20" />
+        <span id="gen-len-val" class="mono">20</span>
       </div>
-      <div class="row small">
+      <div class="row small gen-opts">
         <label><input type="checkbox" id="gen-upper" checked />A-Z</label>
         <label><input type="checkbox" id="gen-digits" checked />0-9</label>
         <label><input type="checkbox" id="gen-symbols" checked />!@#</label>
-        <button id="gen-regen" class="icon-btn" title="Régénérer">⟳</button>
+        <button id="gen-regen" class="icon-btn" title="Régénérer"><span data-lucide="refresh-cw" data-size="14"></span></button>
       </div>
     </div>
   </section>
 
   <div id="toast" hidden></div>
+  <script src="js/lucide.js"></script>
   <script src="js/coffre-lib.js"></script>
   <script src="popup.js"></script>
 </body>

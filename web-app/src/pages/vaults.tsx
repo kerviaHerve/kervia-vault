@@ -69,7 +69,7 @@ export default function Vaults() {
     <div>
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-xl font-bold tracking-tight mb-1">Vaults</h1>
+          <h1 className="text-xl font-bold tracking-tight mb-1">{String(t.vaultsTitle)}</h1>
           <p className="text-sm text-fg-2">{String(t.vaultsSub)}</p>
         </div>
         <Button variant="primary" onClick={() => setOpen(true)}><Plus size={16} /> {String(t.newVault)}</Button>

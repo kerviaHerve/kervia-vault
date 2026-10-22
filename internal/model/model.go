@@ -86,6 +86,32 @@ const (
 	AuditRateLimited  = "rate_limited"
 )
 
+// Share-link audit actions — the ephemeral one-time links. The audit NEVER
+// carries the token (only the secret id); the share page logs the viewer IP.
+const (
+	AuditShareCreate = "share_create" // admin minted a one-time link (ttl in the detail)
+	AuditShareView   = "share_view"   // link consumed — value disclosed once
+)
+
+// AuditExport — the DR bundle export action (passphrase-sealed, all vaults).
+// The detail carries the filename only, never content.
+const AuditExport = "export"
+
+// Restore audit actions — webui restore of missing vaults from a bundle.
+// Counts and vault names only — values never reach the audit.
+const (
+	AuditRestoreVerify = "restore_verify" // dry-run: bundle opened, inventory reported
+	AuditRestoreImport = "restore_import" // missing vaults created, values re-sealed
+)
+
+// 2FA (TOTP) audit actions — the admin second factor lifecycle.
+const (
+	Audit2FAEnroll  = "2fa_enroll"   // pending seed generated (not yet active)
+	Audit2FAEnable  = "2fa_enabled"  // enrollment confirmed, login now requires a code
+	Audit2FADisable = "2fa_disabled" // both factors provided, factor removed
+	Audit2FAReset   = "2fa_reset"    // recovery-driven reset (code consumed, TOTP wiped)
+)
+
 // Coffre audit actions. The coffre is the personal password manager:
 // audit entries carry ONLY actions and opaque item IDs — never item
 // names or content (those are end-to-end encrypted, the server cannot

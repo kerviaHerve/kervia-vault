@@ -25,8 +25,12 @@
 
 - SQLite embedded (pure Go, no CGO), AES-256-GCM at rest
 - Per-agent API keys (Argon2id), per-vault grants, immutable versioning, append-only audit
+- **Admin 2FA (TOTP)** — second factor on the webui login, recovery codes reset it
+- **One-time share links** — a secret, one view, then the link is dead
+- **Encrypted DR export** — passphrase-sealed bundle of every vault, CLI restore
 - 51 credential templates (OpenAI, PostgreSQL, SMTP, Cloudflare, GitHub…)
 - **Self-update** from the webui — sha256-verified releases, data untouched
+- **Zero-knowledge personal vault** (password manager) in the browser, invisible to agents
 - Security by design — AGPL-3.0
 
 ## Architecture

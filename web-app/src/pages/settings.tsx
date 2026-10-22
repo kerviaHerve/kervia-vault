@@ -1,6 +1,6 @@
 import * as React from 'react'
 import { motion } from 'framer-motion'
-import { KeyRound, ShieldCheck, Clock, LoaderCircle, RotateCcw, Download, AlertTriangle, RefreshCw, ArrowUpCircle, CheckCircle2 } from 'lucide-react'
+import { KeyRound, ShieldCheck, Clock, LoaderCircle, RotateCcw, Download, AlertTriangle, RefreshCw, ArrowUpCircle, CheckCircle2, Smartphone, Copy } from 'lucide-react'
 import { toast } from 'sonner'
 import { api } from '@/lib/api'
 import { useLang } from '@/i18n'
@@ -22,12 +22,107 @@ export default function Settings() {
   const [restarting, setRestarting] = React.useState(false)
   const restartTimer = React.useRef<number | null>(null)
 
+  // 2FA (TOTP) : state serveur + enrôlement en cours (seed affiché UNE fois)
+  const [faState, setFaState] = React.useState('none')
+  const [faSeed, setFaSeed] = React.useState('')
+  const [faUri, setFaUri] = React.useState('')
+  const [faConfirm, setFaConfirm] = React.useState('')
+  const [faPass, setFaPass] = React.useState('')
+  const [faCode, setFaCode] = React.useState('')
+  const [faBusy, setFaBusy] = React.useState(false)
+
   React.useEffect(() => {
     api('GET', '/admin/settings').then(setInfo).catch(() => {})
     api('GET', '/admin/recovery/status').then((d: any) => setRecStatus(d.remaining)).catch(() => {})
     api('GET', '/admin/update/status?force=1').then(setUpd).catch(() => {})
+    api('GET', '/admin/2fa/state').then((d: any) => setFaState(d.state)).catch(() => {})
     return () => { if (restartTimer.current) window.clearInterval(restartTimer.current) }
   }, [])
+
+  const faEnroll = async () => {
+    if (faBusy) return
+    setFaBusy(true)
+    try {
+      const d = await api('POST', '/admin/2fa/enroll')
+      setFaSeed(d.seed); setFaUri(d.uri); setFaConfirm(''); setFaState('pending')
+    } catch (e: any) { toast.error(String(e.message || e)) }
+    setFaBusy(false)
+  }
+
+  const faConfirmSubmit = async () => {
+    if (faBusy || faConfirm.length !== 6) return
+    setFaBusy(true)
+    try {
+      await api('POST', '/admin/2fa/confirm', { code: faConfirm })
+      setFaState('active'); setFaSeed(''); setFaUri(''); setFaConfirm('')
+      toast.success(String(t.faActive))
+    } catch { toast.error(String(t.faBadCode)) }
+    setFaBusy(false)
+  }
+
+  const faDisable = async () => {
+    if (faBusy || !faPass || faCode.length !== 6) return
+    setFaBusy(true)
+    try {
+      await api('POST', '/admin/2fa/disable', { password: faPass, code: faCode })
+      setFaState('none'); setFaPass(''); setFaCode('')
+      toast.success(String(t.faDisabled))
+    } catch { toast.error(String(t.loginError)) }
+    setFaBusy(false)
+  }
+
+  // export DR : bundle KVX1 scellé par passphrase — confirmation exigée,
+  // une typo rendrait le bundle inutilisable
+  const [expPass, setExpPass] = React.useState('')
+  const [expPass2, setExpPass2] = React.useState('')
+  const [expBusy, setExpBusy] = React.useState(false)
+  const downloadExport = async () => {
+    if (expBusy || expPass.length < 12 || expPass !== expPass2) return
+    setExpBusy(true)
+    try {
+      const res = await fetch('/admin/export', {
+        method: 'POST', credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ passphrase: expPass }),
+      })
+      if (!res.ok) throw new Error('HTTP ' + res.status)
+      const blob = await res.blob()
+      const a = document.createElement('a')
+      a.href = URL.createObjectURL(blob)
+      a.download = 'kervia-vault-export-' + new Date().toISOString().slice(0, 10) + '.kvx'
+      a.click()
+      URL.revokeObjectURL(a.href)
+      setExpPass(''); setExpPass2('')
+      toast.success(String(t.exportDone))
+    } catch (e: any) { toast.error(String(e.message || e)) }
+    setExpBusy(false)
+  }
+
+  // restore : dry-run (inventaire sans écriture) puis import des vaults
+  // MANQUANTS seulement — jamais d'écrasement
+  const [resFile, setResFile] = React.useState<File | null>(null)
+  const [resPass, setResPass] = React.useState('')
+  const [resBusy, setResBusy] = React.useState(false)
+  const [resReport, setResReport] = React.useState<any | null>(null)
+  const [resDone, setResDone] = React.useState<any | null>(null)
+
+  const restorePost = async (dryRun: boolean) => {
+    if (resBusy || !resFile || resPass.length < 12) return
+    setResBusy(true)
+    try {
+      const fd = new FormData()
+      fd.append('bundle', resFile)
+      fd.append('pass', resPass)
+      const res = await fetch('/admin/restore' + (dryRun ? '?dry_run=1' : ''), {
+        method: 'POST', credentials: 'same-origin', body: fd,
+      })
+      const d = await res.json()
+      if (!res.ok) throw new Error(d.message || d.error || 'HTTP ' + res.status)
+      if (dryRun) { setResReport(d); setResDone(null) }
+      else { setResDone(d); setResReport(null); setResFile(null); setResPass('') }
+    } catch (e: any) { toast.error(String(e.message || e)) }
+    setResBusy(false)
+  }
 
   // after an update: poll until the server is back and shows the NEW
   // version, then reload the page automatically — the user never stays
@@ -213,6 +308,70 @@ export default function Settings() {
 
       <Card className="mt-5">
         <CardHeader>
+          <span className="flex items-center gap-2"><Smartphone size={15} /> {String(t.faTitle)}</span>
+          <span className={`text-xs font-semibold ${faState === 'active' ? 'text-success' : faState === 'pending' ? 'text-warn' : 'text-fg-3'}`}>
+            {faState === 'active' ? String(t.faStateActive) : faState === 'pending' ? String(t.faStatePending) : String(t.faStateNone)}
+          </span>
+        </CardHeader>
+        <CardBody>
+          {faState === 'none' && (
+            <>
+              <p className="text-xs text-fg-2 mb-4">{String(t.faIntro)}</p>
+              <Button variant="primary" onClick={faEnroll} disabled={faBusy}>
+                {faBusy ? <LoaderCircle size={15} className="animate-spin" /> : <Smartphone size={15} />}
+                {String(t.faStart)}
+              </Button>
+            </>
+          )}
+          {faState === 'pending' && !faSeed && (
+            <>
+              <p className="text-xs text-warn mb-4">{String(t.faPending)}</p>
+              <Button onClick={faEnroll} disabled={faBusy}>{String(t.faRegenerate)}</Button>
+            </>
+          )}
+          {faState === 'pending' && faSeed && (
+            <>
+              <p className="text-xs text-fg-2 mb-3">{String(t.faSeedTitle)}</p>
+              <div className="flex items-center gap-2 mb-1">
+                <code className="flex-1 text-xs font-mono bg-card-2 border border-border rounded-lg px-3 py-2 select-all break-all">{faSeed}</code>
+                <Button size="sm" onClick={() => { navigator.clipboard.writeText(faSeed); toast.success(String(t.copied)) }}><Copy size={13} /></Button>
+              </div>
+              <div className="flex items-center gap-2 mb-4">
+                <code className="flex-1 text-[10px] font-mono text-fg-3 truncate" title={faUri}>{faUri}</code>
+                <Button size="sm" onClick={() => { navigator.clipboard.writeText(faUri); toast.success(String(t.copied)) }}><Copy size={13} /></Button>
+              </div>
+              <p className="text-xs text-fg-3 mb-4">{String(t.faSeedOnce)}</p>
+              <Field label={String(t.faConfirmTitle)}>
+                <Input value={faConfirm} inputMode="numeric" maxLength={6} className="font-mono tracking-[0.25em]"
+                  onChange={e => setFaConfirm(e.target.value.replace(/\D/g, ''))} placeholder="123456" />
+              </Field>
+              <Button variant="primary" onClick={faConfirmSubmit} disabled={faBusy || faConfirm.length !== 6}>
+                {String(t.faConfirmBtn)}
+              </Button>
+            </>
+          )}
+          {faState === 'active' && (
+            <>
+              <p className="text-xs text-fg-2 mb-4">{String(t.faActiveNote)}</p>
+              <div className="grid grid-cols-2 gap-2">
+                <Field label={String(t.currentPassword)}>
+                  <Input type="password" value={faPass} onChange={e => setFaPass(e.target.value)} />
+                </Field>
+                <Field label={String(t.faCodeLabel)}>
+                  <Input value={faCode} inputMode="numeric" maxLength={6} className="font-mono tracking-[0.25em]"
+                    onChange={e => setFaCode(e.target.value.replace(/\D/g, ''))} placeholder="123456" />
+                </Field>
+              </div>
+              <Button variant="destructive" onClick={faDisable} disabled={faBusy || !faPass || faCode.length !== 6}>
+                {String(t.faDisableBtn)}
+              </Button>
+            </>
+          )}
+        </CardBody>
+      </Card>
+
+      <Card className="mt-5">
+        <CardHeader>
           <span className="flex items-center gap-2"><RotateCcw size={15} /> {String(t.recoveryTitle)}</span>
           <span className="text-xs text-accent font-semibold">{recStatus ?? '—'} {String(t.recoveryRemaining)}</span>
         </CardHeader>
@@ -248,6 +407,74 @@ export default function Settings() {
               </div>
             </motion.div>
           )}
+        </CardBody>
+      </Card>
+
+      <Card className="mt-5">
+        <CardHeader>
+          <span className="flex items-center gap-2"><Download size={15} /> {String(t.backupTitle)}</span>
+        </CardHeader>
+        <CardBody>
+          <p className="text-xs text-fg-2 mb-4">{String(t.backupIntro)}</p>
+          <div className="grid grid-cols-2 gap-2">
+            <Field label={String(t.backupPass)}>
+              <Input type="password" value={expPass} onChange={e => setExpPass(e.target.value)} />
+            </Field>
+            <Field label={String(t.backupConfirm)}>
+              <Input type="password" value={expPass2} onChange={e => setExpPass2(e.target.value)} />
+            </Field>
+          </div>
+          {expPass.length > 0 && expPass !== expPass2 && (
+            <p className="text-xs text-warn font-medium -mt-2 mb-3">{String(t.backupMismatch)}</p>
+          )}
+          <Button variant="primary" onClick={downloadExport} disabled={expBusy || expPass.length < 12 || expPass !== expPass2}>
+            {expBusy ? <LoaderCircle size={15} className="animate-spin" /> : <Download size={15} />}
+            {String(t.backupBtn)}
+          </Button>
+          <p className="text-[10px] text-fg-3 mt-3">{String(t.backupRestore)}</p>
+
+          <div className="mt-5 pt-5 border-t border-border">
+            <p className="text-xs font-semibold text-fg-2 mb-3">{String(t.restoreTitle)}</p>
+            <div className="grid grid-cols-2 gap-2 mb-3">
+              <Field label={String(t.restoreFile)}>
+                <input
+                  type="file" accept=".kvx"
+                  onChange={e => { setResFile(e.target.files?.[0] || null); setResReport(null); setResDone(null) }}
+                  className="block w-full text-xs text-fg-3 file:mr-2 file:cursor-pointer file:rounded-lg file:border-0 file:bg-card-2 file:px-3 file:py-1.5 file:text-xs file:text-fg-2 hover:file:text-fg cursor-pointer"
+                />
+              </Field>
+              <Field label={String(t.backupPass)}>
+                <Input type="password" value={resPass} onChange={e => setResPass(e.target.value)} />
+              </Field>
+            </div>
+            <Button onClick={() => restorePost(true)} disabled={resBusy || !resFile || resPass.length < 12}>
+              {resBusy ? <LoaderCircle size={15} className="animate-spin" /> : <ShieldCheck size={15} />}
+              {String(t.restoreVerifyBtn)}
+            </Button>
+            {resReport && (
+              <motion.div initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} className="mt-3">
+                <p className="text-[11px] text-fg-3 mb-2">{String(t.restoreExported)} {new Date(resReport.exported_at).toLocaleString()} :</p>
+                <div className="space-y-1 mb-3">
+                  {resReport.vaults.map((v: any, i: number) => (
+                    <div key={i} className="flex items-center justify-between text-xs bg-card-2 border border-border rounded-lg px-3 py-2">
+                      <span className="font-semibold">{v.name} · {v.secrets} {String(t.restoreSecrets)}</span>
+                      <span className={v.status === 'skipped' ? 'text-warn font-semibold' : 'text-accent font-semibold'}>
+                        {v.status === 'skipped' ? String(t.restoreSkipped) : String(t.restoreWillImport)}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+                <Button variant="primary" onClick={() => restorePost(false)} disabled={resBusy}>
+                  {String(t.restoreImportBtn)}
+                </Button>
+              </motion.div>
+            )}
+            {resDone && (
+              <motion.div initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} className="mt-3 text-xs text-accent font-semibold">
+                {String(t.restoreDone)} : {resDone.imported_vaults} {String(t.restoreVaultsWord)}, {resDone.imported_secrets} {String(t.restoreSecrets)}
+              </motion.div>
+            )}
+          </div>
         </CardBody>
       </Card>
     </div>

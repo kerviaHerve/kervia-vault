@@ -26,11 +26,16 @@ type AdminServer struct {
 	store   *store.Store
 	enc     *crypto.Encryptor
 	authSvc *auth.Service
+	// shareLimiter cappe GET /share/<token> par IP source (audit 1.5.0) :
+	// page publique sans session — un flood déclencherait un UPDATE
+	// SQLite par requête. Le token (256 bits) rend le brute-force vain,
+	// le limiteur est une protection DoS, pas un secret.
+	shareLimiter *initLimiter
 }
 
 // NewAdmin builds the admin API server.
 func NewAdmin(st *store.Store, enc *crypto.Encryptor, authSvc *auth.Service) *AdminServer {
-	return &AdminServer{store: st, enc: enc, authSvc: authSvc}
+	return &AdminServer{store: st, enc: enc, authSvc: authSvc, shareLimiter: newInitLimiter(600)}
 }
 
 // Logout revokes the webui session (server-side + cookie).
@@ -64,16 +69,18 @@ func sessionCookie(value string, r *http.Request, maxAge int) *http.Cookie {
 	}
 }
 
-// Login handles POST /admin/login {password} → session cookie.
+// Login handles POST /admin/login {password, totp} → session cookie.
+// Le champ totp n'est exigé que si le 2FA est actif ; l'échec est uniforme.
 func (a *AdminServer) Login(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Password string `json:"password"`
+		Totp     string `json:"totp"`
 	}
 	if err := jsonBody(r, &req); err != nil || req.Password == "" {
 		writeErr(w, 400, "invalid_request", "")
 		return
 	}
-	sid := a.authSvc.LoginAdmin(r, req.Password)
+	sid := a.authSvc.LoginAdmin(r, req.Password, req.Totp)
 	if sid == "" {
 		_ = a.store.AppendAudit("admin", model.AuditLoginFail, "admin/login", "")
 		writeErr(w, 401, "invalid_credentials", "")

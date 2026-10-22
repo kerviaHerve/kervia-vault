@@ -15,6 +15,13 @@ export default function Login({ onLogin }: { onLogin: () => void }) {
   const [pw, setPw] = React.useState('')
   const [err, setErr] = React.useState(false)
   const [busy, setBusy] = React.useState(false)
+  // 2FA : le champ n'apparaît que si l'instance exige un second facteur
+  const [totp, setTotp] = React.useState(false)
+  const [code, setCode] = React.useState('')
+
+  React.useEffect(() => {
+    fetch('/totp/status').then(r => r.json()).then(d => setTotp(!!d.enabled)).catch(() => {})
+  }, [])
 
   const [showRecover, setShowRecover] = React.useState(false)
   const [recCode, setRecCode] = React.useState('')
@@ -44,7 +51,7 @@ export default function Login({ onLogin }: { onLogin: () => void }) {
     const r = await fetch('/admin/login', {
       method: 'POST', credentials: 'same-origin',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ password: pw }),
+      body: JSON.stringify({ password: pw, totp: code.trim() }),
     })
     setBusy(false)
     if (r.ok) onLogin()
@@ -88,8 +95,17 @@ export default function Login({ onLogin }: { onLogin: () => void }) {
               className={err ? 'border-danger' : ''}
             />
           </Field>
+          {totp && (
+            <Field label={String(t.loginTotp)}>
+              <Input
+                value={code} inputMode="numeric" maxLength={6} autoComplete="one-time-code"
+                onChange={e => { setCode(e.target.value.replace(/\D/g, '')); setErr(false) }}
+                placeholder="123456" className="font-mono tracking-[0.25em]"
+              />
+            </Field>
+          )}
           {err && <p className="text-xs text-danger font-medium -mt-2 mb-4">{String(t.loginError)}</p>}
-          <Button variant="primary" className="w-full" type="submit" disabled={!pw || busy}>
+          <Button variant="primary" className="w-full" type="submit" disabled={!pw || busy || (totp && code.length !== 6)}>
             {busy ? <LoaderCircle size={16} className="animate-spin" /> : String(t.loginBtn)}
           </Button>
           <button

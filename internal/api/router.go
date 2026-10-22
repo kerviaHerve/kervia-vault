@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"log/slog"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/kerviaHerve/kervia-vault/internal/auth"
@@ -67,12 +68,35 @@ func (s *Server) Router(authSvc *auth.Service, admin *AdminServer, adminExtender
 	adminMux.HandleFunc("POST /admin/coffre/items/{id}/purge", admin.CoffrePurgeItem)
 	adminMux.HandleFunc("POST /admin/coffre/trash/purge", admin.CoffrePurgeTrash)
 
+	// ---- 2FA (TOTP) : gestion session-guardée ; le status public est
+	// monté plus bas sur le mux racine (le formulaire de login en a besoin
+	// AVANT authentification) ----
+	adminMux.HandleFunc("GET /admin/2fa/state", admin.TOTPStateHandler)
+	adminMux.HandleFunc("POST /admin/2fa/enroll", admin.TOTPEnrollHandler)
+	adminMux.HandleFunc("POST /admin/2fa/confirm", admin.TOTPConfirmHandler)
+	adminMux.HandleFunc("POST /admin/2fa/disable", admin.TOTPDisableHandler)
+
+	// ---- liens de partage éphémères (one-time) : création session-guardée ;
+	// la vue publique est montée sur le mux racine ci-dessous ----
+	adminMux.HandleFunc("POST /admin/secrets/{id}/share", admin.ShareSecret)
+
+	// ---- export DR chiffré (bundle KVX1 passphrase-scellé) ----
+	adminMux.HandleFunc("POST /admin/export", admin.ExportHandler)
+	// ---- restore webui du bundle DR : dry-run (vérifier) puis import des
+	// vaults MANQUANTS uniquement — jamais d'écrasement ----
+	adminMux.HandleFunc("POST /admin/restore", admin.RestoreHandler)
+
 	if adminExtender != nil {
 		adminExtender(adminMux)
 	}
 	mux.Handle("/admin/", authSvc.AdminMiddleware(admin.AdminAudit(adminMux)))
 	mux.Handle("POST /admin/login", admin.AdminAudit(http.HandlerFunc(admin.Login)))
 	mux.Handle("POST /admin/logout", http.HandlerFunc(admin.Logout))
+	// public : le login form doit savoir s'il faut un champ code — révèle
+	// seulement « cette instance utilise le 2FA », pas un secret.
+	mux.HandleFunc("GET /totp/status", TOTPStatus(authSvc))
+	// public : la page de partage — autonome, sans JS, jetable
+	mux.HandleFunc("GET /share/", admin.ViewShare)
 	mux.HandleFunc("POST /recovery/recover", func(w http.ResponseWriter, r *http.Request) {
 		var req struct {
 			Code        string `json:"code"`
@@ -148,11 +172,24 @@ func logRequests(next http.Handler) http.Handler {
 		next.ServeHTTP(rw, r)
 		slog.Info("http",
 			"method", r.Method,
-			"path", r.URL.Path, // path only — query may carry identifiers, values never
+			// path only — query may carry identifiers, values never.
+			// Et /share/<token> : le token EST la credential (audit 1.5.0) —
+			// jamais un token de partage dans les logs.
+			"path", logSafePath(r.URL.Path),
 			"status", rw.status,
 			"ms", time.Since(start).Milliseconds(),
 		)
 	})
+}
+
+// logSafePath masque les segments porteurs de credentials. Un token de
+// partage vivant dans les logs offrirait au lecteur des logs une fenêtre
+// de vol avant la première consultation légitime.
+func logSafePath(p string) string {
+	if strings.HasPrefix(p, "/share/") && len(p) > len("/share/") {
+		return "/share/[redacted]"
+	}
+	return p
 }
 
 type statusWriter struct {

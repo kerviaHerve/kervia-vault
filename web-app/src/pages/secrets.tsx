@@ -1,12 +1,26 @@
 import * as React from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
-import { Plus, Copy, Eye, EyeOff, Trash2, KeyRound, LoaderCircle, Pencil, Search, X, FolderInput } from 'lucide-react'
+import { Plus, Copy, Eye, EyeOff, Trash2, KeyRound, LoaderCircle, Pencil, Search, X, FolderInput, Share2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { useLang } from '@/i18n'
 import { api } from '@/lib/api'
 import { Button, Badge, Dialog, DialogContent, Input, PasswordInput, Field } from '@/components/ui'
 import { cn, fmtDateTime } from '@/lib/utils'
 import { useSort } from '@/lib/useSort'
+
+// AgeBadge : âge du secret en jours — rappel de rotation au fil de la liste.
+// La couleur suit l'ancienneté : frais < 30 j · à surveiller 30-90 j ·
+// à rotationner > 90 j (le seuil n'est qu'un repère, pas une règle).
+function AgeBadge({ iso }: { iso: string }) {
+  const { t } = useLang()
+  const days = Math.floor((Date.now() - new Date(iso).getTime()) / 86_400_000)
+  const tone = days > 90 ? 'text-danger' : days > 30 ? 'text-warn' : 'text-fg-3'
+  return (
+    <span className={`ml-1.5 text-[10px] font-bold ${tone}`} title={String(t.ageHint)}>
+      {days}{String(t.dayShort)}
+    </span>
+  )
+}
 
 // SortHeader: cellule <th> cliquable — trie la colonne, flèche sur la colonne active.
 function SortHeader({ label, sortKey, activeKey, dir, onSort, className }: {
@@ -243,6 +257,7 @@ export default function Secrets() {
   const [selected, setSelected] = React.useState<Set<string>>(new Set())
   const [bulkBusy, setBulkBusy] = React.useState(false)
   const [moveOpen, setMoveOpen] = React.useState(false)
+  const [shareSecret, setShareSecret] = React.useState<any | null>(null)
 
   const toggleSel = (id: string) => setSelected(prev => {
     const next = new Set(prev)
@@ -405,7 +420,9 @@ export default function Secrets() {
                   </Button>
                 </td>
                 <td className="px-5 py-3 text-xs text-fg-2">v{sr.version}</td>
-                <td className="px-5 py-3 text-xs text-fg-2">{fmtDateTime(sr.updated_at)}</td>
+                <td className="px-5 py-3 text-xs text-fg-2 whitespace-nowrap">
+                  {fmtDateTime(sr.updated_at)} <AgeBadge iso={sr.updated_at} />
+                </td>
                 <td></td>
               </tr>
             ))}
@@ -465,13 +482,18 @@ export default function Secrets() {
                     <span className="font-mono text-fg-3">••••••••••••</span>
                   </td>
                   <td className="px-5 py-3 text-xs text-fg-2">v{s.version}</td>
-                  <td className="px-5 py-3 text-xs text-fg-2">{fmtDateTime(s.updated_at)}</td>
+                  <td className="px-5 py-3 text-xs text-fg-2 whitespace-nowrap">
+                    {fmtDateTime(s.updated_at)} <AgeBadge iso={s.updated_at} />
+                  </td>
                   <td className="px-5 py-3 text-right whitespace-nowrap">
                     <Button variant="ghost" size="icon" onClick={() => reveal(s)} title={String(t.reveal)}>
                       <Eye size={15} />
                     </Button>
                     <Button variant="ghost" size="icon" onClick={() => quickCopy(s)} title={String(t.copied)}>
                       <Copy size={15} />
+                    </Button>
+                    <Button variant="ghost" size="icon" onClick={() => setShareSecret(s)} title={String(t.shareTitle)}>
+                      <Share2 size={15} />
                     </Button>
                     <Button variant="ghost" size="icon" onClick={() => openEdit(s)}>
                       <Pencil size={15} />
@@ -500,6 +522,11 @@ export default function Secrets() {
           onClose={() => setDialogSecret(null)}
           onSaved={load}
         />
+      )}
+
+      {/* partage one-time : TTL, URL affichée une seule fois */}
+      {shareSecret && (
+        <ShareDialog secret={shareSecret} t={t} onClose={() => setShareSecret(null)} />
       )}
 
       <CreateDialog
@@ -535,6 +562,60 @@ export default function Secrets() {
         )}
       </Dialog>
     </div>
+  )
+}
+
+// ShareDialog : lien de partage one-time. L'URL est affichée UNE fois —
+// fermer sans copier = lien perdu (re-créer en moulira un nouveau).
+function ShareDialog({ secret, t, onClose }: { secret: any; t: any; onClose: () => void }) {
+  const [ttl, setTtl] = React.useState(30)
+  const [busy, setBusy] = React.useState(false)
+  const [result, setResult] = React.useState<any | null>(null)
+  const share = async () => {
+    if (busy) return
+    setBusy(true)
+    try {
+      const d = await api('POST', `/admin/secrets/${secret.id}/share`, { ttl_minutes: ttl })
+      setResult({ url: window.location.origin + d.url, expires_at: d.expires_at })
+    } catch (e: any) { toast.error(String(e.message || e)) }
+    setBusy(false)
+  }
+  return (
+    <Dialog open onOpenChange={() => {}}>
+      <DialogContent title={String(t.shareTitle)} className="max-w-sm">
+        <p className="text-xs text-fg-2 mb-4">{String(t.shareIntro)}</p>
+        <div className="mb-4">
+          <p className="text-[11px] font-semibold text-fg-3 uppercase tracking-wider mb-2">{String(t.shareTTL)}</p>
+          <div className="flex gap-1.5">
+            {[15, 30, 60, 240].map(m => (
+              <button key={m} onClick={() => setTtl(m)}
+                className={cn('h-8 px-3 rounded-lg text-xs font-semibold cursor-pointer transition-colors border',
+                  ttl === m ? 'bg-accent/15 text-accent border-accent/40' : 'bg-card-2 text-fg-2 border-border hover:text-fg')}>
+                {m < 60 ? `${m} min` : m === 60 ? '1 h' : '4 h'}
+              </button>
+            ))}
+          </div>
+        </div>
+        {result ? (
+          <>
+            <p className="text-[11px] font-semibold text-warn mb-2">{String(t.shareOnce)}</p>
+            <div className="flex items-center gap-2 mb-3">
+              <code className="flex-1 text-[11px] font-mono bg-card-2 border border-border rounded-lg px-3 py-2 select-all break-all">{result.url}</code>
+              <Button size="sm" onClick={() => { navigator.clipboard.writeText(result.url); toast.success(String(t.copied)) }}><Copy size={13} /></Button>
+            </div>
+            <p className="text-[10px] text-fg-3">{String(t.shareExpires)} : {new Date(result.expires_at).toLocaleString()}</p>
+          </>
+        ) : (
+          <Button variant="primary" onClick={share} disabled={busy}>
+            {busy ? <LoaderCircle size={15} className="animate-spin" /> : <Share2 size={15} />}
+            {String(t.shareBtn)}
+          </Button>
+        )}
+        <div className="mt-4 flex justify-end">
+          <Button onClick={onClose}>{String(t.cancel)}</Button>
+        </div>
+      </DialogContent>
+    </Dialog>
   )
 }
 

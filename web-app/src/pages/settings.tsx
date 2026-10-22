@@ -1,6 +1,6 @@
 import * as React from 'react'
 import { motion } from 'framer-motion'
-import { KeyRound, ShieldCheck, Clock, LoaderCircle, RotateCcw, Download, AlertTriangle, RefreshCw, ArrowUpCircle, CheckCircle2, Smartphone, Copy } from 'lucide-react'
+import { KeyRound, ShieldCheck, Clock, LoaderCircle, RotateCcw, Download, AlertTriangle, RefreshCw, ArrowUpCircle, CheckCircle2, Smartphone, Copy, History } from 'lucide-react'
 import { toast } from 'sonner'
 import { api } from '@/lib/api'
 import { useLang } from '@/i18n'
@@ -243,7 +243,8 @@ export default function Settings() {
   }
 
   return (
-    <div className="max-w-xl">
+    <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,36rem)_19rem] gap-6 items-start">
+      <div className="min-w-0 w-full">
       <h1 className="text-xl font-bold tracking-tight mb-1">{String(t.settingsTitle)}</h1>
       <p className="text-sm text-fg-2 mb-6">{String(t.settingsSub)}</p>
 
@@ -524,6 +525,34 @@ export default function Settings() {
           </div>
         </CardBody>
       </Card>
+      </div>
+
+      {/* panneau journal des versions — à droite sur grand écran */}
+      {upd?.recent?.length > 0 && (
+        <aside className="hidden lg:block">
+          <Card className="sticky top-8">
+            <CardHeader>
+              <span className="flex items-center gap-2"><History size={15} /> {String(t.changelogTitle)}</span>
+            </CardHeader>
+            <CardBody className="max-h-[calc(100vh-8rem)] overflow-y-auto">
+              {upd.recent.map((rel: any, i: number) => (
+                <div key={i} className={i > 0 ? 'pt-4 mt-4 border-t border-border' : ''}>
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="font-mono text-xs font-semibold text-accent">{rel.tag}</span>
+                    <span className="text-[10px] text-fg-3">{rel.date ? new Date(rel.date).toLocaleDateString() : ''}</span>
+                    {i === 0 && upd.update_available && rel.tag === upd.latest && (
+                      <span className="ml-auto flex items-center gap-1 text-[10px] font-bold text-accent">
+                        <ArrowUpCircle size={11} /> {String(t.updateBadge)}
+                      </span>
+                    )}
+                  </div>
+                  <ReleaseNotes notes={String(rel.notes || '')} />
+                </div>
+              ))}
+            </CardBody>
+          </Card>
+        </aside>
+      )}
     </div>
   )
 }

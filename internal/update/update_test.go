@@ -59,49 +59,68 @@ func TestChecksumFor(t *testing.T) {
 	}
 }
 
-// fetchNotes : override du serveur de notes + tolérance aux pannes.
-func TestFetchNotes(t *testing.T) {
+// fetchRecent : override du serveur + tolérance aux pannes + cap à 3.
+func TestFetchRecent(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		_, _ = w.Write([]byte(`{"body":"## v9.9.9\n- **TOTP** second facteur\n  - sous-puce"}`))
+		_, _ = w.Write([]byte(`[
+			{"tag_name":"v9.9.9","published_at":"2026-10-22T00:00:00Z","body":"- **TOTP** second facteur"},
+			{"tag_name":"v9.9.8","published_at":"2026-10-21T00:00:00Z","body":"- seconde"},
+			{"tag_name":"v9.9.7","published_at":"2026-10-20T00:00:00Z","body":"- troisième"},
+			{"tag_name":"v9.9.6","published_at":"2026-10-19T00:00:00Z","body":"- quatrième (doit être ignorée)"}
+		]`))
 	}))
 	defer srv.Close()
-	old := NotesURL
-	NotesURL = srv.URL
-	defer func() { NotesURL = old }()
+	old := RecentURL
+	RecentURL = srv.URL
+	defer func() { RecentURL = old }()
 
-	notes := fetchNotes(nil)
-	if !strings.Contains(notes, "**TOTP**") || !strings.Contains(notes, "v9.9.9") {
-		t.Fatalf("notes = %q", notes)
+	recent := fetchRecent(nil)
+	if len(recent) != 3 {
+		t.Fatalf("recent = %d entrées, want 3 (cap)", len(recent))
+	}
+	if recent[0].Tag != "v9.9.9" || !strings.Contains(recent[0].Notes, "**TOTP**") {
+		t.Fatalf("recent[0] = %+v", recent[0])
+	}
+	if recent[2].Tag != "v9.9.7" {
+		t.Fatalf("recent[2].Tag = %s, want v9.9.7 (la 4e doit être ignorée)", recent[2].Tag)
+	}
+	for _, r := range recent {
+		if r.Date == "" {
+			t.Fatalf("date manquante: %+v", r)
+		}
 	}
 
-	// pannes : URL morte → notes vides, JAMAIS d'erreur remontée au check
-	NotesURL = "http://127.0.0.1:1/none"
-	if got := fetchNotes(nil); got != "" {
-		t.Fatalf("dead endpoint must yield empty notes, got %q", got)
+	// pannes : URL morte → vide, JAMAIS d'erreur remontée au check
+	RecentURL = "http://127.0.0.1:1/none"
+	if got := fetchRecent(nil); got != nil {
+		t.Fatalf("dead endpoint must yield nil, got %d entries", len(got))
 	}
 }
 
-// Check() doit porter les notes dans le statut (cache TTL inclus).
+// Check() doit porter le journal ET les notes dérivées (cache TTL inclus).
 func TestCheckCarriesNotes(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		_, _ = w.Write([]byte(`{"body":"- **Test** note"}`))
+		_, _ = w.Write([]byte(`[{"tag_name":"v9.9.9","published_at":"2026-10-22T00:00:00Z","body":"- **Test** note"}]`))
 	}))
 	defer srv.Close()
-	old := NotesURL
-	NotesURL = srv.URL
-	defer func() { NotesURL = old }()
+	old := RecentURL
+	RecentURL = srv.URL
+	defer func() { RecentURL = old }()
 
 	m := New("v1.0.0")
 	st := m.Check(true)
-	if st.LastError != "" && st.Notes == "" {
-		t.Logf("offline update check: %v (notes skipped) — acceptable", st.LastError)
+	if st.LastError != "" && len(st.Recent) == 0 {
+		t.Logf("offline update check: %v (recent skipped) — acceptable", st.LastError)
 		return
 	}
-	if st.Notes == "" {
-		t.Fatal("notes must be carried in the status when the endpoint answers")
+	if len(st.Recent) == 0 {
+		t.Fatal("recent must be carried in the status when the endpoint answers")
 	}
 	if !strings.Contains(st.Notes, "**Test**") {
-		t.Fatalf("notes content: %q", st.Notes)
+		t.Fatalf("notes must derive from recent[0]: %q", st.Notes)
+	}
+	if st.Recent[0].Tag != "v9.9.9" {
+		t.Fatalf("recent[0].Tag = %s", st.Recent[0].Tag)
 	}
 }
 

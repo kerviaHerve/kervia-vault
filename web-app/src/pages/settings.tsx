@@ -244,7 +244,7 @@ export default function Settings() {
 
   return (
     <div className="max-w-xl">
-      <h1 className="text-xl font-bold tracking-tight mb-1">Paramètres</h1>
+      <h1 className="text-xl font-bold tracking-tight mb-1">{String(t.settingsTitle)}</h1>
       <p className="text-sm text-fg-2 mb-6">{String(t.settingsSub)}</p>
 
       {/* version + mise à jour */}

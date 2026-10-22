@@ -1,5 +1,18 @@
 # Changelog
 
+## v1.6.1 (2026-10-22)
+
+- **i18n : titres de pages enfin traduits.** Les titres `<h1>` étaient codés
+  en dur en français dans une webui bilingue — basculer en anglais laissait
+  « Paramètres », « Secrets », « Permissions »… en français. Les clés de
+  traduction existaient déjà (`settingsTitle`, `agentsTitle`, `vaultsTitle`,
+  `secretsTitle`, `grantsTitle`, `auditTitle`) — les `<h1>` ne les
+  utilisaient simplement pas.
+- **Login : « v1.0 » codé en dur retiré du footer.** La version exacte
+  n'est volontairement pas révélée avant authentification (hardening recon
+  v1.0.12) — et le chiffre affiché était de toute façon faux depuis
+  longtemps.
+
 ## v1.6.0 (2026-10-22)
 
 - **Mise à jour : le confort du clic.** Deux irritations de la v1.5 corrigées :

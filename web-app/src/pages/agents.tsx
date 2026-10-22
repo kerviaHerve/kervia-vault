@@ -52,7 +52,7 @@ export default function Agents() {
     <div>
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-xl font-bold tracking-tight mb-1">Agents</h1>
+          <h1 className="text-xl font-bold tracking-tight mb-1">{String(t.agentsTitle)}</h1>
           <p className="text-sm text-fg-2">{String(t.agentsSub)}</p>
         </div>
         <Button variant="primary" onClick={() => setOpen(true)}><Plus size={16} /> {String(t.newAgent)}</Button>

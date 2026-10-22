@@ -142,7 +142,6 @@ export default function Login({ onLogin }: { onLogin: () => void }) {
 
       {/* footer discret — version, kervia.ch, GitHub, AGPL */}
       <div className="absolute bottom-4 flex items-center gap-4 text-[11px] text-fg-3">
-        <span>v1.0</span>
         <a href="https://kervia.ch" target="_blank" rel="noreferrer"
            className="hover:text-fg-2 transition-colors">kervia.ch</a>
         <span>by <span className="text-fg-2">kervia</span></span>

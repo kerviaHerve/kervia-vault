@@ -30,7 +30,7 @@ export default function Grants() {
 
   return (
     <div>
-      <h1 className="text-xl font-bold tracking-tight mb-1">Permissions</h1>
+      <h1 className="text-xl font-bold tracking-tight mb-1">{String(t.grantsTitle)}</h1>
       <p className="text-sm text-fg-2 mb-6">{String(t.grantsSub)}</p>
 
       <div className="bg-card border border-border rounded-xl overflow-hidden overflow-x-auto">

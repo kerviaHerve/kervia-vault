@@ -322,7 +322,7 @@ export default function Secrets() {
 
   if (!vaults.length) return (
     <div>
-      <h1 className="text-xl font-bold tracking-tight mb-6">Secrets</h1>
+      <h1 className="text-xl font-bold tracking-tight mb-6">{String(t.secretsTitle)}</h1>
       <p className="text-fg-3">{String(t.noVaults)}</p>
     </div>
   )
@@ -331,7 +331,7 @@ export default function Secrets() {
     <div>
       <div className="flex items-center justify-between mb-6 gap-4">
         <div>
-          <h1 className="text-xl font-bold tracking-tight mb-1">Secrets</h1>
+          <h1 className="text-xl font-bold tracking-tight mb-1">{String(t.secretsTitle)}</h1>
           <p className="text-sm text-fg-2">{String(t.secretsSub)}</p>
         </div>
         <div className="flex gap-1.5 items-center">

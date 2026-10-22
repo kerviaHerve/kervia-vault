@@ -49,25 +49,43 @@ export function useCopy() {
   }
 }
 
+// ---- ticker global partagé (perf gros coffres) ----
+// UN SEUL timer pour tous les codes TOTP affichés — un interval par
+// ligne (des milliers sur un gros coffre) saturait le main thread.
+let tickSubs = new Set<() => void>()
+let tickTimer: number | null = null
+export function subTick(fn: () => void): () => void {
+  tickSubs.add(fn)
+  if (tickTimer === null) tickTimer = window.setInterval(() => tickSubs.forEach(f => f()), 1000)
+  return () => {
+    tickSubs.delete(fn)
+    if (tickSubs.size === 0 && tickTimer !== null) {
+      window.clearInterval(tickTimer)
+      tickTimer = null
+    }
+  }
+}
+
 // ---- code TOTP vivant — un par champ totp, algo/digits/période v2 ----
 export function TotpLive({ value }: { value: string }) {
   const { t } = useLang()
   const [s, setS] = React.useState<{ code: string; remaining: number; digits: number } | null>(null)
   const [bad, setBad] = React.useState(false)
   React.useEffect(() => {
-    let alive = true
     const spec = C.parseTotp(value)
     if (!spec.secret) { setBad(true); setS(null); return }
     setBad(false)
+    let alive = true
     const tick = async () => {
+      if (!alive) return
       try {
         const c = await C.totpNowEx(spec)
         if (alive) setS({ ...c, digits: spec.digits })
       } catch { if (alive) { setS(null); setBad(true) } }
     }
-    void tick()
-    const i = window.setInterval(tick, 1000)
-    return () => { alive = false; window.clearInterval(i) }
+    void tick() // premier calcul immédiat
+    const stop = subTick(tick)
+    return () => { alive = false; stop() }
   }, [value])
   if (bad || !s) return <Badge variant="warn">{t.cofTotpBad}</Badge>
   const half = Math.ceil(s.digits / 2)

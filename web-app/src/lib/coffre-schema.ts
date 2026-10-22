@@ -199,7 +199,7 @@ export interface DecryptedItem extends CoffreItemData {
   updated_at: string
   deleted_at: string | null
   _broken?: boolean
-  _v1?: boolean // encore stocké en v1 — converti à la volée, réécrit au save
+  _search?: string // texte indexé précalculé au chargement (perf gros coffres)
 }
 
 // ---- création depuis un modèle ----

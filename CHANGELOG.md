@@ -1,5 +1,28 @@
 # Changelog
 
+## v1.7.3 (2026-10-22)
+
+- **Perf gros coffres (6 500 items et plus).** Le coffre rendait TOUTES
+  les lignes d'un coup (6 500 lignes DOM) et chaque ligne avec TOTP
+  montait son propre timer — des centaines d'intervalles par seconde
+  saturaient le navigateur ; chaque sauvegarde re-téléchargeait et
+  re-déchiffrait l'intégralité du coffre. Tout cela est corrigé :
+  - **Pagination de la liste** : 100 lignes rendues, bouton « Afficher
+    les suivants » par paliers de 500 — le DOM reste léger quel que
+    soit la taille du coffre.
+  - **Un SEUL timer TOTP pour toute la page** (ticker partagé) au lieu
+    d'un interval par ligne.
+  - **Sauvegarde/corbeille = mise à jour locale** de l'élément : plus
+    de re-téléchargement + re-décryptage des 6 500 items à chaque
+    enregistrement. Le rechargement complet reste pour l'import en lot.
+  - **Recherche précalculée** (`_search` indexé au chargement) et
+    filtres/dossiers/tags mémoïsés ; spinner « Chargement du coffre… »
+    pendant le déverrouillage.
+  - Mesuré sur un coffre de 3 000 items (chromium) : déverrouillage
+    complet 260 ms, clic « Nouveau » → picker 138 ms, recherche 18 ms,
+    création complète d'un item 533 ms, ouverture d'un item 86 ms.
+    E2E complet 21/21 toujours vert.
+
 ## v1.7.2 (2026-10-22)
 
 - **Dialogs : peinture instantanée, zéro animation.** Dernier maillon

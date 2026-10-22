@@ -23,7 +23,7 @@ import {
 } from '@/lib/coffre-schema'
 import ItemDialog from '@/components/coffre/ItemDialog'
 import { GeneratorDialog, ImportDialog, ExportDialog, SettingsDialog } from '@/components/coffre/dialogs'
-import { CAT_ICON, CAT_COLOR, Strength } from '@/components/coffre/parts'
+import { CAT_ICON, CAT_COLOR, Strength, TotpLive } from '@/components/coffre/parts'
 
 type Phase = 'loading' | 'setup' | 'locked' | 'unlocked'
 type DialogState =
@@ -62,20 +62,24 @@ export default function Coffre() {
   }
 
   // ---- items : décryptage local, items v1 normalisés v2 à la volée ----
+  // _search précalculé : filtrer 6554 items = des includes() sur des
+  // chaînes prêtes, pas des reconstructions à chaque frappe.
+  const [listLoading, setListLoading] = React.useState(false)
   const reload = async () => {
     try {
+      setListLoading(true)
       const raw: any[] = await api('GET', '/admin/coffre/items')
       const dec: C.DecryptedItem[] = []
       for (const it of raw) {
         try {
           const data = await C.decryptItem(it.blob_b64)
-          dec.push({ ...data, id: it.id, version: it.version, created_at: it.created_at, updated_at: it.updated_at, deleted_at: it.deleted_at || null })
+          dec.push({ ...data, id: it.id, version: it.version, created_at: it.created_at, updated_at: it.updated_at, deleted_at: it.deleted_at || null, _search: itemSearchText(data) })
         } catch {
           dec.push({ ...C.normalizeItem(null), id: it.id, version: it.version, created_at: it.created_at, updated_at: it.updated_at, deleted_at: it.deleted_at || null, _broken: true })
         }
       }
       setItems(dec)
-    } catch (e: any) { toast.error(e.message) }
+    } catch (e: any) { toast.error(e.message) } finally { setListLoading(false) }
   }
 
   const lock = (auto = false) => {
@@ -106,25 +110,45 @@ export default function Coffre() {
     }
   }, [phase, autoLockMin])
 
-  // ---- filtres ----
-  const folders = [...new Set(items.filter(i => !i.deleted_at).map(i => i.folder || '').filter(Boolean))].sort()
-  const shown = items.filter(i => {
-    if (view === 'trash') return !!i.deleted_at
-    if (i.deleted_at) return false
-    if (view === 'fav' && !i.favorite) return false
-    if (catF !== 'all' && i.type !== catF) return false
-    if (folder && (i.folder || '') !== folder) return false
+  // ---- filtres (mémoïsés : gros coffres) ----
+  const folders = React.useMemo(
+    () => [...new Set(items.filter(i => !i.deleted_at).map(i => i.folder || '').filter(Boolean))].sort(),
+    [items])
+  const allTags = React.useMemo(
+    () => [...new Set(items.flatMap(i => i.tags || []))],
+    [items])
+  const shownAll = React.useMemo(() => {
     const q = search.trim().toLowerCase()
-    if (!q) return true
-    return itemSearchText(i).includes(q)
-  })
+    return items.filter(i => {
+      if (view === 'trash') return !!i.deleted_at
+      if (i.deleted_at) return false
+      if (view === 'fav' && !i.favorite) return false
+      if (catF !== 'all' && i.type !== catF) return false
+      if (folder && (i.folder || '') !== folder) return false
+      if (!q) return true
+      return (i._search ?? itemSearchText(i)).includes(q)
+    })
+  }, [items, search, view, catF, folder])
 
-  // ---- mutations (tout passe par l'API + re-chiffrement local) ----
+  // pagination : on rend au plus `limit` lignes — un coffre à 6500 items
+  // n'affiche que les premières, « Afficher plus » par paliers.
+  const PAGE = 100
+  const [limit, setLimit] = React.useState(PAGE)
+  React.useEffect(() => { setLimit(PAGE) }, [search, view, catF, folder])
+  const shown = React.useMemo(() => shownAll.slice(0, limit), [shownAll, limit])
+  const hiddenCount = shownAll.length - shown.length
+
+  // ---- mutations : mise à jour LOCALE de l'item (les données sont déjà
+  // déchiffrées côté client) — plus de re-téléchargement + re-décryptage
+  // de TOUT le coffre à chaque sauvegarde (6554 items !). ----
   const saveItem = async (data: CoffreItemData, existing?: C.DecryptedItem) => {
     const blob = await C.encryptItem(data)
     if (existing) {
       try {
-        await api('PATCH', `/admin/coffre/items/${existing.id}`, { blob_b64: blob, expected_version: existing.version })
+        const rec: any = await api('PATCH', `/admin/coffre/items/${existing.id}`, { blob_b64: blob, expected_version: existing.version })
+        setItems(prev => prev.map(i => i.id === existing.id
+          ? { ...data, id: existing.id, version: rec.version, created_at: rec.created_at, updated_at: rec.updated_at, deleted_at: rec.deleted_at || null, _search: itemSearchText(data) }
+          : i))
         toast.success(String(t.cofSaved))
       } catch (e: any) {
         if (e.message && String(e.message).includes('HTTP 409')) toast.error(String(t.cofSaveConflict))
@@ -132,23 +156,25 @@ export default function Coffre() {
         throw e
       }
     } else {
-      await api('POST', '/admin/coffre/items', { blob_b64: blob })
+      const rec: any = await api('POST', '/admin/coffre/items', { blob_b64: blob })
+      setItems(prev => [{ ...data, id: rec.id, version: rec.version, created_at: rec.created_at, updated_at: rec.updated_at, deleted_at: rec.deleted_at || null, _search: itemSearchText(data) }, ...prev])
       toast.success(String(t.cofSaved))
     }
-    await reload()
   }
+  const setLocalDeleted = (id: string, deleted_at: string | null) =>
+    setItems(prev => prev.map(i => i.id === id ? { ...i, deleted_at } : i))
   const trashItem = async (id: string) => {
-    try { await api('DELETE', `/admin/coffre/items/${id}`, undefined); toast.success(String(t.cofDeletedOk)); await reload() } catch (e: any) { toast.error(e.message) }
+    try { await api('DELETE', `/admin/coffre/items/${id}`, undefined); toast.success(String(t.cofDeletedOk)); setLocalDeleted(id, new Date().toISOString()) } catch (e: any) { toast.error(e.message) }
   }
   const restoreItem = async (id: string) => {
-    try { await api('POST', `/admin/coffre/items/${id}/restore`); toast.success(String(t.cofRestoredOk)); await reload() } catch (e: any) { toast.error(e.message) }
+    try { await api('POST', `/admin/coffre/items/${id}/restore`); toast.success(String(t.cofRestoredOk)); setLocalDeleted(id, null) } catch (e: any) { toast.error(e.message) }
   }
   const purgeItem = async (id: string) => {
-    try { await api('POST', `/admin/coffre/items/${id}/purge`); toast.success(String(t.cofPurgedOk)); await reload() } catch (e: any) { toast.error(e.message) }
+    try { await api('POST', `/admin/coffre/items/${id}/purge`); toast.success(String(t.cofPurgedOk)); setItems(prev => prev.filter(i => i.id !== id)) } catch (e: any) { toast.error(e.message) }
   }
   const purgeTrash = async () => {
     if (!window.confirm(String(t.cofPurgeTrashConfirm))) return
-    try { const d = await api('POST', '/admin/coffre/trash/purge'); toast.success(String(t.cofTrashEmptied).replace('{n}', String(d.purged))); await reload() } catch (e: any) { toast.error(e.message) }
+    try { const d = await api('POST', '/admin/coffre/trash/purge'); toast.success(String(t.cofTrashEmptied).replace('{n}', String(d.purged))); setItems(prev => prev.filter(i => !i.deleted_at)) } catch (e: any) { toast.error(e.message) }
   }
 
   const copy = (v: string) => {
@@ -227,7 +253,11 @@ export default function Coffre() {
 
       {/* liste */}
       <div className="border border-border rounded-xl bg-card overflow-hidden">
-        {shown.length === 0 ? (
+        {listLoading ? (
+          <div className="py-16 text-center text-sm text-fg-3 flex items-center justify-center gap-2">
+            <LoaderCircle size={16} className="animate-spin" /> {t.cofLoading}
+          </div>
+        ) : shown.length === 0 ? (
           <div className="py-16 text-center text-sm text-fg-3">
             {view === 'trash' ? t.cofEmptyTrash : t.cofEmpty}
           </div>
@@ -254,7 +284,7 @@ export default function Coffre() {
                   {it._broken ? '—' : itemSubtitle(it) || (it.notes || '—')}
                 </div>
               </div>
-              {!it._broken && totp && <div className="hidden md:block"><TotpMini seed={totp.v} /></div>}
+              {!it._broken && totp && <div className="hidden md:block"><TotpLive value={totp.v} /></div>}
               <span className="hidden lg:block text-[11px] text-fg-3 w-28 text-right shrink-0">{fmtDateTime(it.updated_at)}</span>
               <div className="flex items-center gap-0.5 shrink-0">
                 {!it._broken && user && (
@@ -284,6 +314,15 @@ export default function Coffre() {
         })}
       </div>
 
+      {hiddenCount > 0 && (
+        <div className="mt-3 text-center">
+          <Button variant="secondary" size="sm" onClick={() => setLimit(l => l + 500)}>
+            {String(t.cofShowMore).replace('{n}', String(Math.min(500, hiddenCount)))}
+            <span className="text-fg-3 ml-1.5">({hiddenCount})</span>
+          </Button>
+        </div>
+      )}
+
       <p className="text-[11px] text-fg-3 mt-4 flex items-center gap-1.5">
         <ShieldCheck size={12} /> {t.cofE2E} <Clock size={12} className="ml-3" /> {t.cofAutolock} : {autoLockMin > 0 ? `${autoLockMin} min` : t.cofAutolockOff}
       </p>
@@ -293,7 +332,7 @@ export default function Coffre() {
           onPick={cat => setDialog({ kind: 'item', draft: newItem(cat, lang) })} />
       )}
       {dialog?.kind === 'item' && (
-        <ItemDialog item={dialog.item} draft={dialog.draft} lang={lang} items={items}
+        <ItemDialog item={dialog.item} draft={dialog.draft} lang={lang} folders={folders} allTags={allTags}
           onClose={() => setDialog(null)} onSaved={saveItem} onDeleted={trashItem} />
       )}
       {dialog?.kind === 'generator' && <GeneratorDialog onClose={() => setDialog(null)} />}
@@ -306,33 +345,6 @@ export default function Coffre() {
           onClose={() => setDialog(null)} />
       )}
     </div>
-  )
-}
-
-// code TOTP compact pour les lignes de liste
-function TotpMini({ seed }: { seed: string }) {
-  const { t } = useLang()
-  const [s, setS] = React.useState<{ code: string; remaining: number; digits: number } | null>(null)
-  const [bad, setBad] = React.useState(false)
-  React.useEffect(() => {
-    let alive = true
-    const spec = C.parseTotp(seed)
-    if (!spec.secret) { setBad(true); setS(null); return }
-    setBad(false)
-    const tick = async () => {
-      try { const c = await C.totpNowEx(spec); if (alive) setS({ ...c, digits: spec.digits }) }
-      catch { if (alive) { setS(null); setBad(true) } }
-    }
-    void tick()
-    const i = window.setInterval(tick, 1000)
-    return () => { alive = false; window.clearInterval(i) }
-  }, [seed])
-  if (bad || !s) return <Badge variant="warn">{t.cofTotpBad}</Badge>
-  return (
-    <span className="inline-flex items-center gap-2 font-mono text-sm tracking-wider text-accent">
-      {s.code.slice(0, Math.ceil(s.digits / 2))} {s.code.slice(Math.ceil(s.digits / 2))}
-      <span className="text-[10px] text-fg-3 not-italic">{s.remaining}s</span>
-    </span>
   )
 }
 

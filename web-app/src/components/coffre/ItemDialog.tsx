@@ -20,11 +20,12 @@ const KIND_LABEL_KEY: Record<FieldKind, string> = {
 
 // draft : nouvel élément construit depuis un modèle par le picker ;
 // item : élément existant à voir/éditer.
-export default function ItemDialog({ item, draft, lang, items, onClose, onSaved, onDeleted }: {
+export default function ItemDialog({ item, draft, lang, folders, allTags, onClose, onSaved, onDeleted }: {
   item?: DecryptedItem
   draft?: CoffreItemData
   lang: 'fr' | 'en'
-  items: DecryptedItem[]
+  folders: string[]
+  allTags: string[]
   onClose: () => void
   onSaved: (data: CoffreItemData, existing?: DecryptedItem) => Promise<void>
   onDeleted: (id: string) => Promise<void>
@@ -38,8 +39,6 @@ export default function ItemDialog({ item, draft, lang, items, onClose, onSaved,
   const [d, setD] = React.useState<CoffreItemData>(() =>
     item ? C.normalizeItem(item) : { ...(draft || C.normalizeItem({ v: 1, type: 'note', name: '' })) })
 
-  const folders = [...new Set(items.map(i => i.folder || '').filter(Boolean))]
-  const allTags = [...new Set(items.flatMap(i => i.tags || []))]
   const mainPw = mainPasswordField(d)
   const st = C.passwordStrength(mainPw?.v || '')
 

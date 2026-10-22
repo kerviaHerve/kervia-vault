@@ -1,5 +1,44 @@
 # Changelog
 
+## v1.8.0 (2026-10-22)
+
+- **Extension Firefox pour le Coffre.** Remplis tes sites directement
+  depuis ton coffre : l'extension détecte les formulaires et y colle
+  identifiant, mot de passe et code TOTP — **uniquement sur ton clic**
+  (bouton « Remplir » ou `Ctrl+Shift+L` ; `Ctrl+Shift+K` ouvre le
+  coffre). **Aucune interface n'est jamais injectée dans les pages** —
+  exactement le comportement des extensions classiques qui cassait la
+  webui est exclu par conception. Popup : déverrouillage, éléments
+  correspondant à la page, recherche, copie (effacement presse-papier
+  30 s), TOTP vivant, générateur, synchronisation, auto-lock. Le coffre
+  déverrouillé ne vit qu'en mémoire du processus d'arrière-plan.
+- **Token d'extension dédié** (nouvelle surface serveur minimale).
+  Paramètres → Extension : *Créer le token* (affiché une seule fois,
+  seul son hash Argon2id est stocké — même schéma que les clés agents),
+  statut dernière utilisation, révocation, régénération. Le token
+  n'ouvre **qu'une** route : `GET /ext/coffre` (Bearer) qui renvoie
+  enveloppe + blobs chiffrés en un aller-retour. Aucune surface admin,
+  aucune surface agent (/v1, MCP) — testé, tripwire intact. Sans le
+  mot de passe maître, le token ne révèle rien : zero-knowledge
+  préservé de bout en bout. Ce modèle remplace la piste « session
+  webui » abandonnée : `SameSite=Strict` rend le cookie inutilisable
+  depuis une extension (Firefox strippe même un header Cookie manuel —
+  vérifié).
+- **Installable depuis la webui.** L'XPI est construit par CI, embarqué
+  dans le binaire (servi par la carte Paramètres → Extension) et joint
+  à la release GitHub. Installation : *Télécharger l'extension* →
+  ouvrir le fichier dans Firefox. Sans signature AMO, Firefox le
+  charge comme extension temporaire (about:debugging) ; la signature
+  one-click (compte AMO requis) sera ajoutée en option.
+- **Validation.** Go : tests du cycle de vie complet (création → statut
+  → usage → 401s, clé agent refusée sur /ext, token refusé sur /admin,
+  révocation) + forme /ext/coffre. Extension : crypto vérifiée (même
+  schéma que la webui, mauvais mot de passe → message clair) ;
+  **E2E sur vrai Firefox 158.0.1 (macOS, Apple Silicon)** — install
+  XPI, auto-déverrouillage par token (3 éléments déchiffrés),
+  correspondance URL → formulaire, remplissage complet vérifié champ
+  par champ + soumission. E2E webui complet toujours 21/21.
+
 ## v1.7.3 (2026-10-22)
 
 - **Perf gros coffres (6 500 items et plus).** Le coffre rendait TOUTES

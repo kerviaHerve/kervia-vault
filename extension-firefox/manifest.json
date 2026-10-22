@@ -1,0 +1,57 @@
+{
+  "manifest_version": 2,
+  "name": "Kervia-vault — Coffre",
+  "version": "1.8.0",
+  "description": "Remplissage web depuis le coffre Kervia-vault (zero-knowledge, session webui). Aucune surcouche n'est jamais injectée dans les pages.",
+  "author": "kervia",
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "coffre@kervia-vault",
+      "strict_min_version": "115.0"
+    }
+  },
+  "icons": {
+    "48": "icons/kervia-icone-claire.svg",
+    "96": "icons/kervia-icone-claire.svg",
+    "128": "icons/kervia-icone-claire.svg"
+  },
+  "browser_action": {
+    "default_title": "Coffre Kervia-vault",
+    "default_popup": "popup.html",
+    "default_icon": "icons/kervia-icone-claire.svg"
+  },
+  "background": {
+    "scripts": ["js/coffre-lib.js", "background.js"]
+  },
+  "options_ui": {
+    "page": "options.html",
+    "open_in_tab": true
+  },
+  "content_scripts": [
+    {
+      "matches": ["http://*/*", "https://*/*"],
+      "js": ["content.js"],
+      "run_at": "document_idle",
+      "all_frames": false
+    }
+  ],
+  "commands": {
+    "_execute_browser_action": {
+      "suggested_key": { "default": "Ctrl+Shift+K" },
+      "description": "Ouvrir le coffre"
+    },
+    "fill-page": {
+      "suggested_key": { "default": "Ctrl+Shift+L" },
+      "description": "Remplir la page courante"
+    }
+  },
+  "permissions": [
+    "storage",
+    "tabs",
+    "clipboardWrite",
+    "https://vault.kervia.ch/*"
+  ],
+  "optional_permissions": ["http://*/*", "https://*/*"],
+  "browser_style": true,
+  "homepage_url": "https://vault.kervia.ch"
+}

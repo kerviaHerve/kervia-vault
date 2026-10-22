@@ -18,6 +18,10 @@ jobs:
           npm ci
           npx tsc --noEmit
           npx vite build
+      - name: Build Firefox extension XPI (embeds in dist for go:embed)
+        run: |
+          cd extension-firefox
+          zip -r -X ../internal/web/dist/extension-firefox.xpi . -x "*.DS_Store"
       - uses: actions/upload-artifact@v4
         with:
           name: webui-dist

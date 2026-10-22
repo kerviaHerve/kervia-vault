@@ -24,6 +24,13 @@ jobs:
         run: |
           npm ci
           npx vite build
+      # extension Firefox : XPI embarqué dans le binaire (carte webui
+      # Paramètres → Extension) + joint à la release
+      - name: Build Firefox extension XPI
+        run: |
+          cd extension-firefox
+          zip -r -X ../internal/web/dist/extension-firefox.xpi . -x "*.DS_Store"
+          unzip -l ../internal/web/dist/extension-firefox.xpi | tail -3
 
       - uses: actions/setup-go@v5
         with: { go-version: "1.27" }
@@ -40,7 +47,7 @@ jobs:
             tar -czf "kervia-vault-${OS}-${ARCH}.tar.gz" -C build kervia-vault
             rm -f build/kervia-vault
           done
-          sha256sum kervia-vault-*.tar.gz > kervia-vault_checksums.txt
+          sha256sum kervia-vault-*.tar.gz extension-firefox.xpi > kervia-vault_checksums.txt
           echo "RELEASE_VERSION=${VERSION}" >> "$GITHUB_ENV"
 
       # Release notes: extract this tag's section from CHANGELOG.md
@@ -69,6 +76,7 @@ jobs:
             kervia-vault-linux-arm64.tar.gz
             kervia-vault-darwin-amd64.tar.gz
             kervia-vault-darwin-arm64.tar.gz
+            extension-firefox.xpi
             kervia-vault_checksums.txt
           body_path: RELEASE_NOTES.md
       - name: Verify release assets are downloadable

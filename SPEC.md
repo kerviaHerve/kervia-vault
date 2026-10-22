@@ -135,6 +135,17 @@ Schéma client : `masterPassword → PBKDF2-SHA256 600k → masterKey` scelle la
 | POST | `/admin/coffre/items/<id>/purge` | suppression définitive |
 | POST | `/admin/coffre/trash/purge` | vider la corbeille |
 
+**API extension (v1.8.0) — lecture seule des blobs chiffrés.** `GET /ext/coffre`
+avec `Authorization: Bearer kvext_<64 hex>` : renvoie `{envelope, items}` en un
+aller-retour. Le token se crée/révoque sous `/admin/extension/token` (session
+webui) ; **seul son hash Argon2id est stocké** (même schéma que les clés
+agents). Le token ne donne accès à RIEN d'autre : pas de surface admin, pas de
+`/v1`, pas de MCP — une clé d'agent est refusée sur `/ext/*` et le token est
+refusé sur `/admin/*` (testé). `SameSite=Strict` rendant le cookie de session
+inutilisable depuis une extension (Firefox strippe même un header Cookie
+manuel), ce token dédié est LE modèle d'accès de l'extension navigateur ;
+sans le mot de passe maître, il ne révèle rien (zero-knowledge intact).
+
 Fonctionnalités webui : logins + notes, dossiers/favoris, recherche locale, TOTP (RFC 6238, HMAC-SHA1 WebCrypto), générateur (caractères/passphrase), force (entropie), historique de mots de passe, corbeille, import/export Bitwarden/Vaultwarden JSON, auto-lock paramétrable (défaut 5 min — la clé ne vit qu'en mémoire JS, un reload reverrouille).
 
 **Récupération : AUCUNE.** Zero-knowledge ⇒ mot de passe maître perdu = coffre perdu. Documenté à la création (écran + warning). C'est la contrepartie assumée de la garantie ci-dessus.

@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <link rel="stylesheet" href="css/popup.css" />
+</head>
+<body>
+  <header>
+    <img src="icons/kervia-icone-claire.svg" class="logo" alt="" />
+    <div class="brand">
+      <strong>Coffre</strong>
+      <span class="sub" id="server-label">Kervia-vault</span>
+    </div>
+    <span class="grow"></span>
+    <button id="btn-sync" class="icon-btn" title="Resynchroniser depuis le coffre">⟳</button>
+    <button id="btn-lock" class="icon-btn" title="Verrouiller" hidden>🔒</button>
+    <button id="btn-options" class="icon-btn" title="Réglages">⚙</button>
+  </header>
+
+  <!-- écran verrouillé -->
+  <section id="locked" class="pad">
+    <p class="hint" id="locked-hint">Déverrouille ton coffre avec le mot de passe maître.</p>
+    <input type="password" id="master" placeholder="Mot de passe maître" autofocus />
+    <button id="btn-unlock" class="primary">Déverrouiller</button>
+    <p class="err" id="unlock-err" hidden></p>
+    <p class="hint small" id="session-hint" hidden>
+      Token manquant — crée-le dans la webui → Paramètres → Extension, colle-le dans les réglages de l'extension (⚙).
+    </p>
+  </section>
+
+  <!-- écran déverrouillé -->
+  <section id="main" hidden>
+    <div class="pad row">
+      <input type="search" id="search" placeholder="Rechercher…" />
+      <button id="btn-generator" class="icon-btn" title="Générateur">🎲</button>
+    </div>
+
+    <div id="page-section" hidden>
+      <div class="section-title" id="page-title">Cette page</div>
+      <div id="matches"></div>
+    </div>
+
+    <div class="section-title">Tous les éléments</div>
+    <div id="all-items" class="pad-h"></div>
+
+    <div id="generator" hidden class="pad">
+      <div class="row">
+        <output id="gen-out" class="mono"></output>
+        <button id="gen-copy" class="icon-btn" title="Copier">⧉</button>
+      </div>
+      <div class="row small">
+        <label>Longueur <input type="range" id="gen-len" min="8" max="64" value="20" />
+          <span id="gen-len-val">20</span></label>
+      </div>
+      <div class="row small">
+        <label><input type="checkbox" id="gen-upper" checked />A-Z</label>
+        <label><input type="checkbox" id="gen-digits" checked />0-9</label>
+        <label><input type="checkbox" id="gen-symbols" checked />!@#</label>
+        <button id="gen-regen" class="icon-btn" title="Régénérer">⟳</button>
+      </div>
+    </div>
+  </section>
+
+  <div id="toast" hidden></div>
+  <script src="js/coffre-lib.js"></script>
+  <script src="popup.js"></script>
+</body>
+</html>

@@ -1,6 +1,6 @@
 import * as React from 'react'
 import { motion } from 'framer-motion'
-import { KeyRound, ShieldCheck, Clock, LoaderCircle, RotateCcw, Download, AlertTriangle, RefreshCw, ArrowUpCircle, CheckCircle2, Smartphone, Copy, History } from 'lucide-react'
+import { KeyRound, ShieldCheck, Clock, LoaderCircle, RotateCcw, Download, AlertTriangle, RefreshCw, ArrowUpCircle, CheckCircle2, Smartphone, Copy, History, Puzzle } from 'lucide-react'
 import { toast } from 'sonner'
 import { api } from '@/lib/api'
 import { useLang } from '@/i18n'
@@ -55,6 +55,43 @@ export default function Settings() {
   const [faPass, setFaPass] = React.useState('')
   const [faCode, setFaCode] = React.useState('')
   const [faBusy, setFaBusy] = React.useState(false)
+
+  // ---- extension Firefox : token d'accès au coffre (v1.8.0) ----
+  const [extTok, setExtTok] = React.useState<any>(null)   // {present, created_at, last_used_at}
+  const [extFresh, setExtFresh] = React.useState('')      // token affiché UNE fois après création
+  const [extBusy, setExtBusy] = React.useState(false)
+
+  React.useEffect(() => {
+    api('GET', '/admin/extension/token').then(setExtTok).catch(() => {})
+  }, [])
+
+  const extCreate = async () => {
+    if (extBusy) return
+    if (extTok?.present && !window.confirm(String(t.extReplaceConfirm))) return
+    setExtBusy(true)
+    try {
+      const d = await api('POST', '/admin/extension/token', {})
+      setExtFresh(d.token)
+      const st = await api('GET', '/admin/extension/token')
+      setExtTok(st)
+      toast.success(String(t.extCreated))
+    } catch (e: any) { toast.error(e.message) }
+    setExtBusy(false)
+  }
+  const extRevoke = async () => {
+    if (extBusy || !window.confirm(String(t.extRevokeConfirm))) return
+    setExtBusy(true)
+    try {
+      await api('DELETE', '/admin/extension/token')
+      setExtFresh(''); setExtTok({ present: false })
+      toast.success(String(t.extRevoked))
+    } catch (e: any) { toast.error(e.message) }
+    setExtBusy(false)
+  }
+  const extCopy = (v: string) => {
+    navigator.clipboard.writeText(v).catch(() => {})
+    toast.success(String(t.extCopied))
+  }
 
   React.useEffect(() => {
     api('GET', '/admin/settings').then(setInfo).catch(() => {})
@@ -330,6 +367,51 @@ export default function Settings() {
               {busy ? <LoaderCircle size={15} className="animate-spin" /> : String(t.update)}
             </Button>
           </form>
+        </CardBody>
+      </Card>
+
+      {/* extension Firefox : remplissage web depuis le coffre (v1.8.0) */}
+      <Card className="mb-5">
+        <CardHeader>
+          <span className="flex items-center gap-2"><Puzzle size={15} /> {String(t.extTitle)}</span>
+        </CardHeader>
+        <CardBody>
+          <p className="text-xs text-fg-3 leading-relaxed mb-4">{String(t.extIntro)}</p>
+          <ol className="text-xs text-fg-2 space-y-1.5 list-decimal list-inside mb-4">
+            <li>{String(t.extStep1)}</li>
+            <li>{String(t.extStep2)}</li>
+            <li>{String(t.extStep3)}</li>
+          </ol>
+          {extFresh ? (
+            <div className="rounded-lg border border-accent/30 bg-accent/8 p-3 mb-4">
+              <p className="text-[11px] text-accent font-semibold mb-2">{String(t.extShownOnce)}</p>
+              <div className="flex items-center gap-2">
+                <code className="flex-1 font-mono text-[11px] break-all text-fg">{extFresh}</code>
+                <Button variant="secondary" size="sm" onClick={() => extCopy(extFresh)}><Copy size={13} />{String(t.extCopy)}</Button>
+              </div>
+            </div>
+          ) : null}
+          <div className="flex flex-wrap items-center gap-3">
+            <a href="/ui/extension-firefox.xpi" download
+              className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg bg-card-2 border border-border text-xs font-medium hover:border-accent transition-colors">
+              <Download size={13} /> {String(t.extDownload)}
+            </a>
+            <Button variant={extTok?.present ? 'secondary' : 'primary'} size="sm" onClick={extCreate} disabled={extBusy}>
+              {extBusy ? <LoaderCircle size={13} className="animate-spin" /> : <KeyRound size={13} />}
+              {extTok?.present ? String(t.extReplace) : String(t.extCreate)}
+            </Button>
+            {extTok?.present && (
+              <Button variant="destructive" size="sm" onClick={extRevoke} disabled={extBusy}>
+                {String(t.extRevoke)}
+              </Button>
+            )}
+          </div>
+          {extTok?.present && (
+            <p className="text-[11px] text-fg-3 mt-3">
+              {String(t.extLastUsed)} : {extTok.last_used_at ? new Date(extTok.last_used_at).toLocaleString() : String(t.extNever)}
+            </p>
+          )}
+          <p className="text-[11px] text-fg-3 mt-3 leading-relaxed">{String(t.extSecurity)}</p>
         </CardBody>
       </Card>
 

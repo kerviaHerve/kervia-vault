@@ -1,0 +1,131 @@
+/* Kervia-vault Coffre — popup (palette du design system : charbon/citron/menthe) */
+:root {
+  --bg: #171b19;
+  --card: #1c231f;
+  --card-2: #222a25;
+  --border: #2c352f;
+  --fg: #e9efe9;
+  --fg-2: #c3cdc4;
+  --fg-3: #8e9c91;
+  --accent: #b8e263;
+  --danger: #e06c6c;
+  --warn: #e5c07b;
+}
+* { box-sizing: border-box; margin: 0 }
+body {
+  width: 340px;
+  background: var(--bg);
+  color: var(--fg);
+  font: 13px/1.4 system-ui, -apple-system, sans-serif;
+}
+header {
+  display: flex; align-items: center; gap: 8px;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border);
+  background: var(--card);
+}
+.logo { width: 20px; height: 20px }
+.brand { display: flex; flex-direction: column; line-height: 1.2 }
+.brand strong { font-size: 12px }
+.sub { font-size: 10px; color: var(--fg-3) }
+.grow { flex: 1 }
+.pad { padding: 10px }
+.pad-h { padding: 0 10px 10px }
+.row { display: flex; align-items: center; gap: 6px }
+.row.small { font-size: 11px; color: var(--fg-2); gap: 10px }
+.hint { color: var(--fg-3); font-size: 11px; margin-bottom: 8px }
+.hint.small { margin: 6px 0 }
+.mono { font-family: ui-monospace, Menlo, monospace }
+.err { color: var(--danger); font-size: 11px; margin-top: 8px }
+
+input[type=password], input[type=search], input[type=text] {
+  width: 100%;
+  height: 30px;
+  padding: 0 8px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  color: var(--fg);
+  font-size: 12px;
+}
+input[type=password] { margin-bottom: 8px }
+button {
+  font: inherit;
+  cursor: pointer;
+  border: 1px solid var(--border);
+  background: var(--card-2);
+  color: var(--fg-2);
+  border-radius: 7px;
+  padding: 4px 10px;
+}
+button:hover { color: var(--fg) }
+button.primary {
+  background: var(--accent);
+  color: var(--bg);
+  border-color: transparent;
+  font-weight: 600;
+  width: 100%;
+  height: 30px;
+  margin-bottom: 4px;
+}
+button.primary.small { width: auto; height: 22px; font-size: 11px; padding: 0 8px; margin: 0 }
+.icon-btn {
+  border: none;
+  background: none;
+  padding: 3px 5px;
+  font-size: 13px;
+  color: var(--fg-3);
+}
+.icon-btn:hover { color: var(--fg) }
+
+.section-title {
+  font-size: 10px;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  color: var(--fg-3);
+  padding: 8px 10px 4px;
+}
+
+.item {
+  display: flex; align-items: center; gap: 6px;
+  padding: 7px 10px;
+  border-bottom: 1px solid var(--border);
+}
+.item:last-child { border-bottom: none }
+.item-info { flex: 1; min-width: 0 }
+.item-name {
+  font-size: 12px; font-weight: 600;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.item-sub {
+  font-size: 10px; color: var(--fg-3);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.item-actions { display: flex; align-items: center; gap: 2px; flex-shrink: 0 }
+.totp { font-size: 12px; color: var(--accent); letter-spacing: .05em }
+
+#generator { border-top: 1px solid var(--border) }
+#gen-out {
+  flex: 1;
+  font-size: 11px;
+  word-break: break-all;
+  color: var(--fg-2);
+  background: var(--card-2);
+  border-radius: 7px;
+  padding: 6px 8px;
+}
+label { display: flex; align-items: center; gap: 4px }
+input[type=range] { width: 90px }
+
+#toast {
+  position: fixed; left: 50%; bottom: 10px;
+  transform: translateX(-50%);
+  background: var(--card-2);
+  border: 1px solid var(--border);
+  color: var(--fg-2);
+  font-size: 11px;
+  padding: 5px 12px;
+  border-radius: 99px;
+  white-space: nowrap;
+  z-index: 10;
+}

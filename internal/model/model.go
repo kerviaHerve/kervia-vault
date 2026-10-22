@@ -127,6 +127,9 @@ const (
 	AuditCoffreItemPurge  = "coffre_item_purge"    // hard delete of one item
 	AuditCoffreTrashPurge = "coffre_trash_purge"   // hard delete of all trash
 	AuditCoffreImport    = "coffre_import"        // batch create (import)
+
+	AuditExtensionTokenCreate = "extension_token_create" // browser-extension token minted (hash stored)
+	AuditExtensionTokenRevoke = "extension_token_revoke" // browser-extension token deleted
 )
 
 // CoffreMeta is the zero-knowledge header of the coffre. Every field is

@@ -86,6 +86,12 @@ func (s *Server) Router(authSvc *auth.Service, admin *AdminServer, adminExtender
 	// vaults MANQUANTS uniquement — jamais d'écrasement ----
 	adminMux.HandleFunc("POST /admin/restore", admin.RestoreHandler)
 
+	// ---- token d'extension navigateur : création/statut/révocation
+	// session-guardées (v1.8.0) — le token en clair n'est JAMAIS stocké ----
+	adminMux.HandleFunc("POST /admin/extension/token", admin.ExtensionTokenCreate)
+	adminMux.HandleFunc("GET /admin/extension/token", admin.ExtensionTokenStatus)
+	adminMux.HandleFunc("DELETE /admin/extension/token", admin.ExtensionTokenRevoke)
+
 	if adminExtender != nil {
 		adminExtender(adminMux)
 	}
@@ -97,6 +103,10 @@ func (s *Server) Router(authSvc *auth.Service, admin *AdminServer, adminExtender
 	mux.HandleFunc("GET /totp/status", TOTPStatus(authSvc))
 	// public : la page de partage — autonome, sans JS, jetable
 	mux.HandleFunc("GET /share/", admin.ViewShare)
+	// extension navigateur : LA seule surface /ext/* — lecture des blobs
+	// chiffrés du coffre (Bearer token, hash Argon2id en base). Pas de
+	// surface admin, pas de /v1, pas de MCP — invariants coffre intacts.
+	mux.HandleFunc("GET /ext/coffre", s.ExtensionCoffre)
 	mux.HandleFunc("POST /recovery/recover", func(w http.ResponseWriter, r *http.Request) {
 		var req struct {
 			Code        string `json:"code"`

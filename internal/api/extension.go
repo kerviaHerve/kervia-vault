@@ -44,7 +44,7 @@ func newExtensionToken() (string, error) {
 // ExtensionTokenCreate handles POST /admin/extension/token.
 // Generates a fresh token (revoking the previous one) and returns the
 // plaintext ONCE — the server only ever stores its Argon2id hash.
-func (a *AdminServer) ExtensionTokenCreate(w http.ResponseWriter, r *http.Request) {
+func (a *AdminServer) ExtensionTokenCreate(w http.ResponseWriter, _ *http.Request) {
 	tok, err := newExtensionToken()
 	if err != nil {
 		writeErr(w, 500, "internal", "")

@@ -23,14 +23,16 @@
   - page publique autonome **sans JavaScript** (CSP-proof), bilingue,
     no-store, deny-frame ; consommé / expiré / inconnu → la même page,
     l'énumération n'apprend rien. Audit complet, jamais le token.
-- **Export DR chiffré + restauration CLI.** Paramètres → Sauvegarde :
-  un bundle de TOUS les vaults scellé par une passphrase (PBKDF2-SHA256
-  600k + AES-256-GCM, format `KVX1`) — **pas la master key** : il restaure
-  sur n'importe quelle instance neuve. Restauration :
-  `kervia-vault import <fichier.kvx>` (fail-closed, aucune fusion
-  silencieuse), valeurs re-scellées avec la master key de la cible.
-  Cycle complet testé E2E : export (master key A) → import (master key B
-  différente) → valeur restaurée intacte.
+- **Export DR chiffré + restauration (webui ET CLI).** Paramètres →
+  Sauvegarde : un bundle de TOUS les vaults scellé par une passphrase
+  (PBKDF2-SHA256 600k + AES-256-GCM, format `KVX1`) — **pas la master
+  key** : il restaure sur n'importe quelle instance. Restauration en deux
+  temps dans la webui : **vérifier** (dry-run : inventaire sans écriture)
+  puis **importer** — seuls les vaults MANQUANTS sont restaurés, jamais
+  d'écrasement, jamais de fusion silencieuse. CLI pour l'instance neuve :
+  `kervia-vault import <fichier.kvx>` (fail-closed). Cycle complet testé
+  E2E : export (master key A) → import (master key B différente) → valeur
+  intacte ; et le vrai accident — vault supprimé par erreur → restauré.
 - **PWA.** L'webui s'installe comme app (iPhone/Android) : manifest
   `standalone`, métas iOS, icône maskable. Pas de service worker — le
   coffre vit avec son serveur, un SW n'apporterait que du cache à

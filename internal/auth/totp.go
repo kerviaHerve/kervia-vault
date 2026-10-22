@@ -79,6 +79,12 @@ func totpAt(seed string, t time.Time) (string, error) {
 	return fmt.Sprintf("%0*d", totpDigits, int(val)%1_000_000), nil
 }
 
+// TotpNow : le code courant du seed (une mince couche sur totpAt —
+// utilisée par les tests d'intégration et les intégrations futures type CLI).
+func TotpNow(seed string) (string, error) {
+	return totpAt(seed, time.Now())
+}
+
 // VerifyTotp : code à ±totpWindow pas près du maintenant. Comparaison à temps
 // constant — un code est un secret de 6 chiffres, pas un entier ordinaire.
 func VerifyTotp(seed, code string) bool {

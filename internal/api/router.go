@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"log/slog"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/kerviaHerve/kervia-vault/internal/auth"
@@ -171,11 +172,24 @@ func logRequests(next http.Handler) http.Handler {
 		next.ServeHTTP(rw, r)
 		slog.Info("http",
 			"method", r.Method,
-			"path", r.URL.Path, // path only — query may carry identifiers, values never
+			// path only — query may carry identifiers, values never.
+			// Et /share/<token> : le token EST la credential (audit 1.5.0) —
+			// jamais un token de partage dans les logs.
+			"path", logSafePath(r.URL.Path),
 			"status", rw.status,
 			"ms", time.Since(start).Milliseconds(),
 		)
 	})
+}
+
+// logSafePath masque les segments porteurs de credentials. Un token de
+// partage vivant dans les logs offrirait au lecteur des logs une fenêtre
+// de vol avant la première consultation légitime.
+func logSafePath(p string) string {
+	if strings.HasPrefix(p, "/share/") && len(p) > len("/share/") {
+		return "/share/[redacted]"
+	}
+	return p
 }
 
 type statusWriter struct {

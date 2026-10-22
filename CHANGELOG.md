@@ -24,12 +24,14 @@
     no-store, deny-frame ; consommé / expiré / inconnu → la même page,
     l'énumération n'apprend rien. Audit complet, jamais le token.
 - **Export DR chiffré + restauration (webui ET CLI).** Paramètres →
-  Sauvegarde : un bundle de TOUS les vaults scellé par une passphrase
+  Sauvegarde : un bundle des vaults d'agents scellé par une passphrase
   (PBKDF2-SHA256 600k + AES-256-GCM, format `KVX1`) — **pas la master
-  key** : il restaure sur n'importe quelle instance. Restauration en deux
-  temps dans la webui : **vérifier** (dry-run : inventaire sans écriture)
-  puis **importer** — seuls les vaults MANQUANTS sont restaurés, jamais
-  d'écrasement, jamais de fusion silencieuse. CLI pour l'instance neuve :
+  key** : il restaure sur n'importe quelle instance. Le coffre personnel
+  n'y figure pas (zero-knowledge : il a son propre export chiffré côté
+  navigateur). Restauration en deux temps dans la webui : **vérifier**
+  (dry-run : inventaire sans écriture) puis **importer** — seuls les
+  vaults MANQUANTS sont restaurés, jamais d'écrasement, jamais de fusion
+  silencieuse. CLI pour l'instance neuve :
   `kervia-vault import <fichier.kvx>` (fail-closed). Cycle complet testé
   E2E : export (master key A) → import (master key B différente) → valeur
   intacte ; et le vrai accident — vault supprimé par erreur → restauré.

@@ -49,7 +49,14 @@ func (a *AdminServer) ShareSecret(w http.ResponseWriter, r *http.Request) {
 
 	ttl := ShareTTLDefault
 	if req.TTLMinutes > 0 {
-		ttl = time.Duration(req.TTLMinutes) * time.Minute
+		// clamp sur l'INT AVANT la conversion Duration : un ttl_minutes
+		// astronomique multiplié en nanosecondes overflow l'int64 et
+		// pourrait retomber DANS l'intervalle borné (audit 1.5.0)
+		minutes := req.TTLMinutes
+		if minutes > 1440 {
+			minutes = 1440
+		}
+		ttl = time.Duration(minutes) * time.Minute
 	}
 	if ttl < ShareTTLFloor {
 		ttl = ShareTTLFloor
@@ -88,6 +95,11 @@ func (a *AdminServer) ShareSecret(w http.ResponseWriter, r *http.Request) {
 
 // ViewShare (public) : GET /share/{token} — page autonome sans JS.
 func (a *AdminServer) ViewShare(w http.ResponseWriter, r *http.Request) {
+	// anti-flood par IP : même réponse (page générique), pas d'oracle
+	if !a.shareLimiter.allow(clientIP(r)) {
+		shareGonePage(w)
+		return
+	}
 	token := strings.TrimPrefix(r.URL.Path, "/share/")
 	w.Header().Set("Cache-Control", "no-store")
 	w.Header().Set("X-Content-Type-Options", "nosniff")
@@ -134,19 +146,8 @@ func shareAudit(a *AdminServer, r *http.Request, secretID string, ok bool) {
 	}
 	if ok {
 		_ = a.store.AppendAuditDetail("admin", model.AuditShareView, "secret/"+secretID,
-			"ip="+clientIPForShare(r), requestAuditInfo(r, 200))
+			"ip="+clientIP(r), requestAuditInfo(r, 200))
 	}
-}
-
-func clientIPForShare(r *http.Request) string {
-	// best effort — derrière un reverse proxy, RemoteAddr reste la source honnête
-	if host := r.RemoteAddr; host != "" {
-		if i := strings.LastIndex(host, ":"); i > 0 {
-			return host[:i]
-		}
-		return host
-	}
-	return "?"
 }
 
 // adminSecretIDFromPath : /admin/secrets/{id}/share — id strict [a-f0-9-],

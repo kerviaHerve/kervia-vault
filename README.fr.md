@@ -30,7 +30,7 @@
 - **Export DR chiffré** — bundle passphrase-scellé de tous les vaults, restauration CLI
 - 51 templates de credentials (OpenAI, PostgreSQL, SMTP, Cloudflare, GitHub…)
 - **Auto-mise à jour** depuis la webui — releases vérifiées sha256, données intactes
-- **Coffre personnel zero-knowledge** (gestionnaire de mots de passe) dans le navigateur, invisible des agents
+- **Coffre personnel zero-knowledge** (gestionnaire de mots de passe) dans le navigateur, invisible des agents — 14 modèles (cartes, identités, SSH…), import Bitwarden/1Password/CSV, TOTP multi-comptes
 - Sécurité par conception — AGPL-3.0
 
 ## Architecture

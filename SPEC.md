@@ -118,6 +118,8 @@ Conventions : JSON partout, timestamps RFC3339 UTC, IDs UUIDv7, erreurs `{error,
 
 Schéma client : `masterPassword → PBKDF2-SHA256 600k → masterKey` scelle la `coffreKey` (32 B aléatoire, `wrapped_key`). `verifier` = constante scellée par la coffreKey (détection de mauvais mot de passe **côté client**). Rekey = rescellage de la même coffreKey (aucun re-chiffrement des items). KDF paramétré dans `coffre_meta.kdf_algo/kdf_params` (extensible — argon2id WASM plus tard).
 
+**Contenu des blobs (v2, webui ≥ v1.7.0)** : un item = `{v: 2, type: catégorie, name, fields: [{k: kind, l: label, v: value}], notes, folder, tags, favorite, history}` — 14 catégories (login, note, card, bank, identity, passport, crypto, ssh, server, db, wifi, license, membership, otp), 7 kinds de champs (text, secret, totp, link, month, date, multiline). Les items v1 (flat : username/password/uris/totp) sont **normalisés v2 à la lecture** et réécrits au prochain enregistrement — les vieux blobs restent lisibles pour toujours. Import : Bitwarden JSON/CSV, 1Password 1PUX/1PIF, CSV génériques — tout parsé dans le navigateur (le fichier importé ne transite jamais par le serveur). TOTP : RFC 6238 complet (SHA-1/256/512, 6-8 chiffres, 30/60 s), multi-seeds par item, validé sur les vecteurs du RFC.
+
 | Méthode | Chemin | Description |
 |---|---|---|
 | GET | `/admin/coffre` | enveloppe KDF (ou 404 `coffre_not_created`) + compteurs |

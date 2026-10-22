@@ -28,30 +28,6 @@ export interface CoffreEnvelope {
   verifier_b64: string
 }
 
-export interface CoffreItemData {
-  v: number
-  type: 'login' | 'note'
-  name: string
-  username?: string
-  password?: string
-  uris?: string[]
-  totp?: string
-  notes?: string
-  folder?: string
-  favorite?: boolean
-  history?: { password: string; changed_at: string }[]
-  password_updated_at?: string
-}
-
-export interface DecryptedItem extends CoffreItemData {
-  id: string
-  version: number
-  created_at: string
-  updated_at: string
-  deleted_at: string | null
-  _broken?: boolean // décryptage impossible (ex. rekey raté) — conservé tel quel
-}
-
 // ---- base64 helpers ----
 
 function b64(bytes: Uint8Array): string {
@@ -171,31 +147,59 @@ export async function rekeyCoffre(newPassword: string): Promise<CoffreEnvelope> 
 }
 
 // ---- items ----
+// Le contenu des blobs est défini dans coffre-schema.ts (v2). À la
+// lecture, un blob v1 (flat) est normalisé en v2 à la volée ; il n'est
+// réellement réécrit en v2 qu'au prochain enregistrement.
 
-export async function encryptItem(data: CoffreItemData): Promise<string> {
+import { normalizeItem } from './coffre-schema'
+export { normalizeItem }
+export type { CoffreItemData, DecryptedItem, CategoryId, FieldKind, CoffreField } from './coffre-schema'
+
+export async function encryptItem(data: import('./coffre-schema').CoffreItemData): Promise<string> {
   if (!session) throw new Error('locked')
   const sealed = await seal(session.key, te(JSON.stringify(data)))
   return b64(sealed)
 }
 
-export async function decryptItem(blobB64: string): Promise<CoffreItemData> {
+export async function decryptItem(blobB64: string): Promise<import('./coffre-schema').CoffreItemData> {
   if (!session) throw new Error('locked')
-  return JSON.parse(td(await open(session.key, unb64(blobB64)))) as CoffreItemData
+  return normalizeItem(JSON.parse(td(await open(session.key, unb64(blobB64)))))
 }
 
-// ---- TOTP (RFC 6238, SHA-1, 30 s, 6 chiffres) ----
+// ---- TOTP (RFC 6238) v2 — otpauth:// complet ----
+// Algos SHA-1/SHA-256/SHA-512, 6-8 chiffres, période 30/60 s. Un item
+// peut porter PLUSIEURS champs totp (multi-TOTP), chacun son live code.
 
 const B32 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567'
 
-export function parseTotpSeed(s: string): string {
+export interface TotpSpec {
+  secret: string      // base32
+  algo: 'SHA-1' | 'SHA-256' | 'SHA-512'
+  digits: number       // 6 | 7 | 8
+  period: number       // 30 | 60
+}
+
+// parse une URI otpauth:// ou un seed base32 brut
+export function parseTotp(s: string): TotpSpec {
   const v = (s || '').trim()
   if (/^otpauth:\/\//i.test(v)) {
     try {
       const u = new URL(v.replace(/^otpauth:\/\//i, 'https://'))
-      return (u.searchParams.get('secret') || '').toUpperCase().replace(/\s/g, '')
-    } catch { return '' }
+      const secret = (u.searchParams.get('secret') || '').toUpperCase().replace(/\s/g, '')
+      // les URI réelles écrivent SHA256/SHA-512 sans tiret — normaliser
+      const algoRaw = (u.searchParams.get('algorithm') || 'SHA1').toUpperCase().replace(/-/g, '')
+      const algo = algoRaw === 'SHA256' || algoRaw === 'SHA512' ? `SHA-${algoRaw.slice(3)}` as TotpSpec['algo'] : 'SHA-1'
+      const digits = Math.min(8, Math.max(6, Number(u.searchParams.get('digits')) || 6))
+      const period = Number(u.searchParams.get('period')) === 60 ? 60 : 30
+      return { secret, algo, digits, period }
+    } catch { return { secret: '', algo: 'SHA-1', digits: 6, period: 30 } }
   }
-  return v.toUpperCase().replace(/\s/g, '')
+  return { secret: v.toUpperCase().replace(/\s/g, ''), algo: 'SHA-1', digits: 6, period: 30 }
+}
+
+// compat v1 : le seed base32 d'une valeur otpauth:// quelconque
+export function parseTotpSeed(s: string): string {
+  return parseTotp(s).secret
 }
 
 function base32Decode(s: string): Uint8Array {
@@ -214,20 +218,31 @@ function base32Decode(s: string): Uint8Array {
   return new Uint8Array(out)
 }
 
-export async function totpNow(seed: string): Promise<{ code: string; remaining: number }> {
-  const keyBytes = base32Decode(parseTotpSeed(seed))
+// code pour un compteur explicite (testable — vecteurs RFC 6238)
+export async function totpAtEx(spec: TotpSpec, counter: number): Promise<string> {
+  const keyBytes = base32Decode(spec.secret)
   if (keyBytes.length === 0) throw new Error('invalid_seed')
-  const counter = Math.floor(Date.now() / 1000 / 30)
   const msg = new Uint8Array(8)
-  // counter en big-endian 64 bits (JS : Number suffit jusqu'en 2242)
   let n = counter
   for (let i = 7; i >= 0; i--) { msg[i] = n & 0xff; n = Math.floor(n / 256) }
-  const key = await crypto.subtle.importKey('raw', keyBytes as BufferSource, { name: 'HMAC', hash: 'SHA-1' }, false, ['sign'])
+  const key = await crypto.subtle.importKey('raw', keyBytes as BufferSource, { name: 'HMAC', hash: spec.algo || 'SHA-1' }, false, ['sign'])
   const sig = new Uint8Array(await crypto.subtle.sign('HMAC', key, msg as BufferSource))
   const off = sig[sig.length - 1] & 0x0f
   const bin = ((sig[off] & 0x7f) << 24) | (sig[off + 1] << 16) | (sig[off + 2] << 8) | sig[off + 3]
-  const code = String(bin % 1_000_000).padStart(6, '0')
-  return { code, remaining: 30 - (Math.floor(Date.now() / 1000) % 30) }
+  const digits = spec.digits || 6
+  return String(bin % (10 ** digits)).padStart(digits, '0')
+}
+
+export async function totpNowEx(spec: TotpSpec): Promise<{ code: string; remaining: number }> {
+  const period = spec.period || 30
+  const counter = Math.floor(Date.now() / 1000 / period)
+  const code = await totpAtEx(spec, counter)
+  return { code, remaining: period - (Math.floor(Date.now() / 1000) % period) }
+}
+
+// compat v1 : SHA-1, 30 s, 6 chiffres
+export async function totpNow(seed: string): Promise<{ code: string; remaining: number }> {
+  return totpNowEx(parseTotp(seed))
 }
 
 // ---- générateur de mots de passe ----
@@ -287,70 +302,4 @@ export function passwordStrength(pw: string): { bits: number; label: string } {
   const bits = Math.round(effective * Math.log2(pool))
   const label = bits < 30 ? 'weak' : bits < 50 ? 'fair' : bits < 70 ? 'good' : bits < 90 ? 'strong' : 'excellent'
   return { bits, label }
-}
-
-// ---- import/export Bitwarden (Vaultwarden) ----
-
-export interface BitwardenExport {
-  encrypted?: boolean
-  folders?: { id: string; name: string }[]
-  items?: {
-    id?: string
-    folderId?: string
-    type?: number // 1 = login, 2 = note sécurisée
-    name?: string
-    notes?: string
-    login?: { username?: string; password?: string; uris?: { uri?: string }[]; totp?: string }
-  }[]
-}
-
-// bitwardenToItems : convertit un export JSON Bitwarden en items du
-// coffre (les dossiers sont résolus par nom, tout devient E2E chiffré).
-export function bitwardenToItems(json: BitwardenExport): CoffreItemData[] {
-  const folders = new Map<string, string>()
-  for (const f of json.folders || []) folders.set(f.id, f.name)
-  const out: CoffreItemData[] = []
-  for (const it of json.items || []) {
-    if (json.encrypted) continue // refuser les exports chiffrés Bitwarden (clé non disponible)
-    const isLogin = (it.type ?? 1) === 1
-    out.push({
-      v: 1,
-      type: isLogin ? 'login' : 'note',
-      name: it.name || '(sans nom)',
-      username: isLogin ? it.login?.username || '' : '',
-      password: isLogin ? it.login?.password || '' : '',
-      uris: isLogin ? (it.login?.uris || []).map(u => u.uri || '').filter(Boolean) : [],
-      totp: isLogin ? it.login?.totp || '' : '',
-      notes: it.notes || '',
-      folder: folders.get(it.folderId || '') || '',
-      favorite: false,
-      history: [],
-    })
-  }
-  return out
-}
-
-// itemsToBitwarden : export au format Bitwarden (ré-importable dans
-// Vaultwarden). Les items sont en CLAIR — la webui impose une
-// confirmation explicite avant d'y arriver.
-export function itemsToBitwarden(items: DecryptedItem[]): BitwardenExport {
-  const folderNames = [...new Set(items.map(i => i.folder || '').filter(Boolean))]
-  const folderIds = new Map(folderNames.map((n, idx) => [n, String(idx)]))
-  return {
-    encrypted: false,
-    folders: folderNames.map(n => ({ id: folderIds.get(n)!, name: n })),
-    items: items.map(i => ({
-      id: i.id,
-      folderId: i.folder ? folderIds.get(i.folder) : undefined,
-      type: i.type === 'note' ? 2 : 1,
-      name: i.name,
-      notes: i.notes || '',
-      login: i.type === 'note' ? undefined : {
-        username: i.username || '',
-        password: i.password || '',
-        uris: (i.uris || []).map(uri => ({ uri })),
-        totp: i.totp || '',
-      },
-    })),
-  }
 }

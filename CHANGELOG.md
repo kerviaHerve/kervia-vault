@@ -1,5 +1,45 @@
 # Changelog
 
+## v1.7.0 (2026-10-22)
+
+- **Le Coffre v2 — un vrai gestionnaire de mots de passe.** Le coffre
+  personnel (zero-knowledge, agents JAMAIS accès — inchangé) passe du
+  « login + note » à une organisation type 1Password : **14 modèles**
+  d'éléments, **imports Bitwarden / 1Password / CSV** et **TOTP avancé**.
+  Tout reste côté navigateur : le serveur ne voit toujours que des
+  blobs AES-256-GCM opaques — **aucune modification de l'API ni du
+  schéma serveur**, aucune nouvelle dépendance npm (WebCrypto +
+  DecompressionStream natifs).
+  - **14 modèles** : Identifiant, Note, Carte bancaire, Compte bancaire,
+    Identité, Passeport, Wallet crypto, Clé SSH, Serveur, Base de
+    données, Wi-Fi, Licence logicielle, Abonnement/Membre, Code TOTP.
+    Chaque modèle pré-remplit ses champs (numéro masqué, expiration,
+    CVV, IBAN, seed…) ; des **champs personnalisés** (7 types : texte,
+    secret, TOTP, lien, mois, date, multiligne) complètent n'importe
+    quel élément ; **étiquettes** (tags) et dossiers.
+  - **Imports** (détection automatique du format) : Bitwarden /
+    Vaultwarden **JSON** (identifiants, notes, cartes, identités,
+    champs personnalisés), **1Password .1pux** (ZIP officiel, lu par
+    DecompressionStream natif — zip zéro dépendance) et **1PIF**
+    (legacy 1Password 7), **CSV** de Chrome, Firefox, Safari, LastPass,
+    Dashlane, KeePass, Proton, NordPass… (colonnes auto-détectées,
+    cartes bancaires reconnues), et le **format Kervia** (round-trip
+    complet). Exports : **Kervia JSON** (fidèle à 100 %) et **Bitwarden
+    JSON** (ré-importable dans Vaultwarden).
+  - **TOTP v2** : plusieurs seeds par élément, URI `otpauth://`
+    complètes (SHA-1/SHA-256/SHA-512, 6-8 chiffres, périodes 30/60 s)
+    validées contre les vecteurs RFC 6238 ; code vivant en liste et en
+    vue détaillée.
+  - **Migration douce** : les items v1 existants sont normalisés v2 à
+    la lecture et réécrits au prochain enregistrement — les vieux
+    blobs restent lisibles pour toujours, aucune action requise.
+  - **E2E navigateur** (chromium headless) : 21 étapes vertes —
+    création, 14 modèles, carte bancaire (sous-titre •••• 4242), filtre
+    par catégorie, import CSV + Bitwarden, TOTP SHA-256 8 chiffres
+    vivant, export Kervia + round-trip, verrouillage/déverrouillage.
+    Suite lib Node : 31 tests (schéma, migration, imports, exports,
+    vecteurs RFC 6238).
+
 ## v1.6.3 (2026-10-22)
 
 - **Coffre réparé : écran blanc au premier clic.** Le coffre personnel était

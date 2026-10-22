@@ -1,5 +1,22 @@
 # Changelog
 
+## v1.7.2 (2026-10-22)
+
+- **Dialogs : peinture instantanée, zéro animation.** Dernier maillon
+  du bug « premier clic → flou, deuxième clic → ça marche » (Firefox
+  158/macOS) : l'animation d'entrée `popin` partait de `opacity: 0` —
+  dans cet environnement, la progression vers l'état final ne se
+  peignait pas au premier rendu (GPU/extension), laissant le contenu
+  invisible derrière le scrim. Toutes les animations des dialogs
+  (entrée ET sortie) sont retirées : l'overlay et le contenu n'ont plus
+  JAMAIS d'état initial invisible — ils se peignent d'emblée à l'état
+  final. Structurellement impossible d'avoir un dialog invisible ou un
+  scrim suspendu, quel que soit l'environnement. Le blur du scrim et
+  l'ombrage du panneau restent (statiques). Validé : E2E chromium
+  complet 21/21, Firefox 158.0.1 réel — premier clic : dialog peint
+  immédiatement (`animationName: none`, opacité 1), fermetures Échap et
+  × en boucle propres.
+
 ## v1.7.1 (2026-10-22)
 
 - **Robustesse dialogs : plus jamais de page floue figée.** Les overlays

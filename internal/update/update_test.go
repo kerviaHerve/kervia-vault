@@ -6,6 +6,7 @@ package update
 
 import (
 	"net/http"
+	"net/http/httptest"
 	"runtime"
 	"strings"
 	"testing"
@@ -55,6 +56,52 @@ func TestChecksumFor(t *testing.T) {
 	}
 	if _, err := checksumFor(sums, "kervia-vault-linux-386.tar.gz"); err == nil {
 		t.Fatal("missing arch must error")
+	}
+}
+
+// fetchNotes : override du serveur de notes + tolérance aux pannes.
+func TestFetchNotes(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(`{"body":"## v9.9.9\n- **TOTP** second facteur\n  - sous-puce"}`))
+	}))
+	defer srv.Close()
+	old := NotesURL
+	NotesURL = srv.URL
+	defer func() { NotesURL = old }()
+
+	notes := fetchNotes(nil)
+	if !strings.Contains(notes, "**TOTP**") || !strings.Contains(notes, "v9.9.9") {
+		t.Fatalf("notes = %q", notes)
+	}
+
+	// pannes : URL morte → notes vides, JAMAIS d'erreur remontée au check
+	NotesURL = "http://127.0.0.1:1/none"
+	if got := fetchNotes(nil); got != "" {
+		t.Fatalf("dead endpoint must yield empty notes, got %q", got)
+	}
+}
+
+// Check() doit porter les notes dans le statut (cache TTL inclus).
+func TestCheckCarriesNotes(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(`{"body":"- **Test** note"}`))
+	}))
+	defer srv.Close()
+	old := NotesURL
+	NotesURL = srv.URL
+	defer func() { NotesURL = old }()
+
+	m := New("v1.0.0")
+	st := m.Check(true)
+	if st.LastError != "" && st.Notes == "" {
+		t.Logf("offline update check: %v (notes skipped) — acceptable", st.LastError)
+		return
+	}
+	if st.Notes == "" {
+		t.Fatal("notes must be carried in the status when the endpoint answers")
+	}
+	if !strings.Contains(st.Notes, "**Test**") {
+		t.Fatalf("notes content: %q", st.Notes)
 	}
 }
 

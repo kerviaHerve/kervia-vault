@@ -20,6 +20,7 @@ import (
 	"compress/gzip"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -36,6 +37,47 @@ import (
 // ReleasesBase is the public releases root (overridable via
 // KERVIA_VAULT_UPDATE_URL for tests/private mirrors; defaults to GitHub).
 var ReleasesBase = envOr("KERVIA_VAULT_UPDATE_URL", "https://github.com/kerviaHerve/kervia-vault/releases")
+
+// NotesURL : API JSON de la dernière release — le corps (markdown extrait du
+// CHANGELOG par le workflow) alimente le champ `notes` du statut. Overridable
+// pour les tests et les miroirs privés, comme ReleasesBase.
+var NotesURL = envOr("KERVIA_VAULT_NOTES_URL", "https://api.github.com/repos/kerviaHerve/kervia-vault/releases/latest")
+
+// notesMax plafonne les notes servies : le webui affiche un résumé de
+// changelog, pas un fichier illimité.
+const notesMax = 16 << 10
+
+// fetchNotes récupère le corps de la dernière release. Tolérant aux pannes
+// par design : des notes indisponibles ne doivent JAMAIS casser un check
+// d'update — on retourne vide, le webui n'affiche simplement pas la section.
+func fetchNotes(client *http.Client) string {
+	if client == nil {
+		client = &http.Client{Timeout: 10 * time.Second}
+	}
+	req, err := http.NewRequest("GET", NotesURL, nil)
+	if err != nil {
+		return ""
+	}
+	req.Header.Set("Accept", "application/vnd.github+json")
+	res, err := client.Do(req)
+	if err != nil {
+		return ""
+	}
+	defer func() { _ = res.Body.Close() }()
+	if res.StatusCode != 200 {
+		return ""
+	}
+	var out struct {
+		Body string `json:"body"`
+	}
+	if err := json.NewDecoder(io.LimitReader(res.Body, notesMax)).Decode(&out); err != nil {
+		return ""
+	}
+	if len(out.Body) > notesMax {
+		out.Body = out.Body[:notesMax]
+	}
+	return out.Body
+}
 
 func envOr(key, def string) string {
 	if v := strings.TrimSpace(os.Getenv(key)); v != "" {
@@ -188,6 +230,7 @@ func (m *Manager) Check(force bool) Status {
 	m.lastError = ""
 	st.Latest = latest
 	st.UpdateAvail = Compare(latest, m.current) > 0
+	st.Notes = fetchNotes(nil)
 	st.CheckedAt = now.Format(time.RFC3339)
 	m.cached = &st
 	m.cachedAt = now

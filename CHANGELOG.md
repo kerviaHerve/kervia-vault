@@ -1,5 +1,24 @@
 # Changelog
 
+## v1.6.0 (2026-10-22)
+
+- **Mise à jour : le confort du clic.** Deux irritations de la v1.5 corrigées :
+  - **Rechargement automatique RÉPARÉ.** La détection de fin de restart
+    cherchait la version dans `/setup/info` — or le hardening recon
+    (v1.0.12) ne la révèle plus une fois l'installation faite : le
+    rechargement ne se déclenchait JAMAIS, rafraîchissement manuel obligatoire.
+    Le signal fiable est la **fenêtre down** : l'apply quitte proprement,
+    systemd relance en ~3 s — la webui sonde chaque seconde et la première
+    réponse APRÈS un échec recharge la page (fallback 15 s pour un restart
+    trop rapide pour être vu).
+  - **Changelog visible AVANT de cliquer.** Le statut d'update transporte
+    désormais les **notes de la release** (markdown extrait du CHANGELOG par
+    le workflow) : la carte Version déploie « Ce que cette mise à jour
+    apporte » — titres, listes à deux niveaux, gras, sans dépendance
+    markdown côté client. Tolérant aux pannes : pas de notes = pas de
+    section, jamais un check cassé. URL overridable
+    (`KERVIA_VAULT_NOTES_URL`) pour tests et miroirs privés.
+
 ## v1.5.0 (2026-10-22)
 
 - **Double authentification (TOTP) sur le login admin.** Second facteur

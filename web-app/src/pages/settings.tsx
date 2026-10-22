@@ -6,6 +6,31 @@ import { api } from '@/lib/api'
 import { useLang } from '@/i18n'
 import { Button, Input, Field, Card, CardHeader, CardTitle, CardBody } from '@/components/ui'
 
+// ReleaseNotes : mini-rendu du markdown des notes de release (format CHANGELOG
+// du projet : titres ##, listes à deux niveaux, **gras**). Pas de lib markdown
+// complète pour trois constructions — le webui reste sans dépendance lourde.
+function ReleaseNotes({ notes }: { notes: string }) {
+  const lines = notes.split('\n').filter(l => l.trim() !== '')
+  const renderLine = (line: string, key: number) => {
+    const bolded = (s: string) => s.split(/\*\*(.+?)\*\*/g).map((part, i) =>
+      i % 2 === 1 ? <strong key={i}>{part}</strong> : <span key={i}>{part}</span>)
+    const m = line.match(/^(\s*)-\s(.*)$/)
+    if (m) {
+      const depth = Math.min(m[1].length, 4)
+      return (
+        <li key={key} className="ml-4 list-disc text-fg-2" style={{ marginLeft: 16 + depth * 8 }}>
+          {bolded(m[2])}
+        </li>
+      )
+    }
+    if (line.startsWith('## ')) {
+      return <p key={key} className="font-semibold text-fg mt-3 first:mt-0">{line.replace(/^##\s+/, '')}</p>
+    }
+    return <p key={key} className="text-fg-3">{bolded(line)}</p>
+  }
+  return <div className="text-xs leading-relaxed space-y-1">{lines.map(renderLine)}</div>
+}
+
 export default function Settings() {
   const { t } = useLang()
   const [cur, setCur] = React.useState('')
@@ -124,25 +149,36 @@ export default function Settings() {
     setResBusy(false)
   }
 
-  // after an update: poll until the server is back and shows the NEW
-  // version, then reload the page automatically — the user never stays
-  // stuck on "restarting…".
-  const watchRestart = (targetVersion: string) => {
+  // after an update: poll until the server is BACK, then reload the page
+  // automatically — the user never stays stuck on "restarting…".
+  //
+  // GOTCHA (corrigé en 1.6) : la version n'est PAS révélée par /setup/info
+  // une fois l'installation faite (hardening recon v1.0.12) — l'ancienne
+  // détection « version === cible » ne matchait jamais. Le signal fiable,
+  // c'est la FENÊTRE DOWN : l'apply quitte proprement, systemd met ~3 s à
+  // relancer — on sonde toutes les secondes, et la première réponse APRÈS
+  // un échec = le nouveau binaire est en ligne.
+  const watchRestart = () => {
     const started = Date.now()
+    let sawDown = false
     const check = async () => {
       try {
-        const d = await fetch('/setup/info').then(r => r.ok ? r.json() : null)
-        if (d && d.version && d.version === targetVersion && Date.now() - started > 4000) {
+        await fetch('/setup/info', { cache: 'no-store' })
+        if (sawDown) {
           window.clearInterval(restartTimer.current!)
           window.location.reload()
         }
-      } catch { /* server still down — keep polling */ }
-      // safety: stop after 3 minutes no matter what
-      if (Date.now() - started > 180000 && restartTimer.current) {
+      } catch {
+        sawDown = true // le serveur est en bas : c'est le restart
+      }
+      // fallback 15 s : un restart si rapide qu'aucune sonde n'a vu le down —
+      // le swap est atomique AVANT l'exit, servir = c'est déjà le nouveau
+      if (Date.now() - started > 15000 && restartTimer.current) {
         window.clearInterval(restartTimer.current)
+        window.location.reload()
       }
     }
-    restartTimer.current = window.setInterval(check, 2000)
+    restartTimer.current = window.setInterval(check, 1000)
   }
 
   const applyUpdate = async () => {
@@ -151,7 +187,7 @@ export default function Settings() {
     try {
       const d = await api('POST', '/admin/update/apply', {})
       setRestarting(true)
-      watchRestart(String(d.to).replace(' (pré-version)', ''))
+      watchRestart()
     } catch (e: any) { toast.error(e.message) }
     setUpdBusy(false)
   }
@@ -241,6 +277,17 @@ export default function Settings() {
               </div>
               {upd.last_error && <p className="text-[11px] text-danger">{upd.last_error}</p>}
               {upd.mode === 'docker' && <p className="text-[11px] text-warn">{String(t.updateDocker)}</p>}
+              {/* ce que la mise à jour apporte — notes de la release (CHANGELOG) */}
+              {upd.notes && (
+                <details className="group rounded-lg border border-border bg-card-2 px-4 py-2.5">
+                  <summary className="text-xs font-semibold cursor-pointer select-none text-fg-2 group-open:text-fg">
+                    {String(t.updateWhatsNew)}
+                  </summary>
+                  <div className="mt-3 max-h-72 overflow-y-auto pr-1">
+                    <ReleaseNotes notes={String(upd.notes)} />
+                  </div>
+                </details>
+              )}
               <div className="flex gap-2">
                 {upd.update_available && upd.mode !== 'docker' && (
                   <Button variant="primary" onClick={applyUpdate} disabled={updBusy}>

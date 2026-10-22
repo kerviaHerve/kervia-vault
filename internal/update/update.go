@@ -38,45 +38,61 @@ import (
 // KERVIA_VAULT_UPDATE_URL for tests/private mirrors; defaults to GitHub).
 var ReleasesBase = envOr("KERVIA_VAULT_UPDATE_URL", "https://github.com/kerviaHerve/kervia-vault/releases")
 
-// NotesURL : API JSON de la dernière release — le corps (markdown extrait du
-// CHANGELOG par le workflow) alimente le champ `notes` du statut. Overridable
-// pour les tests et les miroirs privés, comme ReleasesBase.
-var NotesURL = envOr("KERVIA_VAULT_NOTES_URL", "https://api.github.com/repos/kerviaHerve/kervia-vault/releases/latest")
+// RecentURL : API des dernières releases (3) — alimente le panneau Changelog
+// des réglages (tag + date + notes de chacune) ET les notes de l'update à
+// venir (la plus récente en découle). Overridable pour les tests et les
+// miroirs privés, comme ReleasesBase.
+var RecentURL = envOr("KERVIA_VAULT_RECENT_URL", "https://api.github.com/repos/kerviaHerve/kervia-vault/releases?per_page=3")
 
 // notesMax plafonne les notes servies : le webui affiche un résumé de
 // changelog, pas un fichier illimité.
 const notesMax = 16 << 10
 
-// fetchNotes récupère le corps de la dernière release. Tolérant aux pannes
-// par design : des notes indisponibles ne doivent JAMAIS casser un check
-// d'update — on retourne vide, le webui n'affiche simplement pas la section.
-func fetchNotes(client *http.Client) string {
+// RecentRelease : une entrée du journal des versions.
+type RecentRelease struct {
+	Tag   string `json:"tag"`
+	Date  string `json:"date"`
+	Notes string `json:"notes"`
+}
+
+// fetchRecent récupère les dernières releases. Tolérant aux pannes par
+// design : pas de releases = pas de panneau, JAMAIS un check cassé.
+func fetchRecent(client *http.Client) []RecentRelease {
 	if client == nil {
 		client = &http.Client{Timeout: 10 * time.Second}
 	}
-	req, err := http.NewRequest("GET", NotesURL, nil)
+	req, err := http.NewRequest("GET", RecentURL, nil)
 	if err != nil {
-		return ""
+		return nil
 	}
 	req.Header.Set("Accept", "application/vnd.github+json")
 	res, err := client.Do(req)
 	if err != nil {
-		return ""
+		return nil
 	}
 	defer func() { _ = res.Body.Close() }()
 	if res.StatusCode != 200 {
-		return ""
+		return nil
 	}
-	var out struct {
-		Body string `json:"body"`
+	var raw []struct {
+		TagName     string `json:"tag_name"`
+		PublishedAt string `json:"published_at"`
+		Body        string `json:"body"`
 	}
-	if err := json.NewDecoder(io.LimitReader(res.Body, notesMax)).Decode(&out); err != nil {
-		return ""
+	if err := json.NewDecoder(io.LimitReader(res.Body, 3*notesMax)).Decode(&raw); err != nil {
+		return nil
 	}
-	if len(out.Body) > notesMax {
-		out.Body = out.Body[:notesMax]
+	out := make([]RecentRelease, 0, len(raw))
+	for _, r := range raw {
+		if len(r.Body) > notesMax {
+			r.Body = r.Body[:notesMax]
+		}
+		out = append(out, RecentRelease{Tag: r.TagName, Date: r.PublishedAt, Notes: r.Body})
+		if len(out) == 3 {
+			break
+		}
 	}
-	return out.Body
+	return out
 }
 
 func envOr(key, def string) string {
@@ -110,6 +126,7 @@ type Status struct {
 	Latest      string `json:"latest,omitempty"`
 	UpdateAvail bool   `json:"update_available"`
 	Notes       string `json:"notes,omitempty"`
+	Recent      []RecentRelease `json:"recent,omitempty"`
 	Mode        string `json:"mode"` // systemd/launchd (self-update OK) | docker (manual)
 	LastError   string `json:"last_error,omitempty"`
 	CheckedAt   string `json:"checked_at,omitempty"`
@@ -230,7 +247,12 @@ func (m *Manager) Check(force bool) Status {
 	m.lastError = ""
 	st.Latest = latest
 	st.UpdateAvail = Compare(latest, m.current) > 0
-	st.Notes = fetchNotes(nil)
+	// un seul fetch pour tout : le journal (3 dernières) ET les notes de
+	// l'update à venir (la plus récente) dérivent de la même réponse
+	st.Recent = fetchRecent(nil)
+	if len(st.Recent) > 0 {
+		st.Notes = st.Recent[0].Notes
+	}
 	st.CheckedAt = now.Format(time.RFC3339)
 	m.cached = &st
 	m.cachedAt = now

@@ -1,5 +1,16 @@
 # Changelog
 
+## v1.6.2 (2026-10-22)
+
+- **Journal des versions dans Paramètres.** Un panneau à droite affiche les
+  **trois dernières releases** (tag, date, notes complètes) — collant
+  (sticky), déroulant, masqué sur petit écran. La release la plus récente
+  porte le badge « Mise à jour » quand elle n'est pas encore installée.
+  Un seul fetch côté serveur alimente le journal ET les notes de l'update
+  à venir (`recent[]` dans le statut, `notes` dérivé) ; URL overridable
+  (`KERVIA_VAULT_RECENT_URL`), tolérant aux pannes — pas de réponse =
+  pas de panneau, jamais un check cassé.
+
 ## v1.6.1 (2026-10-22)
 
 - **i18n : titres de pages enfin traduits.** Les titres `<h1>` étaient codés

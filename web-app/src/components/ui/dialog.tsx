@@ -10,20 +10,22 @@ export const DialogClose = DialogPrimitive.Close
 export function DialogContent({ className, children, title }: { className?: string; children: React.ReactNode; title: string }) {
   return (
     <DialogPrimitive.Portal>
-      {/* Scrim : fade + matérialisation du blur ensemble (§12) — sortie en
-          miroir exact : ce qui disparaît d'un chemin réapparaît de là où il
-          vient (§7). Radix garde l'élément monté le temps de l'exit. */}
+      {/* Scrim : fade + matérialisation du blur ensemble (§12).
+          ROBUSTESSE (v1.7.1) : PAS d'animation de sortie. Radix garde
+          l'élément monté jusqu'au animationend de l'exit — si cet
+          événement ne part jamais (extension navigateur, quirk de
+          rendering), le scrim reste suspendu à vie : page floue et
+          figée. Sans classe data-[state=closed], Radix voit
+          animationName:none et démonte immédiatement à la fermeture. */}
       <DialogPrimitive.Overlay
         className="fixed inset-0 bg-black/70 z-50 [backdrop-filter:blur(16px)]
-          data-[state=open]:animate-[scrim-in_.22s_cubic-bezier(0.32,0.72,0,1)]
-          data-[state=closed]:animate-[scrim-out_.18s_cubic-bezier(1,0.28,1,0.68)]"
+          data-[state=open]:animate-[scrim-in_.22s_cubic-bezier(0.32,0.72,0,1)]"
       />
       <DialogPrimitive.Content
         className={cn(
           'fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-50',
           'w-full max-w-md bg-card border border-border rounded-2xl shadow-2xl',
           'data-[state=open]:animate-[popin_.26s_cubic-bezier(0.32,0.72,0,1)]',
-          'data-[state=closed]:animate-[popout_.18s_cubic-bezier(1,0.28,1,0.68)]',
           className,
         )}
       >

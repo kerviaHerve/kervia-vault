@@ -50,6 +50,54 @@ const NAV = [
 
 type PageId = (typeof NAV)[number]['id'] | 'login'
 
+// ---- ErrorBoundary (v1.7.1) -----------------------------------------------
+// Filet de sécurité : un crash de rendu (composant, provider, i18n…)
+// affiche une carte claire + bouton recharger, JAMAIS une page blanche
+// ou figée sans explication. Auto-contenu : aucun import risqué (le
+// crash peut venir de n'importe quel module), inline bilingue.
+class ErrorBoundary extends React.Component<
+  { children: React.ReactNode },
+  { error: Error | null }
+> {
+  state = { error: null as Error | null }
+  static getDerivedStateFromError(error: Error) {
+    return { error }
+  }
+  render() {
+    const e = this.state.error
+    if (!e) return this.props.children
+    return (
+      <div className="min-h-screen grid place-items-center bg-bg p-6" style={{ colorScheme: 'dark' }}>
+        <div className="max-w-md w-full border border-danger/40 bg-[#1c231f] rounded-2xl p-8 text-center"
+          style={{ color: '#e9efe9', fontFamily: 'system-ui, sans-serif' }}>
+          <div className="w-12 h-12 rounded-xl mx-auto mb-4 grid place-items-center"
+            style={{ background: 'rgba(220,80,80,.14)', color: '#e06c6c' }}>
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+              strokeLinecap="round" strokeLinejoin="round">
+              <path d="m21.73 18-8-14a2 2 0 0 0-3.46 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z" />
+              <path d="M12 9v4" /><path d="M12 17h.01" />
+            </svg>
+          </div>
+          <h1 className="text-lg font-bold">Une erreur inattendue est survenue</h1>
+          <p className="text-sm mt-2 leading-relaxed" style={{ color: '#9aa89c' }}>
+            Something went wrong while rendering this page. Tes données ne risquent rien :
+            tout est chiffré et stocké côté serveur. Recharge la page.
+          </p>
+          <pre className="mt-4 text-left text-[11px] font-mono rounded-lg p-3 max-h-32 overflow-auto whitespace-pre-wrap"
+            style={{ background: 'rgba(255,255,255,.05)', color: '#c9d4c9' }}>
+            {String((e && (e.message || e)) || e)}
+          </pre>
+          <button onClick={() => window.location.reload()}
+            className="mt-5 h-9 px-4 rounded-lg text-sm font-semibold cursor-pointer w-full"
+            style={{ background: '#b8e263', color: '#171b19' }}>
+            Recharger / Reload
+          </button>
+        </div>
+      </div>
+    )
+  }
+}
+
 function App() {
   const [page, setPage] = React.useState<PageId>((window.location.hash.slice(1) || 'dashboard') as PageId)
   const [authed, setAuthed] = React.useState<boolean | null>(null)
@@ -211,6 +259,8 @@ createRoot(document.getElementById('root')!).render(
   /* reducedMotion="user" : framer bascule en cross-fade dès que l'utilisateur
      demande moins de mouvement (skill §14) — équivalent doux, pas l'absence. */
   <MotionConfig reducedMotion="user">
-    <LangProvider><App /></LangProvider>
+    <LangProvider>
+      <ErrorBoundary><App /></ErrorBoundary>
+    </LangProvider>
   </MotionConfig>
 )

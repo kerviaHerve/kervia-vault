@@ -1,5 +1,31 @@
 # Changelog
 
+## v1.7.1 (2026-10-22)
+
+- **Robustesse dialogs : plus jamais de page floue figée.** Les overlays
+  Radix attendaient l'événement `animationend` des animations de sortie
+  pour se démonter — si cet événement ne part jamais (extension du
+  navigateur qui interfère, quirk de rendu), le scrim restait suspendu à
+  vie : écran flou et page morte, sans aucune erreur console. Les
+  animations de sortie sont retirées : Radix voit `animationName: none`
+  et démonte immédiatement à la fermeture. Les animations d'entrée sont
+  conservées. Validé sur Firefox 158.0.1 réel (binaire officiel via
+  geckodriver) : fermetures Escape et bouton × en boucle, overlay
+  proprement retiré à chaque fois ; E2E chromium complet toujours 21/21.
+- **Filet de sécurité : écran d'erreur au lieu de page blanche.** Un
+  boundary React englobe l'application — tout crash de rendu affiche
+  désormais une carte claire avec le message d'erreur et un bouton
+  « Recharger » (auto-contenu, aucun import : le crash peut venir de
+  n'importe quel module). Les données ne risquent jamais rien : tout est
+  chiffré côté serveur.
+- **Diagnostic coffre (informatif)** : le « flou bloquant » constaté sur
+  un poste (Firefox 158/macOS, profil normal) ne se reproduit ni en
+  fenêtre privée, ni sur le même Firefox officiel headless avec
+  l'artefact release exact — la cause est une extension du navigateur
+  (probablement le gestionnaire de mots de passe) qui injecte son
+  autofill dans les dialogs. Exclure vault.kervia.ch dans les réglages
+  de l'extension.
+
 ## v1.7.0 (2026-10-22)
 
 - **Le Coffre v2 — un vrai gestionnaire de mots de passe.** Le coffre

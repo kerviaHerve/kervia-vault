@@ -345,6 +345,8 @@ export const translations = {
     cofExportFmt: "Format d'export",
     cofExportKervia: "Kervia (complet — tags, champs personnalisés)",
     cofExportBitwarden: "Bitwarden JSON (ré-importable dans Vaultwarden)",
+    cofShowMore: "Afficher {n} suivants",
+    cofLoading: "Chargement du coffre…",
   },
   en: {
     overview: "Overview",
@@ -681,6 +683,8 @@ export const translations = {
     cofExportFmt: "Export format",
     cofExportKervia: "Kervia (full — tags, custom fields)",
     cofExportBitwarden: "Bitwarden JSON (re-importable in Vaultwarden)",
+    cofShowMore: "Show {n} more",
+    cofLoading: "Loading vault…",
   },
 } as const
 

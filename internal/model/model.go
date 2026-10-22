@@ -97,6 +97,13 @@ const (
 // The detail carries the filename only, never content.
 const AuditExport = "export"
 
+// Restore audit actions — webui restore of missing vaults from a bundle.
+// Counts and vault names only — values never reach the audit.
+const (
+	AuditRestoreVerify = "restore_verify" // dry-run: bundle opened, inventory reported
+	AuditRestoreImport = "restore_import" // missing vaults created, values re-sealed
+)
+
 // 2FA (TOTP) audit actions — the admin second factor lifecycle.
 const (
 	Audit2FAEnroll  = "2fa_enroll"   // pending seed generated (not yet active)

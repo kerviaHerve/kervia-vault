@@ -81,6 +81,9 @@ func (s *Server) Router(authSvc *auth.Service, admin *AdminServer, adminExtender
 
 	// ---- export DR chiffré (bundle KVX1 passphrase-scellé) ----
 	adminMux.HandleFunc("POST /admin/export", admin.ExportHandler)
+	// ---- restore webui du bundle DR : dry-run (vérifier) puis import des
+	// vaults MANQUANTS uniquement — jamais d'écrasement ----
+	adminMux.HandleFunc("POST /admin/restore", admin.RestoreHandler)
 
 	if adminExtender != nil {
 		adminExtender(adminMux)

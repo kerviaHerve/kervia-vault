@@ -98,6 +98,32 @@ export default function Settings() {
     setExpBusy(false)
   }
 
+  // restore : dry-run (inventaire sans écriture) puis import des vaults
+  // MANQUANTS seulement — jamais d'écrasement
+  const [resFile, setResFile] = React.useState<File | null>(null)
+  const [resPass, setResPass] = React.useState('')
+  const [resBusy, setResBusy] = React.useState(false)
+  const [resReport, setResReport] = React.useState<any | null>(null)
+  const [resDone, setResDone] = React.useState<any | null>(null)
+
+  const restorePost = async (dryRun: boolean) => {
+    if (resBusy || !resFile || resPass.length < 12) return
+    setResBusy(true)
+    try {
+      const fd = new FormData()
+      fd.append('bundle', resFile)
+      fd.append('pass', resPass)
+      const res = await fetch('/admin/restore' + (dryRun ? '?dry_run=1' : ''), {
+        method: 'POST', credentials: 'same-origin', body: fd,
+      })
+      const d = await res.json()
+      if (!res.ok) throw new Error(d.message || d.error || 'HTTP ' + res.status)
+      if (dryRun) { setResReport(d); setResDone(null) }
+      else { setResDone(d); setResReport(null); setResFile(null); setResPass('') }
+    } catch (e: any) { toast.error(String(e.message || e)) }
+    setResBusy(false)
+  }
+
   // after an update: poll until the server is back and shows the NEW
   // version, then reload the page automatically — the user never stays
   // stuck on "restarting…".
@@ -406,6 +432,49 @@ export default function Settings() {
             {String(t.backupBtn)}
           </Button>
           <p className="text-[10px] text-fg-3 mt-3">{String(t.backupRestore)}</p>
+
+          <div className="mt-5 pt-5 border-t border-border">
+            <p className="text-xs font-semibold text-fg-2 mb-3">{String(t.restoreTitle)}</p>
+            <div className="grid grid-cols-2 gap-2 mb-3">
+              <Field label={String(t.restoreFile)}>
+                <input
+                  type="file" accept=".kvx"
+                  onChange={e => { setResFile(e.target.files?.[0] || null); setResReport(null); setResDone(null) }}
+                  className="block w-full text-xs text-fg-3 file:mr-2 file:cursor-pointer file:rounded-lg file:border-0 file:bg-card-2 file:px-3 file:py-1.5 file:text-xs file:text-fg-2 hover:file:text-fg cursor-pointer"
+                />
+              </Field>
+              <Field label={String(t.backupPass)}>
+                <Input type="password" value={resPass} onChange={e => setResPass(e.target.value)} />
+              </Field>
+            </div>
+            <Button onClick={() => restorePost(true)} disabled={resBusy || !resFile || resPass.length < 12}>
+              {resBusy ? <LoaderCircle size={15} className="animate-spin" /> : <ShieldCheck size={15} />}
+              {String(t.restoreVerifyBtn)}
+            </Button>
+            {resReport && (
+              <motion.div initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} className="mt-3">
+                <p className="text-[11px] text-fg-3 mb-2">{String(t.restoreExported)} {new Date(resReport.exported_at).toLocaleString()} :</p>
+                <div className="space-y-1 mb-3">
+                  {resReport.vaults.map((v: any, i: number) => (
+                    <div key={i} className="flex items-center justify-between text-xs bg-card-2 border border-border rounded-lg px-3 py-2">
+                      <span className="font-semibold">{v.name} · {v.secrets} {String(t.restoreSecrets)}</span>
+                      <span className={v.status === 'skipped' ? 'text-warn font-semibold' : 'text-accent font-semibold'}>
+                        {v.status === 'skipped' ? String(t.restoreSkipped) : String(t.restoreWillImport)}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+                <Button variant="primary" onClick={() => restorePost(false)} disabled={resBusy}>
+                  {String(t.restoreImportBtn)}
+                </Button>
+              </motion.div>
+            )}
+            {resDone && (
+              <motion.div initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} className="mt-3 text-xs text-accent font-semibold">
+                {String(t.restoreDone)} : {resDone.imported_vaults} {String(t.restoreVaultsWord)}, {resDone.imported_secrets} {String(t.restoreSecrets)}
+              </motion.div>
+            )}
+          </div>
         </CardBody>
       </Card>
     </div>

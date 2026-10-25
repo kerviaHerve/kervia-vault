@@ -1,5 +1,22 @@
 # Changelog
 
+## v1.8.2 (2026-10-25)
+
+- **Extension Firefox — exigences AMO (publication).** Conformité au
+  consentement de collecte intégré à Firefox (obligatoire pour toute
+  nouvelle extension depuis le 3 nov. 2025) : déclaration
+  `browser_specific_settings.gecko.data_collection_permissions` avec
+  `authenticationInfo` en requis — l'extension transmet le token
+  d'extension vers le serveur du coffre (service à compte de
+  l'utilisateur) ; rien d'autre ne quitte le navigateur (aucune
+  télémétrie, aucune donnée de navigation envoyée, remplissage purement
+  local). `js/lucide.js` construit désormais les SVG via `DOMParser`
+  (document inert) au lieu d'une affectation `innerHTML` : plus aucun
+  avertissement du validateur AMO sur ce point. Avertissement restant,
+  sans impact : `permissions.request` non implémentée sur Firefox pour
+  Android 115 — l'extension vise le desktop (raccourcis clavier,
+  popup) ; le fallback Android reste la configuration manuelle.
+
 ## v1.8.1 (2026-10-22)
 
 - **Extension Firefox — refonte visuelle.** Le popup et les réglages

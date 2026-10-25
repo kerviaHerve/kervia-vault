@@ -1,13 +1,16 @@
 {
   "manifest_version": 2,
   "name": "Kervia-vault — Coffre",
-  "version": "1.8.1",
+  "version": "1.8.2",
   "description": "Remplissage web depuis le coffre Kervia-vault (zero-knowledge, session webui). Aucune surcouche n'est jamais injectée dans les pages.",
   "author": "kervia",
   "browser_specific_settings": {
     "gecko": {
       "id": "coffre@kervia-vault",
-      "strict_min_version": "115.0"
+      "strict_min_version": "115.0",
+      "data_collection_permissions": {
+        "required": ["authenticationInfo"]
+      }
     }
   },
   "icons": {

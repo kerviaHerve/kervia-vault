@@ -51,8 +51,15 @@ const LUCIDE_PATHS = {
 function lucide(name, size = 16, cls = '') {
   const s = document.createElement('span')
   s.className = cls ? 'lucide-wrap ' + cls : 'lucide-wrap'
-  s.innerHTML = lucideHTML(name, size)
+  s.appendChild(svgNode(name, size))
   return s
+}
+
+// SVG construit via DOMParser (document inert), jamais via innerHTML :
+// la géométrie vient de LUCIDE_PATHS (interne), aucune entrée utilisateur.
+function svgNode(name, size = 16) {
+  const doc = new DOMParser().parseFromString(lucideHTML(name, size), 'image/svg+xml')
+  return document.importNode(doc.documentElement, true)
 }
 
 function lucideHTML(name, size = 16) {

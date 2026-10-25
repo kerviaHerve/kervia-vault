@@ -17,6 +17,7 @@
 #   scripts/amo-sign-extension.sh [chemin-sortie-xpi]
 #     AG_VAULT_URL      défaut http://100.100.108.242:8321
 #     AG_VAULT_KEY_FILE défaut /ag (clé av_ de l'agent)
+#     AG_VAULT_NAME     défaut hermes (vault où vivent les identifiants AMO)
 #     AMO_EXT_ID        défaut coffre@kervia-vault
 #
 # Prérequis : node ≥ 18 (npx), jq, curl, unzip. La première soumission
@@ -29,6 +30,7 @@ REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 OUT="${1:-/var/lib/kervia-vault/extension-firefox.xpi}"
 AG_VAULT_URL="${AG_VAULT_URL:-http://100.100.108.242:8321}"
 AG_VAULT_KEY_FILE="${AG_VAULT_KEY_FILE:-/ag}"
+AG_VAULT_NAME="${AG_VAULT_NAME:-hermes}"
 AMO_EXT_ID="${AMO_EXT_ID:-coffre@kervia-vault}"
 
 command -v node >/dev/null 2>&1 || { echo "ERREUR : node requis (npx web-ext)"; exit 1; }
@@ -40,7 +42,7 @@ VAULT_KEY="$(cat "$AG_VAULT_KEY_FILE")"
 AUTH="Authorization: Bearer $VAULT_KEY"
 
 # ---- 1. identifiants AMO depuis le vault (entrée clé « user:…:… ») ----
-LIST="$(curl -sf --max-time 15 -H "$AUTH" "$AG_VAULT_URL/v1/secrets")"
+LIST="$(curl -sf --max-time 15 -H "$AUTH" "$AG_VAULT_URL/v1/secrets?vault=$AG_VAULT_NAME")"
 SEC_ID="$(printf '%s' "$LIST" | jq -r '[.[] | select(.key | test("^user:[0-9]+:[0-9]+$"))][0].id // empty')"
 if [ -z "$SEC_ID" ]; then
   echo "ERREUR : aucune entrée « user:<id>:<client> » (JWT AMO) dans le vault"
@@ -55,17 +57,17 @@ if [ -z "$AMO_SECRET" ] || [ "$AMO_SECRET" = "null" ]; then
 fi
 echo "vault : identifiants AMO trouvés (issuer « $AMO_KEY ») ✓"
 
-# ---- 2. signature via l'API AMO (canal unlisted, id fixe) ----
+# ---- 2. signature via l'API AMO (canal unlisted, id = manifest gecko.id) ----
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
-echo "signature AMO en cours (unlisted, id $AMO_EXT_ID)…"
+echo "signature AMO en cours (unlisted, id manifest $AMO_EXT_ID)…"
 WEB_EXT_API_KEY="$AMO_KEY" WEB_EXT_API_SECRET="$AMO_SECRET" \
   npx --yes web-ext@8 sign \
   --source-dir "$REPO_ROOT/extension-firefox" \
   --artifacts-dir "$TMP" \
   --channel unlisted \
-  --id "$AMO_EXT_ID" \
-  --timeout-wait 900
+  --timeout 900000 \
+  --approval-timeout 0
 
 # ---- 3. dépôt de l'XPI signé (servi par la webui, priorité embarqué) ----
 XPI="$(find "$TMP" -name '*.xpi' -type f | head -n 1)"

@@ -7,11 +7,14 @@
   déposé dans le data dir (`extension-firefox.xpi` à côté de la DB —
   lu à chaque requête, sans redémarrage), en retombant sur l'embarqué
   non signé en son absence. `scripts/amo-sign-extension.sh` signe via
-  l'API AMO (`web-ext sign --channel unlisted --id coffre@kervia-vault`)
+  l'API AMO (`web-ext sign --channel unlisted`, id lu dans le manifest)
   avec les identifiants JWT lus dans le vault (REST agent — passés à
   web-ext par variables d'environnement, jamais en argv) et dépose
   l'XPI signé au bon endroit : **installation permanente dans Firefox
-  (fini `about:debugging`)**. Le workflow Release sait aussi signer
+  (fini `about:debugging`)**. `scripts/amo-await-signed.py` veille
+  ensuite sur la version AMO (file d'approbation ≤ 24 h même en
+  unlisted) et installe le XPI signé dès qu'AMO le publie — sans
+  intervention humaine. Le workflow Release sait aussi signer
   via les secrets repo `AMO_API_KEY`/`AMO_API_SECRET` s'ils sont
   présents (fallback silencieux sinon, la release n'échoue jamais).
   Le manifest déclare `update_url` vers

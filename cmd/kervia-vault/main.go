@@ -92,7 +92,7 @@ func main() {
 	updateMgr := agupdate.New(version)
 	updateSrv := api.NewUpdateServer(updateMgr, st)
 
-	webSrv := agweb.New(st, authSvc, enc)
+	webSrv := agweb.New(st, authSvc, enc, filepathOf(cfg.DBPath))
 	// setup wizard manager (first-boot /setup/init is public pre-flag)
 	dataDir := filepathOf(cfg.DBPath)
 	setupMgr := api.NewSetupManager(dataDir, cfg.DBPath, cfg.ListenAddr, version)

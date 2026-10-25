@@ -33,7 +33,7 @@ func TestRevealIsAudited(t *testing.T) {
 
 	adminHash, _ := bcrypt.GenerateFromPassword([]byte("admin-pw"), bcrypt.MinCost)
 	authSvc := auth.New(st, string(adminHash), 100000)
-	srv := New(st, authSvc, enc)
+	srv := New(st, authSvc, enc, dir)
 
 	// a vault + a secret
 	v, _ := st.CreateVault("vault-web-1", "v-web")

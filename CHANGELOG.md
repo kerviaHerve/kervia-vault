@@ -2,23 +2,25 @@
 
 ## v1.8.3 (2026-10-25)
 
-- **Extension Firefox — signature AMO automatisée + mises à jour
-  automatiques.** Le workflow Release signe l'XPI via l'API AMO
-  (`web-ext sign --channel unlisted --id coffre@kervia-vault`) dès que
-  les secrets repo `AMO_API_KEY` / `AMO_API_SECRET` (JWT du compte
-  développeur addons.mozilla.org) sont présents ; en leur absence ou en
-  cas d'échec (file AMO), la release retombe silencieusement sur le XPI
-  non signé — elle n'échoue jamais pour ça. Le XPI **signé** est
-  embarqué dans le binaire et servi par la webui : installation
-  **permanente** dans Firefox (fini `about:debugging`). Le manifest
-  déclare désormais `update_url` vers
-  `vault.kervia.ch/ui/extension-updates.json`, et la release génère ce
-  manifest (version courante → lien de l'XPI servi par la webui) :
-  Firefox propose la mise à jour tout seul aux installations
-  existantes. Première soumission manuelle faite côté AMO
-  (déclaration `data_collection_permissions` : `authenticationInfo`
-  requis — le token d'extension part vers le coffre de l'utilisateur ;
-  rien d'autre ne quitte le navigateur).
+- **Extension Firefox — XPI signé AMO servi par la webui + mises à jour
+  automatiques.** La webui sert désormais en priorité un XPI **signé**
+  déposé dans le data dir (`extension-firefox.xpi` à côté de la DB —
+  lu à chaque requête, sans redémarrage), en retombant sur l'embarqué
+  non signé en son absence. `scripts/amo-sign-extension.sh` signe via
+  l'API AMO (`web-ext sign --channel unlisted --id coffre@kervia-vault`)
+  avec les identifiants JWT lus dans le vault (REST agent — passés à
+  web-ext par variables d'environnement, jamais en argv) et dépose
+  l'XPI signé au bon endroit : **installation permanente dans Firefox
+  (fini `about:debugging`)**. Le workflow Release sait aussi signer
+  via les secrets repo `AMO_API_KEY`/`AMO_API_SECRET` s'ils sont
+  présents (fallback silencieux sinon, la release n'échoue jamais).
+  Le manifest déclare `update_url` vers
+  `vault.kervia.ch/ui/extension-updates.json` — généré par chaque
+  release (version courante → lien de l'XPI servi) : Firefox propose
+  la mise à jour tout seul aux installations. Première soumission
+  manuelle faite côté AMO (`data_collection_permissions` :
+  `authenticationInfo` requis — le token d'extension part vers le
+  coffre de l'utilisateur ; rien d'autre ne quitte le navigateur).
 
 ## v1.8.2 (2026-10-25)
 

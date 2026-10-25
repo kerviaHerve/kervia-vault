@@ -11,7 +11,9 @@ import (
 	"io/fs"
 	"mime"
 	"net/http"
+	"os"
 	"path"
+	"path/filepath"
 	"strings"
 
 	"github.com/kerviaHerve/kervia-vault/internal/auth"
@@ -29,11 +31,43 @@ type Server struct {
 	store   *store.Store
 	authSvc *auth.Service
 	enc     *crypto.Encryptor
+	// dataDir (celui de la DB) : permet de servir un XPI d'extension
+	// Firefox SIGNE par AMO déposé sur disque (scripts/amo-sign-extension.sh)
+	// en priorité sur l'embarqué non signé — sans redémarrer le service.
+	dataDir string
 }
 
 // New parses all templates once (fail-closed: broken template = no boot).
-func New(st *store.Store, authSvc *auth.Service, enc *crypto.Encryptor) *Server {
-	return &Server{store: st, authSvc: authSvc, enc: enc}
+func New(st *store.Store, authSvc *auth.Service, enc *crypto.Encryptor, dataDir string) *Server {
+	return &Server{store: st, authSvc: authSvc, enc: enc, dataDir: dataDir}
+}
+
+// extensionXPIName est le nom sous lequel la webui sert l'extension
+// (embedded unsigned build, ou override signé AMO depuis le data dir).
+const extensionXPIName = "extension-firefox.xpi"
+
+// serveSignedXPIOverride sert l'XPI signé par AMO déposé dans le data dir
+// (signing post-release via l'API AMO). Lu à chaque requête : le fichier peut
+// apparaître ou être renouvelé sans redémarrer le service. Rend false pour
+// retomber sur l'XPI embarqué (non signé).
+func (s *Server) serveSignedXPIOverride(w http.ResponseWriter) bool {
+	if s.dataDir == "" {
+		return false
+	}
+	// #nosec G304 -- chemin construit depuis un nom CONSTANT (aucune entrée
+	// utilisateur) joint au dataDir du service — pas de traversal possible.
+	b, err := os.ReadFile(filepath.Join(s.dataDir, extensionXPIName))
+	if err != nil {
+		return false
+	}
+	ct := mime.TypeByExtension(".xpi")
+	if ct == "" {
+		ct = "application/octet-stream" // Firefox télécharge l'XPI tel quel
+	}
+	w.Header().Set("Content-Type", ct)
+	w.Header().Set("Cache-Control", "no-store")
+	_, _ = w.Write(b)
+	return true
 }
 
 // spaFS is the embedded dist tree (built by web-app/).
@@ -55,6 +89,10 @@ func (s *Server) Routes(adminMux *http.ServeMux) {
 	adminMux.HandleFunc("GET /ui/", func(w http.ResponseWriter, r *http.Request) {
 		p := strings.TrimPrefix(r.URL.Path, "/ui/")
 		if p != "" && !strings.Contains(p, "/") {
+			// XPI signé AMO (data dir) prioritaire sur l'embarqué non signé.
+			if p == extensionXPIName && s.serveSignedXPIOverride(w) {
+				return
+			}
 			if b, err := fs.ReadFile(spaFS, p); err == nil {
 				// #nosec G705 -- p est un nom de fichier racine de l'embed FS
 				// (aucun "/" admis : pas de traversal) et b provient de nos
@@ -295,4 +333,3 @@ func (s *Server) AttachAdmin(adminMux *http.ServeMux) {
 		_ = json.NewEncoder(w).Encode(map[string]any{"results": results})
 	})
 }
-

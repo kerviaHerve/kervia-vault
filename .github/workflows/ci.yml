@@ -78,4 +78,4 @@ jobs:
       - uses: actions/checkout@v4
       - run: |
           sudo apt-get update && sudo apt-get install -y shellcheck
-          shellcheck install.sh
+          shellcheck install.sh scripts/*.sh

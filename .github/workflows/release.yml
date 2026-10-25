@@ -34,16 +34,19 @@ jobs:
       # Signature AMO (unlisted) : XPI installable en permanence (fini
       # about:debugging) + mises à jour auto via update_url. Nécessite les
       # secrets repo AMO_API_KEY (JWT issuer) / AMO_API_SECRET (JWT secret).
-      # En cas d'absence ou d'échec : fallback silencieux sur le XPI non
+      # Absents ou file AMO bloquée : fallback silencieux sur le XPI non
       # signé (chargement temporaire) — la release n'échoue jamais pour ça.
       - name: Sign Firefox extension XPI via AMO (unlisted)
         id: amo
-        if: ${{ secrets.AMO_API_KEY != '' && secrets.AMO_API_SECRET != '' }}
         continue-on-error: true
         env:
           AMO_API_KEY: ${{ secrets.AMO_API_KEY }}
           AMO_API_SECRET: ${{ secrets.AMO_API_SECRET }}
         run: |
+          if [ -z "$AMO_API_KEY" ] || [ -z "$AMO_API_SECRET" ]; then
+            echo "secrets AMO_API_KEY/AMO_API_SECRET absents — XPI non signé (fallback embarqué)"
+            exit 1
+          fi
           npx --yes web-ext@8 sign \
             --source-dir extension-firefox \
             --artifacts-dir amo-signed \

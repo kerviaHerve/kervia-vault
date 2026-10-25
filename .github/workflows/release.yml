@@ -25,14 +25,53 @@ jobs:
           npm ci
           npx vite build
       # extension Firefox : XPI embarqué dans le binaire (carte webui
-      # Paramètres → Extension) + joint à la release
-      - name: Build Firefox extension XPI
+      # Paramètres → Extension) + joint à la release.
+      - name: Build Firefox extension XPI (unsigned)
         run: |
           cd extension-firefox
           zip -r -X ../internal/web/dist/extension-firefox.xpi . -x "*.DS_Store"
-          cd ..
+
+      # Signature AMO (unlisted) : XPI installable en permanence (fini
+      # about:debugging) + mises à jour auto via update_url. Nécessite les
+      # secrets repo AMO_API_KEY (JWT issuer) / AMO_API_SECRET (JWT secret).
+      # En cas d'absence ou d'échec : fallback silencieux sur le XPI non
+      # signé (chargement temporaire) — la release n'échoue jamais pour ça.
+      - name: Sign Firefox extension XPI via AMO (unlisted)
+        id: amo
+        if: ${{ secrets.AMO_API_KEY != '' && secrets.AMO_API_SECRET != '' }}
+        continue-on-error: true
+        env:
+          AMO_API_KEY: ${{ secrets.AMO_API_KEY }}
+          AMO_API_SECRET: ${{ secrets.AMO_API_SECRET }}
+        run: |
+          npx --yes web-ext@8 sign \
+            --source-dir extension-firefox \
+            --artifacts-dir amo-signed \
+            --channel unlisted \
+            --id coffre@kervia-vault \
+            --api-key "$AMO_API_KEY" \
+            --api-secret "$AMO_API_SECRET" \
+            --timeout-wait 1200
+
+      # XPI final (signé si dispo) + manifest de mise à jour servi par la
+      # webui (/ui/extension-updates.json) : une seule entrée, la version
+      # courante — Firefox compare et propose la mise à jour aux installs.
+      - name: Finalize XPI + update manifest
+        run: |
+          shopt -s nullglob
+          files=(amo-signed/*.xpi)
+          if [ ${#files[@]} -gt 0 ]; then
+            cp "${files[0]}" internal/web/dist/extension-firefox.xpi
+            echo "AMO_SIGNED=true" >> "$GITHUB_ENV"
+          else
+            echo "AMO_SIGNED=false" >> "$GITHUB_ENV"
+          fi
+          VERSION="${GITHUB_REF_NAME#v}"
+          printf '{\n  "addons": {\n    "coffre@kervia-vault": {\n      "updates": [\n        {\n          "version": "%s",\n          "update_link": "https://vault.kervia.ch/ui/extension-firefox.xpi"\n        }\n      ]\n    }\n  }\n}\n' "$VERSION" > internal/web/dist/extension-updates.json
           cp internal/web/dist/extension-firefox.xpi extension-firefox.xpi
           unzip -l extension-firefox.xpi | tail -3
+          echo "--- extension-updates.json ---"
+          cat internal/web/dist/extension-updates.json
 
       - uses: actions/setup-go@v5
         with: { go-version: "1.27" }

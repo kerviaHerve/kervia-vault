@@ -8,13 +8,19 @@ jamais d'icône dans les champs, jamais de bulle flottante.
 ## Installation
 
 1. **webui → Paramètres → Extension Firefox** → *Télécharger l'extension (.xpi)*.
-2. **Firefox** : ouvre le fichier téléchargé → *Installer* (extension
-   temporaire : rechargée via `about:debugging` après un redémarrage de
-   Firefox, tant que la signature AMO n'est pas activée).
-3. **Crée le token** (même carte) → copie-le → clic droit sur l'icône de
-   l'extension → *Gérer l'extension* → colle-le + l'URL de ton coffre →
-   *Tester la connexion* → *Enregistrer*.
-4. Clique sur l'icône → déverrouille avec ton **mot de passe maître**.
+2. **Firefox** : ouvre le fichier téléchargé → *Installer*. Si l'XPI est
+   **signé AMO** (release ≥ v1.8.3 avec secrets `AMO_API_KEY` /
+   `AMO_API_SECRET` présents dans le repo), l'installation est
+   **permanente** ; sinon (XPI non signé) Firefox le charge comme
+   extension temporaire (rechargée via `about:debugging` après un
+   redémarrage de Firefox).
+3. **Mises à jour automatiques** (XPI signé) : le manifest pointe
+   `update_url` vers `vault.kervia.ch/ui/extension-updates.json`,
+   généré par la release — Firefox propose la mise à jour tout seul.
+4. **Crée le token** (webui → Paramètres → Extension) → copie-le → clic
+   droit sur l'icône de l'extension → *Gérer l'extension* → colle-le +
+   l'URL de ton coffre → *Tester la connexion* → *Enregistrer*.
+5. Clique sur l'icône → déverrouille avec ton **mot de passe maître**.
 
 ## Utilisation
 

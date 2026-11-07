@@ -5,6 +5,7 @@ import { toast } from 'sonner'
 import { useLang } from '@/i18n'
 import { api } from '@/lib/api'
 import { Button, Badge, Dialog, DialogContent, Input, PasswordInput, Field } from '@/components/ui'
+import TemplatePicker from '@/components/TemplatePicker'
 import { cn, fmtDateTime } from '@/lib/utils'
 import { useSort } from '@/lib/useSort'
 
@@ -47,7 +48,7 @@ function SortHeader({ label, sortKey, activeKey, dir, onSort, className }: {
 }
 
 interface Template {
-  key: string; name: string; category: string
+  key: string; name: string; category: string; description?: string
   fields: { name: string; label: string; type: string; required: boolean; placeholder?: string; help?: string }[]
 }
 
@@ -625,6 +626,7 @@ function CreateDialog({ open, setOpen, vault, templates, onCreated }: {
 }) {
   const { t } = useLang()
   const [tplKey, setTplKey] = React.useState('')
+  const [pickerOpen, setPickerOpen] = React.useState(false)
   const [key, setKey] = React.useState('')
   const [value, setValue] = React.useState('')
   const [vals, setVals] = React.useState<Record<string, string>>({})
@@ -652,15 +654,32 @@ function CreateDialog({ open, setOpen, vault, templates, onCreated }: {
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       {open && (
-        <DialogContent title={`Nouveau secret dans « ${vault} »`} className="max-w-lg max-h-[85vh] overflow-y-auto">
+        <DialogContent
+          title={`Nouveau secret dans « ${vault} »`}
+          className="max-w-lg max-h-[85vh] overflow-y-auto"
+          onEscapeKeyDown={e => {
+            // Escape ferme le picker D'ABORD — le dialog ne se ferme que
+            // quand le picker est déjà fermé. Radix écoute document en
+            // capture : c'est le seul endroit où preventDefault empêche
+            // le dismiss (perdre tout le formulaire en fermant un menu
+            // serait l'ergonomie inverse).
+            if (pickerOpen) { e.preventDefault(); setPickerOpen(false) }
+          }}
+        >
           <Field label={String(t.credentialType)} help={String(t.templateHelp)}>
-            <select
-              value={tplKey} onChange={e => { setTplKey(e.target.value); setVals({}) }}
-              className="w-full h-9 bg-bg border border-border rounded-lg px-3 text-sm cursor-pointer focus:border-accent outline-none"
-            >
-              <option value="">{String(t.freeValue)}</option>
-              {templates.map(t => <option key={t.key} value={t.key}>{t.name} ({t.category})</option>)}
-            </select>
+            <TemplatePicker
+              value={tplKey}
+              open={pickerOpen}
+              onOpenChange={setPickerOpen}
+              onChange={k => {
+                setTplKey(k); setVals({})
+                // Ergonomie : suggère le nom du secret depuis le template
+                // (openai → OPENAI, smtp → SMTP…) — uniquement si
+                // l'utilisateur n'a encore rien tapé, jamais destructif.
+                if (k && !key.trim()) setKey(k.toUpperCase())
+              }}
+              templates={templates}
+            />
           </Field>
 
           <AnimatePresence mode="wait">

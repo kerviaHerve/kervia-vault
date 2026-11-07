@@ -7,7 +7,10 @@ export const Dialog = DialogPrimitive.Root
 export const DialogTrigger = DialogPrimitive.Trigger
 export const DialogClose = DialogPrimitive.Close
 
-export function DialogContent({ className, children, title }: { className?: string; children: React.ReactNode; title: string }) {
+export function DialogContent({ className, children, title, onEscapeKeyDown }: {
+  className?: string; children: React.ReactNode; title: string
+  onEscapeKeyDown?: (e: KeyboardEvent) => void
+}) {
   return (
     <DialogPrimitive.Portal>
       {/* ROBUSTESSE (v1.7.2) : AUCUNE animation, même à l'ouverture.
@@ -22,6 +25,7 @@ export function DialogContent({ className, children, title }: { className?: stri
         className="fixed inset-0 bg-black/70 z-50 [backdrop-filter:blur(16px)]"
       />
       <DialogPrimitive.Content
+        onEscapeKeyDown={onEscapeKeyDown}
         className={cn(
           'fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-50',
           'w-full max-w-md bg-card border border-border rounded-2xl shadow-2xl',

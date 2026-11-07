@@ -1,5 +1,24 @@
 # Changelog
 
+## v1.8.4 (2026-11-07)
+
+- **Webui — ergonomie de l'ajout de secret : le type de credential
+  devient cherchable.** Le menu déroulant natif (58 options à plat,
+  introuvables sans défilement — les basiques comme SMTP se perdaient
+  en pleine liste) est remplacé par un picker dédié
+  (`TemplatePicker`) : recherche instantanée insensible aux accents
+  sur nom, clé, catégorie et description, alias FR (`bdd`, `ia`, `db`…),
+  « Les basiques » épinglés en tête sans rien taper (valeur libre, SMTP,
+  OpenAI, PostgreSQL, GitHub…), résultats regroupés par catégorie,
+  navigation clavier complète (↑ ↓, Enter), surlignage du terme trouvé.
+  Ergonomie du dialog « Nouveau secret » : le KEY est prérempli depuis
+  le template (smtp → SMTP) si rien n'est tapé, Escape ferme le picker
+  SANS fermer le dialog (via `onEscapeKeyDown` Radix — son listener
+  document en capture rend impossible tout blocage en aval), et la
+  valeur libre reste le premier choix. Zéro animation, conformément à
+  la règle v1.7.2. E2E Playwright : 13 tests verts
+  (recherche, alias, clavier, création réelle d'un secret SMTP).
+
 ## v1.8.3 (2026-10-25)
 
 - **Extension Firefox — XPI signé AMO servi par la webui + mises à jour

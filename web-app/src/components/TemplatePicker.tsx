@@ -16,7 +16,7 @@ import * as React from 'react'
 import {
   ChevronDown, ChevronUp, Search, X, Check, FileText,
   Sparkles, Mail, Cloud, Database, GitBranch, Globe, MessageSquare,
-  CreditCard, Activity, Hexagon,
+  CreditCard, Activity, Hexagon, Server, HardDrive, Fingerprint, Network,
 } from 'lucide-react'
 import { useLang } from '@/i18n'
 import { cn } from '@/lib/utils'
@@ -34,14 +34,16 @@ const CAT_ICON: Record<string, Icon> = {
   'LLM': Sparkles, 'Mail': Mail, 'Cloud': Cloud, 'Database': Database,
   'DevOps': GitBranch, 'Web/API': Globe, 'Messaging': MessageSquare,
   'Payments': CreditCard, 'Monitoring': Activity, 'Kervia': Hexagon,
+  'Hosting': Server, 'Storage': HardDrive, 'Search': Search,
+  'Auth': Fingerprint, 'Network': Network,
 }
 
 // Les basiques épinglés — c'est l'usage réel qui décide : le mail d'abord
-// (smtp est LE credential introuvable de l'ancien menu), puis les
-// fondations. L'ordre suit le besoin, pas l'alphabet.
+// (smtp ET imap : envoyer ET lire), puis les fondations. L'ordre suit le
+// besoin, pas l'alphabet.
 const POPULAR = [
-  'smtp', 'gmail', 'openai', 'anthropic', 'postgres', 'mysql',
-  'github', 'api-key', 'bearer', 'basic-auth', 'cloudflare', 'stripe',
+  'smtp', 'imap', 'gmail', 'openai', 'anthropic', 'postgres', 'mysql',
+  'github', 'api-key', 'bearer', 'basic-auth', 's3', 'cloudflare', 'stripe',
 ]
 
 // Alias FR → mots-clés du registre : la recherche doit parler la langue
@@ -49,6 +51,8 @@ const POPULAR = [
 const ALIASES: Record<string, string[]> = {
   bdd: ['database'], db: ['database'],
   ia: ['llm'], ai: ['llm'], gpt: ['llm'],
+  stockage: ['storage'], hebergement: ['hosting'],
+  vpn: ['network'], reseau: ['network'],
 }
 
 // Insensible aux accents/casse — « hebergement » trouve « Hébergement ».

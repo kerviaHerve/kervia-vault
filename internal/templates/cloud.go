@@ -77,6 +77,37 @@ func init() {
 					Placeholder: "fr-par"},
 			},
 		},
+		Template{
+			Key: "digitalocean", Name: "DigitalOcean", Category: "Cloud",
+			Description: "DigitalOcean API token.",
+			Fields: []Field{
+				{Name: "token", Label: "API token", Type: TypePassword, Required: true,
+					Placeholder: "dop_v1_..."},
+			},
+		},
+		Template{
+			Key: "linode", Name: "Linode / Akamai", Category: "Cloud",
+			Description: "Linode (Akamai Cloud) API token.",
+			Fields: []Field{
+				{Name: "token", Label: "API token", Type: TypePassword, Required: true},
+			},
+		},
+		Template{
+			Key: "infomaniak", Name: "Infomaniak", Category: "Cloud",
+			Description: "Infomaniak API token (kChat, kDrive, public cloud…).",
+			Fields: []Field{
+				{Name: "token", Label: "Bearer token", Type: TypePassword, Required: true},
+				{Name: "client_id", Label: "Client ID", Type: TypeText, Required: false},
+			},
+		},
+		Template{
+			Key: "gandi", Name: "Gandi", Category: "Cloud",
+			Description: "Gandi (domains, LiveDNS, mail) API key.",
+			Fields: []Field{
+				{Name: "api_key", Label: "PAT / API key", Type: TypePassword, Required: true,
+					Help: "account → security → token (scoped)"},
+			},
+		},
 
 		// ---- generic web auth patterns ----
 		Template{

@@ -1,5 +1,35 @@
 # Changelog
 
+## v1.8.5 (2026-11-07)
+
+- **Registre de templates : 58 → 100 types de credentials, 15 catégories.**
+  Extension fondée sur les taxonomies établies (modèles fournisseurs type
+  1Password/Bitwarden, patterns de credentials d'agents et d'infra) —
+  42 nouveaux templates, dont la moitié réception du chantier mail :
+  - **Mail (13)** : la RÉCEPTION enfin couverte — IMAP (993/143),
+    POP3 (995), Mailbox complet (IMAP + SMTP en un credential, lecture
+    ET envoi), Mailchimp, Mailjet.
+  - **Storage (2, nouvelle catégorie)** : S3/compatible générique (AWS,
+    MinIO, Wasabi, Scaleway… via endpoint), Backblaze B2.
+  - **Hosting (6, nouvelle catégorie)** : Vercel, Netlify, Railway,
+    Render, Fly.io, Heroku.
+  - **Database (10)** : Elasticsearch, ClickHouse, InfluxDB, Neo4j,
+    Cassandra/ScyllaDB, Supabase.
+  - **Search (2, nouvelle catégorie)** : Algolia, Meilisearch.
+  - **Auth (3, nouvelle catégorie)** : Auth0, Clerk, Firebase.
+  - **Network (2, nouvelle catégorie)** : WireGuard, Tailscale.
+  - **Messaging (7)** : Twilio, Pushover, ntfy.
+  - **Monitoring (5)** : PagerDuty, Uptime Kuma.
+  - **DevOps (9)** : Gitea/Forgejo, Bitbucket, Jenkins.
+  - **Payments (3)** : Mollie.
+  - **Cloud (11)** : DigitalOcean, Linode/Akamai, Infomaniak, Gandi.
+  - **LLM (19)** : Hugging Face, Voyage AI, Langfuse.
+  Le picker s'adapte : icônes des 5 nouvelles catégories, IMAP et S3
+  dans « Les basiques » épinglés, alias FR étendus (`vpn`, `stockage`,
+  `hébergement`…). Test de non-régression : borne ≥ 95 templates +
+  validation IMAP (ports, requis). E2E Playwright : 15 tests verts
+  (recherche `imap`, alias `vpn`, 15 catégories, création réelle).
+
 ## v1.8.4 (2026-11-07)
 
 - **Webui — ergonomie de l'ajout de secret : le type de credential

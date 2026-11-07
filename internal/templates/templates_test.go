@@ -10,8 +10,8 @@ import (
 
 func TestAllTemplatesHaveRequiredStructure(t *testing.T) {
 	all := All()
-	if len(all) < 40 {
-		t.Fatalf("expected 40+ templates, got %d", len(all))
+	if len(all) < 95 {
+		t.Fatalf("expected 95+ templates, got %d", len(all))
 	}
 	seen := map[string]bool{}
 	for _, tpl := range all {
@@ -99,5 +99,31 @@ func TestOptionalEmptyAccepted(t *testing.T) {
 func TestGetUnknown(t *testing.T) {
 	if _, ok := Get("does-not-exist"); ok {
 		t.Fatal("unknown template found")
+	}
+}
+
+func TestIMAPValidation(t *testing.T) {
+	tpl, ok := Get("imap")
+	if !ok {
+		t.Fatal("imap template missing")
+	}
+	// valid full
+	errs := tpl.Validate(map[string]any{
+		"host": "imap.example.com", "port": "993", "username": "u", "password": "p",
+	})
+	if len(errs) != 0 {
+		t.Fatalf("valid imap rejected: %v", errs)
+	}
+	// port out of range
+	errs = tpl.Validate(map[string]any{
+		"host": "imap.example.com", "port": "99999", "username": "u", "password": "p",
+	})
+	if len(errs) != 1 || !strings.Contains(errs[0], "<=") {
+		t.Fatalf("bad imap port not rejected: %v", errs)
+	}
+	// missing required (host, username, password)
+	errs = tpl.Validate(map[string]any{"port": "993"})
+	if len(errs) != 3 {
+		t.Fatalf("expected 3 missing-field errors, got %v", errs)
 	}
 }

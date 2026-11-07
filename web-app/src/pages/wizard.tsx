@@ -414,8 +414,8 @@ update_secret · delete_secret · list_templates
    then list_secrets (metadata only — never values).
 2. You can ONLY access the vaults granted to your key. Do not guess
    vault names or ids.
-3. ALWAYS prefer templated secrets (list_templates shows ~58 structures:
-   openai, postgres, smtp, cloudflare, github…). Required fields are
+3. ALWAYS prefer templated secrets (list_templates shows ~100 structures:
+   openai, postgres, smtp, imap, cloudflare, github…). Required fields are
    enforced.
 4. update_secret creates a new version (history preserved). Rotation:
    generate a new strong value, update, then update the consumer.

@@ -1,5 +1,6 @@
-// Template registry — Mail providers (SMTP + transactional APIs).
+// Template registry — Mail providers (SMTP + IMAP/POP3 + transactional APIs).
 // SMTP ports: 587 = STARTTLS, 465 = implicit TLS. Never 25 (blocked everywhere).
+// IMAP: 993 = implicit TLS, 143 = STARTTLS. POP3: 995 = implicit TLS.
 // SPDX-License-Identifier: AGPL-3.0
 
 package templates
@@ -85,6 +86,72 @@ func init() {
 				{Name: "password", Label: "SMTP password", Type: TypePassword, Required: true},
 				{Name: "region", Label: "AWS region", Type: TypeText, Required: false,
 					Placeholder: "eu-west-3"},
+			},
+		},
+
+		// ---- réception (IMAP/POP3) : la moitié mail que l'envoi —
+		// un agent qui lit/trii ses mails a besoin d'IMAP, pas de SMTP ----
+		Template{
+			Key: "imap", Name: "IMAP (generic)", Category: "Mail",
+			Description: "Any IMAP mailbox (self-hosted, OVH, Gandi, Gmail via app password…).",
+			Fields: []Field{
+				{Name: "host", Label: "Server", Type: TypeText, Required: true,
+					Placeholder: "imap.example.com"},
+				{Name: "port", Label: "Port", Type: TypeNumber, Required: true,
+					Placeholder: "993", Min: 1, Max: 65535,
+					Help: "993 = TLS implicite, 143 = STARTTLS"},
+				{Name: "username", Label: "Username", Type: TypeText, Required: true},
+				{Name: "password", Label: "Password / app password", Type: TypePassword, Required: true},
+				{Name: "mailbox", Label: "Mailbox", Type: TypeText, Required: false,
+					Placeholder: "INBOX", Help: "INBOX si vide"},
+			},
+		},
+		Template{
+			Key: "pop3", Name: "POP3 (generic)", Category: "Mail",
+			Description: "POP3 mailbox (retrieval only).",
+			Fields: []Field{
+				{Name: "host", Label: "Server", Type: TypeText, Required: true,
+					Placeholder: "pop.example.com"},
+				{Name: "port", Label: "Port", Type: TypeNumber, Required: true,
+					Placeholder: "995", Min: 1, Max: 65535,
+					Help: "995 = TLS implicite, 110 = sans TLS (à éviter)"},
+				{Name: "username", Label: "Username", Type: TypeText, Required: true},
+				{Name: "password", Label: "Password / app password", Type: TypePassword, Required: true},
+			},
+		},
+		Template{
+			Key: "mailbox", Name: "Mailbox (IMAP + SMTP)", Category: "Mail",
+			Description: "Full mailbox: read (IMAP) AND send (SMTP) with one credential set.",
+			Fields: []Field{
+				{Name: "imap_host", Label: "IMAP server", Type: TypeText, Required: true,
+					Placeholder: "imap.example.com"},
+				{Name: "imap_port", Label: "IMAP port", Type: TypeNumber, Required: false,
+					Placeholder: "993", Min: 1, Max: 65535},
+				{Name: "smtp_host", Label: "SMTP server", Type: TypeText, Required: true,
+					Placeholder: "smtp.example.com"},
+				{Name: "smtp_port", Label: "SMTP port", Type: TypeNumber, Required: false,
+					Placeholder: "587", Min: 1, Max: 65535},
+				{Name: "username", Label: "Username", Type: TypeText, Required: true},
+				{Name: "password", Label: "Password", Type: TypePassword, Required: true},
+				{Name: "from", Label: "From address", Type: TypeEmail, Required: false},
+			},
+		},
+		Template{
+			Key: "mailchimp", Name: "Mailchimp", Category: "Mail",
+			Description: "Mailchimp marketing API.",
+			Fields: []Field{
+				{Name: "api_key", Label: "API key", Type: TypePassword, Required: true,
+					Placeholder: "xxxxxxxx-us3"},
+				{Name: "server", Label: "Datacenter suffix", Type: TypeText, Required: false,
+					Placeholder: "us3", Help: "le suffixe de la clé, ex. us3, us20"},
+			},
+		},
+		Template{
+			Key: "mailjet", Name: "Mailjet", Category: "Mail",
+			Description: "Mailjet transactional email API.",
+			Fields: []Field{
+				{Name: "api_key", Label: "API key", Type: TypePassword, Required: true},
+				{Name: "secret_key", Label: "Secret key", Type: TypePassword, Required: true},
 			},
 		},
 	)

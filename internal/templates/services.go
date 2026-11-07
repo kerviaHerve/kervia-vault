@@ -60,6 +60,80 @@ func init() {
 				{Name: "password", Label: "Password", Type: TypePassword, Required: false},
 			},
 		},
+		Template{
+			Key: "elasticsearch", Name: "Elasticsearch", Category: "Database",
+			Description: "Elasticsearch connection (fields or API key).",
+			Fields: []Field{
+				{Name: "host", Label: "Host", Type: TypeText, Required: false,
+					Placeholder: "es.example.com"},
+				{Name: "port", Label: "Port", Type: TypeNumber, Required: false,
+					Placeholder: "9200", Min: 1, Max: 65535},
+				{Name: "username", Label: "User", Type: TypeText, Required: false},
+				{Name: "password", Label: "Password", Type: TypePassword, Required: false},
+				{Name: "api_key", Label: "API key", Type: TypePassword, Required: false,
+					Help: "alternative to user/password (encoded base64)"},
+			},
+		},
+		Template{
+			Key: "clickhouse", Name: "ClickHouse", Category: "Database",
+			Description: "ClickHouse HTTP connection.",
+			Fields: []Field{
+				{Name: "host", Label: "Host", Type: TypeText, Required: true},
+				{Name: "port", Label: "Port", Type: TypeNumber, Required: false,
+					Placeholder: "8443", Min: 1, Max: 65535,
+					Help: "8443 = HTTPS, 8123 = HTTP"},
+				{Name: "database", Label: "Database", Type: TypeText, Required: false},
+				{Name: "username", Label: "User", Type: TypeText, Required: true},
+				{Name: "password", Label: "Password", Type: TypePassword, Required: false},
+			},
+		},
+		Template{
+			Key: "influxdb", Name: "InfluxDB", Category: "Database",
+			Description: "InfluxDB v2 token.",
+			Fields: []Field{
+				{Name: "base_url", Label: "Base URL", Type: TypeURL, Required: true,
+					Placeholder: "https://eu-central-1-1.aws.cloud2.influxdata.com"},
+				{Name: "token", Label: "API token", Type: TypePassword, Required: true},
+				{Name: "org", Label: "Org", Type: TypeText, Required: false},
+				{Name: "bucket", Label: "Bucket", Type: TypeText, Required: false},
+			},
+		},
+		Template{
+			Key: "neo4j", Name: "Neo4j", Category: "Database",
+			Description: "Neo4j connection (bolt).",
+			Fields: []Field{
+				{Name: "uri", Label: "Connection URI", Type: TypeText, Required: true,
+					Placeholder: "neo4j+s://xxx.databases.neo4j.io",
+					Help: "bolt:// n'est pas une URL http(s) — champ texte"},
+				{Name: "username", Label: "User", Type: TypeText, Required: false,
+					Placeholder: "neo4j"},
+				{Name: "password", Label: "Password", Type: TypePassword, Required: false},
+			},
+		},
+		Template{
+			Key: "cassandra", Name: "Cassandra / ScyllaDB", Category: "Database",
+			Description: "Cassandra connection.",
+			Fields: []Field{
+				{Name: "hosts", Label: "Hosts", Type: TypeText, Required: true,
+					Placeholder: "cass1.example.com,cass2.example.com",
+					Help: "comma-separated list of contact points"},
+				{Name: "username", Label: "User", Type: TypeText, Required: false},
+				{Name: "password", Label: "Password", Type: TypePassword, Required: false},
+				{Name: "local_datacenter", Label: "Local datacenter", Type: TypeText, Required: false,
+					Placeholder: "datacenter1"},
+			},
+		},
+		Template{
+			Key: "supabase", Name: "Supabase", Category: "Database",
+			Description: "Supabase project (service role = full DB access).",
+			Fields: []Field{
+				{Name: "project_url", Label: "Project URL", Type: TypeURL, Required: true,
+					Placeholder: "https://xxx.supabase.co"},
+				{Name: "service_role_key", Label: "Service role key", Type: TypePassword, Required: true,
+					Help: "bypasses RLS — server-side only"},
+				{Name: "anon_key", Label: "Anon key", Type: TypePassword, Required: false},
+			},
+		},
 
 		// ---- DevOps ----
 		Template{
@@ -123,6 +197,34 @@ func init() {
 				{Name: "token", Label: "Service account token", Type: TypePassword, Required: false},
 			},
 		},
+		Template{
+			Key: "gitea", Name: "Gitea / Forgejo", Category: "DevOps",
+			Description: "Gitea (or Forgejo) access token.",
+			Fields: []Field{
+				{Name: "base_url", Label: "Instance URL", Type: TypeURL, Required: true,
+					Placeholder: "https://git.example.com"},
+				{Name: "token", Label: "Token", Type: TypePassword, Required: true},
+				{Name: "username", Label: "Username", Type: TypeText, Required: false},
+			},
+		},
+		Template{
+			Key: "bitbucket", Name: "Bitbucket", Category: "DevOps",
+			Description: "Bitbucket app password.",
+			Fields: []Field{
+				{Name: "username", Label: "Username", Type: TypeText, Required: true},
+				{Name: "app_password", Label: "App password", Type: TypePassword, Required: true},
+				{Name: "workspace", Label: "Workspace", Type: TypeText, Required: false},
+			},
+		},
+		Template{
+			Key: "jenkins", Name: "Jenkins", Category: "DevOps",
+			Description: "Jenkins API token.",
+			Fields: []Field{
+				{Name: "base_url", Label: "Jenkins URL", Type: TypeURL, Required: true},
+				{Name: "username", Label: "User", Type: TypeText, Required: true},
+				{Name: "api_token", Label: "API token", Type: TypePassword, Required: true},
+			},
+		},
 
 		// ---- Messaging ----
 		Template{
@@ -159,6 +261,36 @@ func init() {
 				{Name: "access_token", Label: "Access token", Type: TypePassword, Required: true},
 			},
 		},
+		Template{
+			Key: "twilio", Name: "Twilio (SMS)", Category: "Messaging",
+			Description: "Twilio SMS/voice credentials.",
+			Fields: []Field{
+				{Name: "account_sid", Label: "Account SID", Type: TypeText, Required: true,
+					Placeholder: "AC..."},
+				{Name: "auth_token", Label: "Auth token", Type: TypePassword, Required: true},
+				{Name: "from_number", Label: "From number", Type: TypeText, Required: false,
+					Placeholder: "+33..."},
+			},
+		},
+		Template{
+			Key: "pushover", Name: "Pushover", Category: "Messaging",
+			Description: "Pushover notifications.",
+			Fields: []Field{
+				{Name: "user_key", Label: "User key", Type: TypeText, Required: true},
+				{Name: "app_token", Label: "App token", Type: TypePassword, Required: true},
+			},
+		},
+		Template{
+			Key: "ntfy", Name: "ntfy", Category: "Messaging",
+			Description: "ntfy push notifications (self-hosted usually).",
+			Fields: []Field{
+				{Name: "base_url", Label: "Server URL", Type: TypeURL, Required: false,
+					Placeholder: "https://ntfy.sh", Help: "leave empty for ntfy.sh"},
+				{Name: "topic", Label: "Topic", Type: TypeText, Required: true},
+				{Name: "username", Label: "Username", Type: TypeText, Required: false},
+				{Name: "password", Label: "Password / token", Type: TypePassword, Required: false},
+			},
+		},
 
 		// ---- Payments ----
 		Template{
@@ -180,6 +312,14 @@ func init() {
 				{Name: "client_secret", Label: "Client secret", Type: TypePassword, Required: true},
 				{Name: "mode", Label: "Mode", Type: TypeText, Required: false,
 					Placeholder: "live / sandbox"},
+			},
+		},
+		Template{
+			Key: "mollie", Name: "Mollie", Category: "Payments",
+			Description: "Mollie payments API key.",
+			Fields: []Field{
+				{Name: "api_key", Label: "API key", Type: TypePassword, Required: true,
+					Placeholder: "live_... / test_..."},
 			},
 		},
 
@@ -208,6 +348,25 @@ func init() {
 			Fields: []Field{
 				{Name: "api_key", Label: "API key", Type: TypePassword, Required: true},
 				{Name: "app_key", Label: "APP key", Type: TypePassword, Required: false},
+			},
+		},
+		Template{
+			Key: "pagerduty", Name: "PagerDuty", Category: "Monitoring",
+			Description: "PagerDuty REST API key and/or Events routing key.",
+			Fields: []Field{
+				{Name: "api_key", Label: "REST API key", Type: TypePassword, Required: false,
+					Placeholder: "u+..."},
+				{Name: "routing_key", Label: "Events routing key", Type: TypePassword, Required: false,
+					Help: "integration key for Events API v2"},
+			},
+		},
+		Template{
+			Key: "uptime-kuma", Name: "Uptime Kuma", Category: "Monitoring",
+			Description: "Uptime Kuma (self-hosted) credentials.",
+			Fields: []Field{
+				{Name: "base_url", Label: "Instance URL", Type: TypeURL, Required: true},
+				{Name: "username", Label: "Username", Type: TypeText, Required: true},
+				{Name: "password", Label: "Password", Type: TypePassword, Required: true},
 			},
 		},
 	)

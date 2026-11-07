@@ -151,5 +151,33 @@ func init() {
 					Placeholder: "us-east-1"},
 			},
 		},
+		Template{
+			Key: "huggingface", Name: "Hugging Face", Category: "LLM",
+			Description: "Hugging Face access token (models, datasets, Inference API).",
+			Fields: []Field{
+				{Name: "access_token", Label: "Access token", Type: TypePassword, Required: true,
+					Placeholder: "hf_..."},
+			},
+		},
+		Template{
+			Key: "voyage-ai", Name: "Voyage AI", Category: "LLM",
+			Description: "Voyage AI embeddings API.",
+			Fields: []Field{
+				{Name: "api_key", Label: "API key", Type: TypePassword, Required: true,
+					Placeholder: "pa-..."},
+			},
+		},
+		Template{
+			Key: "langfuse", Name: "Langfuse", Category: "LLM",
+			Description: "Langfuse LLM observability (public + secret keys).",
+			Fields: []Field{
+				{Name: "public_key", Label: "Public key", Type: TypePassword, Required: true,
+					Placeholder: "pk-lf-..."},
+				{Name: "secret_key", Label: "Secret key", Type: TypePassword, Required: true,
+					Placeholder: "sk-lf-..."},
+				{Name: "base_url", Label: "Base URL", Type: TypeURL, Required: false,
+					Help: "self-hosted instance if any"},
+			},
+		},
 	)
 }

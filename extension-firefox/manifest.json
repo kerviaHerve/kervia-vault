@@ -1,7 +1,7 @@
 {
   "manifest_version": 2,
   "name": "Kervia-vault — Coffre",
-  "version": "1.8.3",
+  "version": "1.8.7",
   "description": "Remplissage web depuis le coffre Kervia-vault (zero-knowledge, session webui). Aucune surcouche n'est jamais injectée dans les pages.",
   "author": "kervia",
   "browser_specific_settings": {
@@ -36,7 +36,8 @@
       "matches": ["http://*/*", "https://*/*"],
       "js": ["content.js"],
       "run_at": "document_idle",
-      "all_frames": false
+      "all_frames": true,
+      "match_about_blank": true
     }
   ],
   "commands": {
@@ -53,9 +54,9 @@
     "storage",
     "tabs",
     "clipboardWrite",
+    "contextMenus",
     "https://vault.kervia.ch/*"
   ],
   "optional_permissions": ["http://*/*", "https://*/*"],
-  "browser_style": true,
   "homepage_url": "https://vault.kervia.ch"
 }

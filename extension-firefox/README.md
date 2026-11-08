@@ -2,8 +2,32 @@
 
 Remplissage web depuis le coffre personnel Kervia-vault, **zero-knowledge**
 et **sans aucune injection dans les pages** : le remplissage n'agit que sur
-ton clic (bouton « Remplir » ou `Ctrl+Shift+L`), jamais automatiquement,
-jamais d'icône dans les champs, jamais de bulle flottante.
+ton clic (bouton « Remplir », `Ctrl+Shift+L` ou clic droit), jamais
+automatiquement sans ton accord, jamais d'icône dans les champs, jamais de
+bulle flottante.
+
+## Fonctions (v1.8.7)
+
+- **Badge sur l'icône** : le nombre d'éléments du coffre correspondant au
+  site courant — signal passif, sans injection dans la page.
+- **Remplissage multi-frames** : les formulaires de login dans les iframes
+  (banques, SSO) sont enfin remplissables ; détection refaite à chaque action
+  (formulaires SPA et popups JS rattrapés) ; heuristiques en cascade
+  (autocomplete → form → name/id/placeholder → proximité).
+- **Code 2FA** : bouton « Code » sur les éléments TOTP — colle le code
+  courant dans le champ 2FA de la page (`fill-totp`), ou copie-le.
+- **Auto-fill (opt-in)** : Réglages → « Remplissage automatique des pages de
+  connexion ». Un seul élément correspondant + champs vides uniquement ;
+  plusieurs correspondances → le badge indique, tu choisis. Off par défaut.
+- **Ctrl+Shift+L malin** : 1 match → remplit ; 0 ou plusieurs → ouvre le
+  coffre pour choisir. Menu contextuel « Remplir depuis le coffre » idem.
+- **Copie fiable** : « Copié — effacé dans 30 s » est enfin VRAI : le timer
+  vit dans le background, il survit à la fermeture du popup.
+- **Popup v2** : favoris et récents d'abord, navigation clavier complète
+  (`/`, ↑↓, Entrée), recherche, secrets à la demande (jamais de cache
+  plaintext dans le popup), L10N FR/EN.
+- **Matching v2** : URIs sans schéma reconnues, suffixes piégés
+  (`shop.co.uk` ≠ `random.co.uk`) corrigés.
 
 ## Design (v1.8.6)
 

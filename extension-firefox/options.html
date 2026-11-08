@@ -2,18 +2,19 @@
 <html lang="fr">
 <head>
   <meta charset="utf-8" />
+  <title>Coffre — réglages</title>
   <link rel="stylesheet" href="css/popup.css" />
   <style>
-    body {
-      width: auto; max-width: 580px;
-      margin: 0 auto; padding: 34px 24px 56px;
-    }
+    /* Page réglages (onglet dédié) : plus large que le popup, mêmes
+       tokens (charbon / citron / menthe). focus-visible global déjà
+       fourni par popup.css (outline menthe, contraste AAA). */
+    body { width: auto; max-width: 620px; margin: 0 auto; padding: 34px 24px 56px }
     h1 { font-size: 17px; letter-spacing: -.015em }
     .page-head { display: flex; gap: 13px; align-items: center }
     .page-head .brand-tile { width: 40px; height: 40px; border-radius: 12px }
     .page-sub {
       color: var(--fg-3); font-size: 11.5px; line-height: 1.55;
-      margin-top: 3px; max-width: 470px;
+      margin-top: 3px; max-width: 500px;
     }
     .card { margin-top: 18px }
     .card-title {
@@ -22,11 +23,54 @@
       margin-bottom: 13px;
     }
     .card-title .lucide-wrap { color: var(--accent) }
-    .block { display: block; font-size: 11px; color: var(--fg-3); margin-bottom: 5px }
-    .card input[type=text] { margin-bottom: 12px }
+    .block { display: block; font-size: 11px; color: var(--fg-2); margin-bottom: 5px }
+    .card input[type=text], .card input[type=password] { margin-bottom: 2px }
+    .field-gap { height: 14px }
+
+    /* Messages de statut : pastille colorée (::before) + texte explicite,
+       dans une zone role="status" (= aria-live polite). La couleur ne
+       porte JAMAIS l'info seule — il y a toujours du texte. */
+    .status {
+      display: flex; align-items: flex-start; gap: 7px;
+      font-size: 11px; line-height: 1.55; color: var(--fg-2);
+      margin-top: 6px;
+    }
+    .status:empty { display: none }
+    .status::before {
+      content: ''; width: 8px; height: 8px; border-radius: 50%;
+      background: var(--fg-3); flex-shrink: 0; margin-top: 4px;
+    }
+    .status[data-kind="ok"] { color: var(--focus) }
+    .status[data-kind="ok"]::before { background: var(--focus) }
+    .status[data-kind="warn"] { color: #E8C56A } /* ambre, ~9:1 sur charbon */
+    .status[data-kind="warn"]::before { background: #E8C56A }
+    .status[data-kind="err"] { color: var(--danger) }
+    .status[data-kind="err"]::before { background: var(--danger) }
+
+    /* token masqué + œil (même pattern que le popup) */
+    .pw-wrap { position: relative }
+    .pw-wrap input { padding-right: 38px }
+    .pw-eye {
+      position: absolute; right: 5px; top: 50%;
+      transform: translateY(-50%);
+      width: 26px; height: 26px;
+    }
+
+    .test-row { display: flex; align-items: center; gap: 10px; margin-top: 10px; flex-wrap: wrap }
+    .btn-ghost {
+      display: inline-flex; align-items: center; gap: 6px;
+      height: 24px; padding: 0 10px;
+      border-radius: 6px; font-size: 11px; font-weight: 500;
+      background: var(--card-2); color: var(--fg-2);
+      border: 1px solid var(--border);
+      transition: background .12s ease, color .12s ease;
+    }
+    .btn-ghost:hover { background: var(--muted); color: var(--fg) }
+
     .note { font-size: 11px; color: var(--fg-3); margin-top: 10px; line-height: 1.6 }
-    .test-row { display: flex; align-items: center; gap: 10px }
-    #test-msg { font-size: 11px; color: var(--fg-3) }
+
+    /* Auto-lock : segmenté — l'état actif est couleur ET aria-pressed
+       (jamais la couleur seule). */
     .segmented { display: flex; gap: 6px }
     .segmented button {
       flex: 1; height: 30px; border-radius: 7px;
@@ -41,77 +85,191 @@
       border-color: color-mix(in srgb, var(--accent) 35%, transparent);
       color: var(--accent);
     }
-    .sec-list { display: flex; flex-direction: column; gap: 8px }
+    .sec-list { display: flex; flex-direction: column; gap: 8px; margin-top: 14px }
     .sec-list .row { gap: 9px; align-items: flex-start }
     .sec-list .lucide-wrap { color: var(--focus); margin-top: 1px }
     .sec-list p { font-size: 11px; color: var(--fg-3); line-height: 1.55 }
+
+    /* Interrupteur auto-fill : checkbox natif (clavier + SR) habillé
+       en switch ; le focus-visible menthe s'affiche sur la piste. */
+    .switch-line { display: flex; gap: 11px; align-items: flex-start; cursor: pointer }
+    .switch { position: relative; flex-shrink: 0 }
+    .switch input { position: absolute; inset: 0; opacity: 0; margin: 0; cursor: pointer }
+    .switch input:focus-visible + .track { outline: 2px solid var(--focus); outline-offset: 2px; border-radius: 999px }
+    .track {
+      display: block; width: 34px; height: 20px; border-radius: 999px;
+      background: var(--card-2); border: 1px solid var(--border);
+      transition: background .15s ease, border-color .15s ease;
+    }
+    .knob {
+      display: block; width: 14px; height: 14px; border-radius: 50%;
+      background: var(--fg-3); margin: 2px;
+      transition: transform .15s ease, background .15s ease;
+    }
+    .switch input:checked + .track {
+      background: color-mix(in srgb, var(--accent) 20%, transparent);
+      border-color: color-mix(in srgb, var(--accent) 45%, transparent);
+    }
+    .switch input:checked + .track .knob { transform: translateX(16px); background: var(--accent) }
+    .switch-text strong { display: block; font-size: 12px; font-weight: 600 }
+    .switch-text .hint { display: block; margin-top: 3px }
+
+    /* À propos */
+    .about-list { display: flex; flex-direction: column; gap: 8px; font-size: 11.5px; color: var(--fg-2) }
+    .about-list .row { gap: 8px; align-items: center }
+    .about-list .lucide-wrap { color: var(--fg-3) }
+    .about-list a {
+      color: var(--focus); text-decoration: none;
+      display: inline-flex; align-items: center; gap: 6px;
+    }
+    .about-list a:hover { text-decoration: underline }
+    #about-version { font-family: var(--font-mono); font-size: 11px; color: var(--fg-3) }
+
     .actions { display: flex; align-items: center; gap: 12px; margin-top: 20px }
     .actions .primary { width: auto; padding: 0 18px }
-    #save-msg { font-size: 11.5px }
-    #save-msg:not(.err):not(:empty) { color: var(--focus) }
   </style>
 </head>
 <body>
   <div class="page-head">
     <div class="brand-tile"><span data-lucide="shield-check" data-size="21"></span></div>
     <div>
-      <h1>Coffre — réglages</h1>
-      <p class="page-sub">
+      <h1 data-l10n="title">Coffre — réglages</h1>
+      <p class="page-sub" data-l10n="sub">
         L'extension accède au coffre via un token dédié : crée-le dans la webui
-        (Paramètres → Extension), colle-le ci-dessous, puis déverrouille depuis l'icône.
+        (Paramètres → Extension Firefox), colle-le ci-dessous, puis déverrouille depuis l'icône.
       </p>
     </div>
   </div>
 
-  <div class="card">
-    <h2 class="card-title"><span data-lucide="server" data-size="15"></span>Serveur + token</h2>
-    <label class="block" for="opt-url">URL du coffre (webui)</label>
-    <input type="text" id="opt-url" placeholder="https://vault.kervia.ch" />
-    <label class="block" for="opt-token">Token d'extension (webui → Paramètres → Extension → Créer)</label>
-    <input type="text" id="opt-token" placeholder="kvext_…" class="mono" />
+  <!-- Connexion : URL serveur + token d'extension -->
+  <section class="card" aria-labelledby="t-conn">
+    <h2 class="card-title" id="t-conn">
+      <span data-lucide="server" data-size="15"></span><span data-l10n="secConn">Connexion</span>
+    </h2>
+
+    <label class="block" for="opt-url" data-l10n="urlLabel">URL du serveur (webui)</label>
+    <input type="text" id="opt-url" data-l10n-ph="urlPh" placeholder="https://vault.kervia.ch"
+           autocomplete="url" spellcheck="false" />
+    <div class="status" id="url-status" role="status"></div>
+
+    <div class="field-gap"></div>
+
+    <label class="block" for="opt-token" data-l10n="tokenLabel">Token d'extension</label>
+    <div class="pw-wrap">
+      <input type="password" id="opt-token" data-l10n-ph="tokenPh" placeholder="kvext_…"
+             class="mono" autocomplete="off" spellcheck="false" />
+      <button type="button" id="btn-eye" class="pw-eye icon-btn" aria-pressed="false"
+              data-l10n-aria="eyeLabel" aria-label="Afficher / masquer le token">
+        <span data-lucide="eye" data-size="14"></span>
+      </button>
+    </div>
+    <div class="status" id="token-status" role="status"></div>
+    <p class="note" data-l10n="tokenHelp">
+      Crée-le dans la webui → Paramètres → Extension Firefox → « Créer le token », puis
+      colle-le ici. Il ne donne accès qu'aux blobs chiffrés du coffre — sans le mot de
+      passe maître, il ne révèle rien.
+    </p>
+
     <div class="test-row">
-      <button id="btn-test" class="primary small"><span data-lucide="plug-zap" data-size="13"></span>Tester la connexion</button>
-      <span id="test-msg" class="hint small"></span>
+      <button type="button" id="btn-test" class="primary small">
+        <span data-lucide="plug-zap" data-size="13"></span><span data-l10n="testConn">Tester la connexion</span>
+      </button>
+      <button type="button" id="btn-test-token" class="btn-ghost">
+        <span data-lucide="key-round" data-size="13"></span><span data-l10n="testTokenBtn">Tester le token</span>
+      </button>
     </div>
-    <p class="note">Une URL autre que vault.kervia.ch demandera une permission d'origine à l'enregistrement.</p>
-  </div>
+    <div class="status" id="test-status" role="status"></div>
 
-  <div class="card">
-    <h2 class="card-title"><span data-lucide="timer" data-size="15"></span>Verrouillage automatique</h2>
-    <div class="segmented" id="al-seg">
-      <button type="button" data-al="1">1 min</button>
-      <button type="button" data-al="5">5 min</button>
-      <button type="button" data-al="15">15 min</button>
-      <button type="button" data-al="60">60 min</button>
-      <button type="button" data-al="0">Jamais</button>
+    <p class="note" data-l10n="urlNote">
+      Une URL autre que vault.kervia.ch demandera une permission d'origine à l'enregistrement.
+    </p>
+  </section>
+
+  <!-- Sécurité : auto-lock + périmètre de l'extension -->
+  <section class="card" aria-labelledby="t-secu">
+    <h2 class="card-title" id="t-secu">
+      <span data-lucide="timer" data-size="15"></span><span data-l10n="secSecu">Sécurité</span>
+    </h2>
+
+    <p class="block" id="al-title" data-l10n="autoLockLabel">Verrouillage automatique après inactivité</p>
+    <div class="segmented" id="al-seg" role="group" aria-labelledby="al-title">
+      <button type="button" data-al="1" aria-pressed="false"><span data-l10n="al1">1 min</span></button>
+      <button type="button" data-al="5" aria-pressed="false"><span data-l10n="al5">5 min</span></button>
+      <button type="button" data-al="15" aria-pressed="false"><span data-l10n="al15">15 min</span></button>
+      <button type="button" data-al="60" aria-pressed="false"><span data-l10n="al60">60 min</span></button>
+      <button type="button" data-al="0" aria-pressed="false"><span data-l10n="al0">Jamais</span></button>
     </div>
-  </div>
 
-  <div class="card">
-    <h2 class="card-title"><span data-lucide="shield-check" data-size="15"></span>Sécurité — ce que fait (et ne fait pas) l'extension</h2>
     <div class="sec-list">
       <div class="row">
         <span data-lucide="check" data-size="13"></span>
-        <p>Zero-knowledge : le mot de passe maître et la clé ne vivent qu'en mémoire, jamais sur disque.</p>
+        <p data-l10n="secZero">Zero-knowledge : le mot de passe maître et la clé ne vivent qu'en mémoire, jamais sur disque.</p>
       </div>
       <div class="row">
         <span data-lucide="check" data-size="13"></span>
-        <p>Aucune interface n'est jamais injectée dans les pages web (pas d'icône dans les champs, pas de bulle) : le remplissage n'agit que sur ton clic dans le popup.</p>
+        <p data-l10n="secNoInject">Aucune interface n'est jamais injectée dans les pages web (ni icône dans les champs, ni bulle) : le remplissage n'agit que sur ton action dans le popup ou via Ctrl+Shift+L.</p>
       </div>
       <div class="row">
         <span data-lucide="check" data-size="13"></span>
-        <p>Le coffre déchiffré reste dans le processus d'arrière-plan ; verrouillage auto après inactivité.</p>
+        <p data-l10n="secBgMemory">Le coffre déchiffré reste dans le processus d'arrière-plan ; verrouillage auto après inactivité.</p>
       </div>
       <div class="row">
         <span data-lucide="check" data-size="13"></span>
-        <p>Les éléments ne quittent jamais l'origine de ton coffre : le contenu n'est envoyé que vers les champs du formulaire, sur ton ordinateur.</p>
+        <p data-l10n="secLocalOnly">Les éléments ne quittent jamais l'origine de ton coffre : le contenu n'est envoyé que vers les champs du formulaire, sur ton ordinateur.</p>
       </div>
     </div>
-  </div>
+  </section>
+
+  <!-- Remplissage : auto-fill (nouveau, contrat v1.8.7 : autoFill 'fill'|'off') -->
+  <section class="card" aria-labelledby="t-fill">
+    <h2 class="card-title" id="t-fill">
+      <span data-lucide="user" data-size="15"></span><span data-l10n="secFill">Remplissage</span>
+    </h2>
+
+    <label class="switch-line" for="opt-autofill">
+      <span class="switch">
+        <input type="checkbox" role="switch" id="opt-autofill" aria-label="Remplissage automatique des pages de connexion" />
+        <span class="track" aria-hidden="true"><span class="knob"></span></span>
+      </span>
+      <span class="switch-text">
+        <strong data-l10n="fillTitle">Remplissage automatique des pages de connexion</strong>
+        <span class="hint small" data-l10n="fillHelp">
+          Remplit automatiquement les champs vides quand UN SEUL élément du coffre
+          correspond au site. Plusieurs correspondances → l'icône affiche un badge,
+          ouvre le coffre pour choisir. Aucune interface n'est jamais injectée dans les pages.
+        </span>
+      </span>
+    </label>
+    <div class="status" id="fill-status" role="status"></div>
+  </section>
+
+  <!-- À propos -->
+  <section class="card" aria-labelledby="t-about">
+    <h2 class="card-title" id="t-about">
+      <span data-lucide="vault" data-size="15"></span><span data-l10n="secAbout">À propos</span>
+    </h2>
+    <div class="about-list">
+      <div class="row">
+        <span data-lucide="shield-check" data-size="13"></span>
+        <span data-l10n="aboutVersionLabel">Extension Coffre</span>
+        <span id="about-version"></span>
+      </div>
+      <div class="row">
+        <span data-lucide="external-link" data-size="13"></span>
+        <a id="about-webui" href="https://vault.kervia.ch" target="_blank" rel="noopener noreferrer" data-l10n="aboutWebui">Ouvrir la webui</a>
+      </div>
+      <div class="row">
+        <span data-lucide="external-link" data-size="13"></span>
+        <a href="https://github.com/kerviaHerve/kervia-vault" target="_blank" rel="noopener noreferrer" data-l10n="aboutGithub">Code source (GitHub)</a>
+      </div>
+    </div>
+  </section>
 
   <div class="actions">
-    <button id="btn-save" class="primary"><span data-lucide="save" data-size="14"></span>Enregistrer</button>
-    <span id="save-msg"></span>
+    <button id="btn-save" class="primary" type="button">
+      <span data-lucide="save" data-size="14"></span><span data-l10n="saveBtn">Enregistrer</span>
+    </button>
+    <span id="save-msg" class="status" role="status"></span>
   </div>
 
   <script src="js/lucide.js"></script>

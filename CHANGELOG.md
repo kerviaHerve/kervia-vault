@@ -1,5 +1,76 @@
 # Changelog
 
+## v1.8.7 (2026-11-08)
+
+- **Extension Firefox — overhaul complet** (audit utilisateur : « très
+  mauvaise en UX et en fonction, pas de pré-remplissage »). Quatre refontes
+  parallèles sous contrat partagé (`extension-firefox/CONTRAT-v1.8.7.md`),
+  charte sacrée conservée : **jamais d'interface injectée dans les pages**.
+
+  **Remplissage (le cœur)**
+  - **iframes enfin remplissables** : `all_frames: true` +
+    `match_about_blank` — les logins en iframe cross-origin (banques, SSO)
+    étaient structurellement ignorés. Pattern « responder-only » : seule la
+    frame qui trouve des champs répond (une réponse négative d'une frame
+    masquait la réponse positive d'une iframe).
+  - **Formulaires SPA rattrapés** : la détection est refaite à CHAQUE
+    action, plus jamais cachée depuis `document_idle` — les login forms
+    rendus par JS sont trouvés.
+  - **Heuristiques en cascade** : `autocomplete="username/current-password"`
+    → même `<form>` → indice `user|email|login|mail|account|ident` sur
+    name/id/placeholder → règle de proximité. Les champs
+    `autocomplete="new-password"` (inscription) sont écartés.
+  - **Code 2FA collé dans la page** : `fill-totp` trouve le champ 2FA
+    (`one-time-code`, boîte OTP numérique, ou champ sous le mot de passe).
+
+  **Pré-remplissage (le manquant)**
+  - **Badge sur l'icône** : nombre d'éléments correspondant au site courant
+    — signal passif rafraîchi à chaque navigation (tabs.onActivated/
+    onUpdated) et après unlock/sync.
+  - **Auto-fill opt-in** (Réglages, défaut OFF) : à l'ouverture d'une page,
+    si UN SEUL élément correspond → champs VIDES uniquement remplis
+    (jamais d'écrasement d'une saisie), un seul retry 1,2 s (SPA), annulé si
+    navigation entre-temps. Plusieurs matches → rien (le badge invite à
+    choisir). Invariant : les secrets ne partent que vers l'URL qui a matché.
+  - **Ctrl+Shift+L malin** : 1 match → remplit ; 0 ou plusieurs → ouvre le
+    popup (avant : `matches[0]` rempli en silence). Menu contextuel
+    « Remplir depuis le coffre » (clic droit) sur la même logique.
+
+  **Popup v2**
+  - **Secrets à la demande** : fin du N+1 de messages par ligne et du cache
+    plaintext popup — les copies passent par le background.
+  - **Favoris et récents d'abord** (étoile lucide, `lastUsed` par id
+    d'élément, stable entre syncs), compteur de section, tri final
+    alphabétique.
+  - **Clavier complet** : `/` focus la recherche, ↑/↓ roving focus, Entrée
+    = action principale (Remplir / copier mot de passe), Échap vide.
+  - **L10N FR/EN** (56 clés, `navigator.language`), hint Majuscules,
+    erreurs aria-live + aria-invalid, états vides guidés (CTA webui /
+    réglages), sync avec spinner, « synchronisé il y a X min ».
+
+  **Options refondues** : 4 sections (Connexion / Sécurité / Remplissage /
+  À propos), validation URL à la frappe (avertissement http explicite),
+  « Tester le token » avec feedback réel (valide N items / révoqué / coffre
+  absent), champ token masqué + œil, toggle auto-fill avec aide honnête,
+  L10N, a11y complète (labels liés, aria-pressed sur le segmenté auto-lock).
+
+  **Sécurité**
+  - **Copie persistante** : le toast « effacé dans 30 s » était une fausse
+    promesse (le timer mourait avec le popup) — le wipe vit désormais dans
+    le background, silencieux, sans jamais de log autour d'un secret.
+  - **Matching v2** (coffre-lib) : URIs sans schéma reconnues (« example.com »
+    était ignoré) ; **suffixes piégés corrigés** — `shop.co.uk` matchait
+    tout `.co.uk` (17 suffixes multi-labels embarqués, limite documentée) ;
+    garde IPv4 ; `mailto:` jamais préfixé. 25 self-tests node embarqués.
+  - Crypto interop webui intacte (unlockEnvelope/decryptItem/parseTotp/
+    totpNow/generatePassword inchangés).
+
+  **Pipeline** : le manifest de l'extension est désormais **estampillé à la
+  version de la release** avant zip + signature AMO — avant, updates.json
+  annonçait la version du tag mais le XPI restait à 1.8.3 : Firefox
+  re-proposait la « même » mise à jour en boucle. Doc de coordination
+  exclue du XPI.
+
 ## v1.8.6 (2026-11-08)
 
 - **WebUI — les 3 vagues de l'audit UX/accessibilité appliquées**

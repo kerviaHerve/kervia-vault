@@ -24,7 +24,7 @@
   --accent: #B8E263;     /* citron — actions */
   --accent-hover: #C8EC83;
   --accent-pressed: #A8D451;
-  --accent-text: #19251A;/* texte sur citron */
+  --accent-text: #171B19;/* texte sur citron — charte v1.8.7 */
   --focus: #7FD4B8;      /* menthe — focus / succès */
   --danger: #FFADA7;
   --danger-bg: #4A272B;
@@ -40,7 +40,7 @@ html { color-scheme: dark }
 [hidden] { display: none !important }
 
 body {
-  width: 340px;
+  width: 400px;          /* ~400 px max (UX v1.8.7) — options.html surcharge en inline */
   background: var(--bg);
   color: var(--fg);
   font: 13px/1.45 var(--font-sans);
@@ -66,6 +66,10 @@ body {
   justify-content: center;
   flex-shrink: 0;
 }
+
+/* rotation (synchro en cours — tuée par prefers-reduced-motion) */
+.spin svg { animation: kv-spin .9s linear infinite; transform-origin: center }
+@keyframes kv-spin { to { transform: rotate(360deg) } }
 
 /* ---- en-tête ---- */
 header {
@@ -95,6 +99,13 @@ header {
 .mono { font-family: var(--font-mono) }
 .err { color: var(--danger); font-size: 11.5px }
 
+/* Caps Lock actif (écran verrouillé) — citron sur charbon ≈ 11.5:1 */
+.caps {
+  color: var(--accent);
+  font-size: 11px; font-weight: 600;
+  margin: -3px 0 9px;
+}
+
 /* ---- entrées ---- */
 input[type=password], input[type=search], input[type=text] {
   width: 100%; height: 34px; padding: 0 10px;
@@ -111,6 +122,9 @@ input:focus {
   border-color: var(--border-2);
   box-shadow: 0 0 0 3px rgba(127, 212, 184, .16);
 }
+/* erreur liée au champ (déverrouillage) */
+input[aria-invalid="true"] { border-color: var(--danger) }
+input[aria-invalid="true"]:focus { box-shadow: 0 0 0 3px rgba(255, 173, 167, .14) }
 input[type=checkbox], input[type=radio], input[type=range] { accent-color: var(--accent) }
 
 /* ---- boutons ---- */
@@ -134,6 +148,27 @@ button.primary {
 button.primary:hover { background: var(--accent-hover) }
 button.primary:active { background: var(--accent-pressed) }
 button.primary.small { width: auto; height: 24px; padding: 0 10px; font-size: 11px; border-radius: 6px }
+
+/* bouton « Code » (fill-totp, après un remplissage réussi) — menthe */
+.btn-code {
+  height: 24px; padding: 0 10px; border-radius: 6px;
+  font-size: 11px; font-weight: 600;
+  color: var(--focus);            /* ≈ 5:1 sur la surface */
+  background: rgba(127, 212, 184, .1);
+  border: 1px solid rgba(127, 212, 184, .28);
+  transition: background .12s ease;
+}
+.btn-code:hover { background: rgba(127, 212, 184, .17) }
+
+/* CTA (coffre vide, token manquant) */
+.cta {
+  height: 30px; padding: 0 16px; margin-top: 10px;
+  border-radius: var(--radius);
+  background: var(--accent); color: var(--accent-text);
+  font-weight: 600; font-size: 12px;
+  transition: background .12s ease;
+}
+.cta:hover { background: var(--accent-hover) }
 
 /* ---- écran verrouillé ---- */
 .locked-screen {
@@ -177,12 +212,33 @@ button.primary.small { width: auto; height: 24px; padding: 0 10px; font-size: 11
 }
 #search { padding-left: 32px }
 
+/* raccourci clavier « / » (recherche) */
+.kbd {
+  font-family: var(--font-mono); font-size: 10px;
+  color: var(--fg-3);
+  background: var(--card);
+  border: 1px solid var(--border); border-bottom-width: 2px;
+  border-radius: 5px; padding: 1px 6px;
+}
+
 .section-title {
   display: flex; align-items: center; gap: 6px;
   font-size: 10px; font-weight: 600;
   letter-spacing: .09em; text-transform: uppercase;
   color: var(--fg-3);
   padding: 10px 14px 5px;
+}
+
+/* étoile favori — jaune-citron, remplie */
+.fav { color: var(--accent) }
+.fav svg { fill: currentColor }
+
+/* compteur d'éléments dans le titre de section */
+.count {
+  font-size: 9.5px; font-variant-numeric: tabular-nums;
+  color: var(--fg-3); background: var(--card);
+  border-radius: 999px; padding: 1.5px 7px;
+  margin-left: 2px;
 }
 
 .items { display: flex; flex-direction: column }
@@ -201,6 +257,11 @@ button.primary.small { width: auto; height: 24px; padding: 0 10px; font-size: 11
   transition: background .1s ease;
 }
 .item:hover { background: var(--card) }
+/* roving focus clavier — fond relevé + liseré menthe */
+.item.focused {
+  background: var(--card-2);
+  box-shadow: inset 2px 0 0 var(--focus);
+}
 .item-info { flex: 1; min-width: 0 }
 .item-name {
   font-size: 12.5px; font-weight: 500;
@@ -213,6 +274,7 @@ button.primary.small { width: auto; height: 24px; padding: 0 10px; font-size: 11
 .item-actions { display: flex; align-items: center; gap: 2px; flex-shrink: 0 }
 .item-actions .icon-btn { width: 25px; height: 25px }
 
+/* TOTP vivant (page) : bouton cliquable — copie via le background */
 .totp {
   display: inline-flex; align-items: center;
   font-family: var(--font-mono);
@@ -222,7 +284,9 @@ button.primary.small { width: auto; height: 24px; padding: 0 10px; font-size: 11
   background: rgba(127, 212, 184, .08);
   border: 1px solid rgba(127, 212, 184, .18);
   border-radius: 6px; padding: 2px 7px;
+  transition: background .12s ease;
 }
+.totp:hover { background: rgba(127, 212, 184, .14) }
 
 .empty {
   display: flex; flex-direction: column; align-items: center; gap: 9px;
@@ -230,6 +294,7 @@ button.primary.small { width: auto; height: 24px; padding: 0 10px; font-size: 11
   color: var(--fg-3); font-size: 11.5px;
 }
 .empty .lucide-wrap { opacity: .55 }
+.empty .cta { margin-top: 4px }
 
 /* ---- générateur ---- */
 .card {

@@ -29,7 +29,23 @@ jobs:
       - name: Build Firefox extension XPI (unsigned)
         run: |
           cd extension-firefox
-          zip -r -X ../internal/web/dist/extension-firefox.xpi . -x "*.DS_Store"
+          # v1.8.7 : la version du manifest est estampillée par la release —
+          # updates.json annonce la version du TAG, le XPI doit porter la
+          # MÊME, sinon Firefox re-propose indéfiniment la « même » mise à
+          # jour (installed manifest version < announced version).
+          python3 - <<'EOF'
+          import json, os
+          tag = os.environ["GITHUB_REF_NAME"]
+          v = tag[1:] if tag.startswith("v") else tag
+          p = "manifest.json"
+          m = json.load(open(p))
+          m["version"] = v
+          with open(p, "w") as f:
+              json.dump(m, f, indent=2, ensure_ascii=False)
+              f.write("\n")
+          print("manifest version ->", v)
+          EOF
+          zip -r -X ../internal/web/dist/extension-firefox.xpi . -x "*.DS_Store" -x "CONTRAT-*.md"
 
       # Signature AMO (unlisted) : XPI installable en permanence (fini
       # about:debugging) + mises à jour auto via update_url. Nécessite les

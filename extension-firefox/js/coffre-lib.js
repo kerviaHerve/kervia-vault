@@ -116,17 +116,74 @@ var COFFRE = (function () {
       .then(function (pt) { return normalizeItem(JSON.parse(td(pt))) })
   }
 
-  // ---- recherche / correspondance de domaines ----
+  // ---- recherche / correspondance de domaines (v2) ----
+  // domainOf TOLÉRANT : les URI du coffre sont saisies librement et
+  // arrivent souvent SANS schéma (« example.com », « www.ex.com/login »),
+  // cas où new URL throw (ou parse en opaque avec hostname vide). Règles :
+  //  • pas de schéma du tout → préfixe « https:// » puis parse ;
+  //  • « host:port » sans schéma (« ex.com:8443 ») → idem : l'URL parser
+  //    y voit un schéma (« ex.com » est un nom de schéma valide), nous
+  //    y voyons un hôte — regex dédiée pour le distinguer ;
+  //  • schéma NON-web (mailto:) → jamais préfixé : hostname vide → aucun
+  //    faux match d'un mailto:contact@shop.x sur le domaine shop.x ;
+  //  • mot sans point ni schéma (« /login » → « login ») → pas un hôte
+  //    (localhost mis à part) → vide, pas de faux positif ;
+  //  • le PORT n'entre jamais en compte : new URL().hostname l'exclut —
+  //    site.com:8443 correspond à site.com (choix documenté, voulu).
+  function urlHost(u) {
+    try { var h = new URL(u).hostname; return h ? h.toLowerCase() : '' } catch (e) { return '' }
+  }
   function domainOf(url) {
-    try { return new URL(url).hostname } catch (e) { return '' }
+    var v = String(url || '').trim()
+    if (!v) return ''
+    var h = urlHost(v)
+    if (h) return h
+    if (/^[a-z][a-z0-9+.-]*:\/\//i.test(v)) return '' // schéma + autorité déjà parsés : hôte vide
+    // présence d'un « schéma » : réel (mailto:) → pas de préfixe ;
+    // host:port (ex.com:8443) → préfixé quand même
+    if (v.indexOf(':') !== -1 && !/^[a-z0-9][a-z0-9.-]*:\d{1,5}([\/?#]|$)/i.test(v)) return ''
+    h = urlHost('https://' + v.replace(/^\/+/, ''))
+    return (h && (h.indexOf('.') !== -1 || h === 'localhost')) ? h : ''
+  }
+
+  // suffixes ccTLD à 2 labels les plus courants — liste EMBARQUÉE et
+  // volontairement courte (pas de PSL complète : ~8 000 entrées n'ont
+  // pas leur place dans l'extension). LIMITE DOCUMENTÉE : un suffixe
+  // absent (ex. com.sg) retombe sur l'heuristique 2 labels — à étendre
+  // si un coffre en a besoin. Sans cette liste, « shop.co.uk » avait
+  // pour base « co.uk » → n'importe quel site .co.uk matchait (faux
+  // positif de sécurité).
+  var MULTI_LABEL_SUFFIXES = {
+    'co.uk': 1, 'org.uk': 1, 'ac.uk': 1, 'gov.uk': 1,
+    'com.au': 1, 'net.au': 1, 'org.au': 1, 'edu.au': 1,
+    'co.nz': 1, 'co.jp': 1, 'com.br': 1, 'com.mx': 1,
+    'co.in': 1, 'com.tr': 1, 'co.za': 1, 'com.cn': 1, 'co.kr': 1,
   }
   function baseDomain(host) {
-    // heuristique 2 labels : site.fr, example.com (les ccTLD composés
-    // type co.uk restent sur 3 — rare dans un coffre perso)
-    var p = String(host || '').toLowerCase().split('.').filter(Boolean)
+    var v = String(host || '').toLowerCase().trim()
+    // IPv4 : la « base » d'une IP est l'IP entière (sinon 192.168.1.10
+    // « matcherait » 10.2.3.10 — mêmes deux derniers labels)
+    if (/^\d{1,3}(\.\d{1,3}){3}$/.test(v)) return v
+    // heuristique 2 labels : site.fr, example.com ; 3 pour les
+    // suffixes connus à 2 labels (shop.co.uk → shop.co.uk)
+    var p = v.split('.').filter(Boolean)
     if (p.length <= 2) return p.join('.')
-    return p.slice(-2).join('.')
+    var two = p.slice(-2).join('.')
+    if (MULTI_LABEL_SUFFIXES[two]) return p.slice(-3).join('.')
+    return two
   }
+
+  // Un élément correspond à la page si l'un de ses champs kind='link'
+  // vise le même hôte, ou le même domaine de base (sous-domaines
+  // inclus, des deux côtés). Choix assumés, documentés :
+  //  • PAS de match par nom d'item (« Gmail » vs mail.google.com) : le
+  //    nom est du texte libre, trop de faux positifs — refusé ;
+  //  • le port ne compte pas : new URL().hostname l'exclut déjà ;
+  //  • schémas non-web (mailto:) et URI non-hôtes : jamais de match
+  //    (hostname vide côté domainOf) ;
+  //  • match par base domain uniquement — un site PIÈGE partageant
+  //    le sous-domaine sans partager la base (shop.attacker.co.uk vs
+  //    shop.victim.co.uk) ne matche PAS.
   function itemMatchesUrl(item, url) {
     var pageHost = domainOf(url)
     if (!pageHost) return false
@@ -140,6 +197,12 @@ var COFFRE = (function () {
     }
     return false
   }
+
+  // Texte indexé pour la recherche : nom + « libellé valeur » de chaque
+  // champ (les URI complets y passent donc — kind='link' → « Site web
+  // https://… ») + notes + dossier + tags, en minuscules. La
+  // correspondance par domaine saisie (« gmail » → mail.google.com) est
+  // HORS SCOPE : .includes volontairement simple (sous-chaîne).
   function itemSearchText(it) {
     return [it.name].concat((it.fields || []).map(function (f) { return f.l + ' ' + f.v }))
       .concat([it.notes || '', it.folder || '']).concat(it.tags || [])
@@ -267,3 +330,62 @@ var COFFRE = (function () {
   }
 })()
 if (typeof module !== 'undefined' && module.exports) module.exports = COFFRE // tests Node
+
+// ---- self-tests (matching) — exécution directe : `node js/coffre-lib.js`.
+// En require() le bloc se tait (module importé) ; en direct il tourne et
+// exitCode ≠ 0 si échec. Uniquement les fonctions PURES de matching —
+// aucune crypto ici. L'usage extension (var COFFRE global chargé par le
+// manifest / popup.html) est inchangé : sous Firefox, module n'existe
+// pas et ce bloc entier est mort.
+if (typeof module !== 'undefined' && typeof require === 'function' && require.main === module) {
+  var __pass = 0, __fail = 0
+  function __eq(actual, expected, label) {
+    var a = JSON.stringify(actual), e = JSON.stringify(expected)
+    if (a === e) { __pass++; return }
+    __fail++
+    console.error('  ÉCHEC ' + label + ' : attendu ' + e + ', obtenu ' + a)
+  }
+
+  // domainOf — tolérant aux URI stockées sans schéma
+  __eq(COFFRE.domainOf('example.com'), 'example.com', 'domainOf sans schéma')
+  __eq(COFFRE.domainOf('www.example.com/login'), 'www.example.com', 'domainOf sans schéma + chemin')
+  __eq(COFFRE.domainOf('example.com:8443/admin'), 'example.com', 'domainOf host:port sans schéma (port exclu)')
+  __eq(COFFRE.domainOf('https://App.Example.COM/x?y'), 'app.example.com', 'domainOf https + insensible à la casse')
+  __eq(COFFRE.domainOf('//cdn.example.com/x'), 'cdn.example.com', 'domainOf relatif au protocole (//)')
+  __eq(COFFRE.domainOf('localhost'), 'localhost', 'domainOf hôte nu localhost')
+  __eq(COFFRE.domainOf('mailto:contact@shop.example'), '', 'domainOf mailto → vide (pas de faux match)')
+  __eq(COFFRE.domainOf('/login'), '', 'domainOf chemin seul → vide')
+  __eq(COFFRE.domainOf(''), '', 'domainOf chaîne vide')
+
+  // baseDomain — suffixes à 2 labels vs .com
+  __eq(COFFRE.baseDomain('shop.co.uk'), 'shop.co.uk', 'baseDomain co.uk → 3 labels (pas «co.uk»)')
+  __eq(COFFRE.baseDomain('www.example.com'), 'example.com', 'baseDomain .com → 2 labels')
+  __eq(COFFRE.baseDomain('a.b.example.com'), 'example.com', 'baseDomain profond → 2 labels')
+  __eq(COFFRE.baseDomain('x.co.jp'), 'x.co.jp', 'baseDomain co.jp → 3 labels')
+  __eq(COFFRE.baseDomain('192.168.1.10'), '192.168.1.10', 'baseDomain IPv4 → IP entière')
+  __eq(COFFRE.baseDomain('localhost'), 'localhost', 'baseDomain mono-label')
+
+  // itemMatchesUrl — positifs
+  __eq(COFFRE.itemMatchesUrl({ fields: [{ k: 'link', l: 'Site', v: 'https://www.example.com/login' }] }, 'https://app.example.com/signin'), true, 'match sous-domaine ↔ base domain')
+  __eq(COFFRE.itemMatchesUrl({ fields: [{ k: 'link', l: 'Site', v: 'example.com' }] }, 'https://example.com'), true, 'match URI stockée sans schéma')
+  __eq(COFFRE.itemMatchesUrl({ fields: [{ k: 'link', l: 'Site', v: 'https://site.com' }] }, 'https://site.com:8443/x'), true, 'match port différent (hostname sans port)')
+
+  // itemMatchesUrl — négatifs
+  __eq(COFFRE.itemMatchesUrl({ fields: [{ k: 'link', l: 'Site', v: 'https://shop.attacker.co.uk' }] }, 'https://shop.victim.co.uk'), false, 'PAS de match .co.uk croisé (suffixe piégé)')
+  __eq(COFFRE.itemMatchesUrl({ fields: [{ k: 'link', l: 'Site', v: 'https://random.co.uk' }] }, 'https://shop.co.uk'), false, 'PAS de match base «co.uk» (ancien bug de sécurité)')
+  __eq(COFFRE.itemMatchesUrl({ fields: [{ k: 'link', l: 'Site', v: 'https://notexample.com' }] }, 'https://example.com'), false, 'PAS de match autre site (label voisin)')
+  __eq(COFFRE.itemMatchesUrl({ fields: [{ k: 'link', l: 'Site', v: 'mailto:contact@shop.example' }] }, 'https://shop.example'), false, 'PAS de match mailto sur le domaine')
+  __eq(COFFRE.itemMatchesUrl({ name: 'example.com', fields: [] }, 'https://example.com'), false, 'PAS de match par nom d’item (refusé : faux positifs)')
+  __eq(COFFRE.itemMatchesUrl({ fields: [{ k: 'secret', l: 'Mot de passe', v: 'https://example.com' }] }, 'https://example.com'), false, 'PAS de match sur champ non-link')
+
+  // itemSearchText — nom + libellé/valeur des champs (URI complets inclus)
+  var __st = COFFRE.itemSearchText({
+    name: 'Gmail',
+    fields: [{ k: 'link', l: 'Site web', v: 'https://mail.example.com' }],
+    notes: 'note', folder: 'Perso', tags: ['mail'],
+  })
+  __eq(__st.includes('gmail') && __st.includes('site web https://mail.example.com') && __st.includes('note') && __st.includes('perso'), true, 'itemSearchText indexe nom + champs + notes + dossier + tags')
+
+  console.log('coffre-lib self-tests : ' + __pass + ' OK, ' + __fail + ' échec(s)')
+  if (__fail > 0) process.exitCode = 1
+}

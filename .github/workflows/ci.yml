@@ -17,7 +17,9 @@ jobs:
         run: |
           npm ci
           npx tsc --noEmit
-          npx vite build
+          # npm run build = gardes de non-régression (check-i18n, check-contrast
+          # APCA/WCAG) + vite build — un token cassé casse la CI, pas la prod
+          npm run build
       - name: Build Firefox extension XPI (embeds in dist for go:embed)
         run: |
           cd extension-firefox

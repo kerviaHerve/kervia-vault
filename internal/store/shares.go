@@ -82,7 +82,7 @@ func (s *Store) ListActiveShares(secretID string) ([]*ActiveShare, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }() // errcheck : fermeture best-effort documentée
 	out := []*ActiveShare{}
 	for rows.Next() {
 		s := &ActiveShare{}

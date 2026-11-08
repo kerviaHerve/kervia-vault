@@ -43,7 +43,7 @@ func TestShareRevokeBeforeExpiry(t *testing.T) {
 	}
 
 	// list: 2 liens vivants, aucun token ne sort
-	res := e_do(env, "GET", "/admin/shares?secret_id="+list[0].ID, nil)
+	res := eDo(env, "GET", "/admin/shares?secret_id="+list[0].ID, nil)
 	var shares []map[string]any
 	_ = json.NewDecoder(res.Body).Decode(&shares)
 	res.Body.Close()
@@ -60,7 +60,7 @@ func TestShareRevokeBeforeExpiry(t *testing.T) {
 	if id == "" {
 		t.Fatal("share id missing")
 	}
-	if res := e_do(env, "DELETE", "/admin/shares/"+id, nil); res.StatusCode != 200 {
+	if res := eDo(env, "DELETE", "/admin/shares/"+id, nil); res.StatusCode != 200 {
 		t.Fatalf("revoke: status %d", res.StatusCode)
 	}
 
@@ -81,14 +81,14 @@ func TestShareRevokeBeforeExpiry(t *testing.T) {
 	}
 
 	// idempotent: revoke again → 200, still dead
-	if res := e_do(env, "DELETE", "/admin/shares/"+id, nil); res.StatusCode != 200 {
+	if res := eDo(env, "DELETE", "/admin/shares/"+id, nil); res.StatusCode != 200 {
 		t.Fatalf("re-revoke must be idempotent, got %d", res.StatusCode)
 	}
 
 	// list: plus AUCUN lien vivant — le premier est révoqué, le second a été
 	// consommé par la vérification "still alive" ci-dessus (la consultation
 	// EST la consommation : one-time par construction).
-	res = e_do(env, "GET", "/admin/shares?secret_id="+list[0].ID, nil)
+	res = eDo(env, "GET", "/admin/shares?secret_id="+list[0].ID, nil)
 	_ = json.NewDecoder(res.Body).Decode(&shares)
 	res.Body.Close()
 	if len(shares) != 0 {
@@ -96,7 +96,7 @@ func TestShareRevokeBeforeExpiry(t *testing.T) {
 	}
 
 	// audit trail
-	res = e_do(env, "GET", "/admin/audit?limit=50", nil)
+	res = eDo(env, "GET", "/admin/audit?limit=50", nil)
 	body, _ := io.ReadAll(res.Body)
 	res.Body.Close()
 	if !strings.Contains(string(body), "share_revoke") {
@@ -104,7 +104,7 @@ func TestShareRevokeBeforeExpiry(t *testing.T) {
 	}
 }
 
-// e_do : wrapper local — le testEnv expose do(method, path, body, apiKey).
-func e_do(env *testEnv, method, path string, body any) *http.Response {
+// eDo : wrapper local — le testEnv expose do(method, path, body, apiKey).
+func eDo(env *testEnv, method, path string, body any) *http.Response {
 	return env.do(method, path, body, "")
 }

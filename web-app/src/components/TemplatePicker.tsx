@@ -25,9 +25,11 @@ import { cn } from '@/lib/utils'
 // assignable tel quel (le picker n'a pas besoin des champs).
 export interface PickerTemplate {
   key: string; name: string; category: string; description?: string
+  /** Alias de recherche (FR/EN) — indexés par la recherche, JAMAIS affichés. */
+  searchText?: string
 }
 
-type Icon = React.ComponentType<{ size?: number; className?: string }>
+type Icon = React.ComponentType<{ size?: number; className?: string; 'aria-hidden'?: boolean | 'true' | 'false' }>
 
 // Icône par catégorie (chute : FileText).
 const CAT_ICON: Record<string, Icon> = {
@@ -86,11 +88,13 @@ export default function TemplatePicker({ value, onChange, templates, open, onOpe
   const searchRef = React.useRef<HTMLInputElement>(null)
   const rowRefs = React.useRef<(HTMLButtonElement | null)[]>([])
 
-  // La « valeur libre » participe à la recherche comme un template
-  // (mots-clés anglais inclus : un utilisateur peut taper « free »).
+  // La « valeur libre » participe à la recherche comme un template : ses
+  // alias FR/EN vivent dans searchText (indexé mais jamais rendu à l'écran —
+  // avant, « libre free-form » était collé à la description visible).
   const freeTpl = (): PickerTemplate => ({
     key: '', name: String(t.freeValue), category: '',
-    description: `${String(t.freeDesc)} libre free-form`,
+    description: String(t.freeDesc),
+    searchText: 'libre free-form',
   })
 
   // Groupes affichés : recherche vide → basiques épinglés + tout, sinon
@@ -98,7 +102,7 @@ export default function TemplatePicker({ value, onChange, templates, open, onOpe
   const groups = React.useMemo(() => {
     const tokens = norm(query).split(/\s+/).filter(Boolean)
     const match = (tpl: PickerTemplate) => {
-      const hay = norm(`${tpl.name} ${tpl.key} ${tpl.category} ${tpl.description || ''}`)
+      const hay = norm(`${tpl.name} ${tpl.key} ${tpl.category} ${tpl.description || ''} ${tpl.searchText || ''}`)
       return tokens.every(tok => {
         const alts = [tok, ...(ALIASES[tok] || [])]
         return alts.some(a => hay.includes(a))
@@ -169,12 +173,12 @@ export default function TemplatePicker({ value, onChange, templates, open, onOpe
         aria-haspopup="listbox" aria-expanded={isOpen}
         className="w-full h-9 flex items-center gap-2 bg-bg border border-border rounded-lg px-3 text-sm cursor-pointer text-left outline-none focus:border-accent"
       >
-        <SelIcon size={14} className="text-fg-3 shrink-0" />
+        <SelIcon size={14} className="text-fg-3 shrink-0" aria-hidden="true" />
         <span className={cn('flex-1 truncate', sel ? 'text-fg' : 'text-fg-3')}>
           {sel ? sel.name : String(t.freeValue)}
         </span>
-        {sel && <span className="text-[11px] text-fg-3 shrink-0">{sel.category}</span>}
-        {isOpen ? <ChevronUp size={14} className="text-fg-3 shrink-0" /> : <ChevronDown size={14} className="text-fg-3 shrink-0" />}
+        {sel && <span className="text-2xs text-fg-3 shrink-0">{sel.category}</span>}
+        {isOpen ? <ChevronUp size={14} className="text-fg-3 shrink-0" aria-hidden="true" /> : <ChevronDown size={14} className="text-fg-3 shrink-0" aria-hidden="true" />}
       </button>
 
       {/* panneau — dans le flux du dialog : aucun z-index, aucun portail,
@@ -182,16 +186,18 @@ export default function TemplatePicker({ value, onChange, templates, open, onOpe
       {isOpen && (
         <div className="mt-1.5 bg-card border border-border rounded-lg overflow-hidden shadow-lg">
           <div className="flex items-center gap-2 px-3 border-b border-border">
-            <Search size={14} className="text-fg-3 shrink-0" />
+            <Search size={14} className="text-fg-3 shrink-0" aria-hidden="true" />
             <input ref={searchRef} value={query}
               onChange={e => { setQuery(e.target.value); setActive(0) }}
               onKeyDown={onSearchKey}
               placeholder={String(t.tplSearchPH)}
-              className="flex-1 h-9 bg-transparent text-sm text-fg placeholder:text-fg-3 outline-none"
+              aria-label={String(t.searchLabel)}
+              className="flex-1 h-9 bg-transparent text-sm text-fg placeholder:text-fg-3 focus:border-accent-fg focus:outline-2 focus:outline-offset-1 focus:outline-focus"
             />
             {query && (
               <button type="button" onClick={() => { setQuery(''); setActive(0) }}
-                className="text-fg-3 hover:text-fg cursor-pointer shrink-0"><X size={13} /></button>
+                aria-label={String(t.clearSearch)}
+                className="text-fg-3 hover:text-fg cursor-pointer shrink-0"><X size={13} aria-hidden="true" /></button>
             )}
           </div>
 
@@ -200,14 +206,17 @@ export default function TemplatePicker({ value, onChange, templates, open, onOpe
               <div className="px-3 py-6 text-center text-xs text-fg-3">{String(t.noResults)}</div>
             )}
             {groups.map(g => g.rows.length > 0 && (
-              <div key={g.id}>
-                <div className="px-3 pt-2 pb-1 text-[10px] font-semibold uppercase tracking-wider text-fg-3 select-none">{g.label}</div>
+              <div key={g.id} role="group" aria-label={g.label}>
+                <div className="px-3 pt-2 pb-1 text-2xs font-semibold uppercase tracking-wider text-fg-3 select-none">{g.label}</div>
                 {g.rows.map(r => {
                   const i = flat.indexOf(r)
                   const isActive = i === activeIdx
                   const RowIcon = r.icon
                   return (
+                    // tabIndex -1 : la navigation se fait par ↑/↓ depuis la
+                    // recherche — un tab dans chaque option ne ferait que du bruit
                     <button type="button" key={r.key || '__free__'} role="option" aria-selected={r.key === value}
+                      tabIndex={-1}
                       ref={el => { rowRefs.current[i] = el }}
                       onClick={() => pick(r.key)}
                       onMouseEnter={() => setActive(i)}
@@ -216,18 +225,18 @@ export default function TemplatePicker({ value, onChange, templates, open, onOpe
                         isActive ? 'bg-accent/10' : 'hover:bg-card-2',
                       )}
                     >
-                      <RowIcon size={14} className={cn('shrink-0', isActive ? 'text-accent' : 'text-fg-3')} />
+                      <RowIcon size={14} className={cn('shrink-0', isActive ? 'text-accent-fg' : 'text-fg-3')} aria-hidden="true" />
                       <span className="min-w-0 flex-1">
-                        <span className={cn('block text-sm truncate', isActive ? 'text-accent' : 'text-fg')}>
+                        <span className={cn('block text-sm truncate', isActive ? 'text-accent-fg' : 'text-fg')}>
                           <Marked text={r.name} q={query} />
                         </span>
                         {r.description && (
-                          <span className="block text-[11px] text-fg-3 truncate">
+                          <span className="block text-2xs text-fg-3 truncate">
                             <Marked text={r.description} q={query} />
                           </span>
                         )}
                       </span>
-                      {r.key === value && <Check size={13} className="text-accent shrink-0" />}
+                      {r.key === value && <Check size={13} className="text-accent-fg shrink-0" aria-hidden="true" />}
                     </button>
                   )
                 })}
@@ -250,7 +259,7 @@ function Marked({ text, q }: { text: string; q: string }) {
   if (i < 0) return <>{text}</>
   return <>
     {text.slice(0, i)}
-    <mark className="bg-transparent text-accent font-semibold">{text.slice(i, i + tok.length)}</mark>
+    <mark className="bg-transparent text-accent-fg font-semibold">{text.slice(i, i + tok.length)}</mark>
     {text.slice(i + tok.length)}
   </>
 }

@@ -1,5 +1,120 @@
 # Changelog
 
+## v1.8.6 (2026-11-08)
+
+- **WebUI — les 3 vagues de l'audit UX/accessibilité appliquées**
+  (audit complet dans `docs/AUDIT-UX-2026-11.md` : 4 revues parallèles —
+  WCAG 2.2 AA, heuristiques Nielsen + security UX, design system, UX
+  writing — croisées avec les référentiels 2025-2026). Les 8 bugs vérifiés
+  et les 6 familles systémiques sont corrigés :
+
+  **Bugs corrigés (vérifiés par relecture de code + calcul de contraste)**
+  - bouton « undefined » du dialog secret (clé i18n `close` manquante)
+  - navigation du dashboard routée sur les libellés TRADUITS (4 cartes
+    mortes selon la langue → ids stables)
+  - bouton copie invisible dans le dialog secret (`group` absent) — et
+    désormais visible au clavier (`focus-within`)
+  - **`text-accent` illisible en thème clair (1,37:1)** : nouveau token
+    `--color-accent-fg` (olive `#4E6B14` en light), 61 usages migrés
+  - **aucune gestion de session expirée** : `api()` intercepte les 401
+    (toast localisé + retour au login) — fin des pages blanches/mensongères
+  - **presse-papiers muet en HTTP** : `copyText()` avec fallback
+    `execCommand` sur les 12 sites (la clé API affichée une fois ne peut
+    plus être « perdue » par un bouton silencieux)
+  - **codes de récupération perdus au refresh du wizard** :
+    `beforeunload` aux étapes critiques + case obligatoire
+    « j'ai sauvegardé mes codes » + bannière
+  - **récupération de mot de passe sans confirmation** : champ de
+    confirmation bloquant (une faute de frappe = code à usage unique
+    brûlé + lockout total)
+
+  **Security UX** : confirmation du nouveau mot de passe de récupération ;
+  modale de clé API sur Radix (focus piégé, seule sortie = « J'ai copié la
+  clé », téléchargement .txt bilingue) ; secrets à valeur libre masqués par
+  défaut (révélation ET création) ; échec de reveal ≠ « secret vide »
+  (l'édition est bloquée tant que le reveal n'a pas réussi — fini le risque
+  d'écraser un secret par un faux état vide) ; historique des mots de
+  passe du coffre masqué ; QR code TOTP (uqr, zero-dép) ; kit de
+  récupération avec « J'ai téléchargé le kit » + mention d'invalidation des
+  anciens codes ; auto-effacement du presse-papiers qui tient sa promesse
+  (listener focus/visibilitychange) ; liens d'items du coffre validés
+  http/https uniquement ; garde « dirty » sur les dialogs d'édition.
+
+  **Rituels destructeurs unifiés** : nouveau `ConfirmDialog` (focus
+  Annuler, conséquence écrite, type-to-confirm pour l'irréversible) — les
+  9 `window.confirm` natifs migrés, purge d'item de corbeille confirmée,
+  retrait d'accès dans la matrice de permissions confirmé (plus de RW→none
+  en un clic), self-update expliqué (redémarrage du service), révocation
+  de vault/grant/agent dans la charte.
+
+  **Partages à usage unique révocables** (backend + UI) :
+  `GET /admin/shares?secret_id=` et `DELETE /admin/shares/{id}` — un lien
+  perdu ou compromis peut être tué AVANT expiration (idempotent, audité
+  `share_revoke`, le token ne sort jamais). Test d'intégration complet
+  (`TestShareRevokeBeforeExpiry`). La dialog liste les liens actifs avec
+  leur expiration et un bouton Révoquer.
+
+  **Accessibilité (WCAG 2.2 AA)** : `Field` associe label↔input (~40 champs
+  anonymes réparés, `htmlFor`/`aria-describedby`/`aria-invalid`) ;
+  `lang` du document suit la langue choisie (3.1.1) ; skip-link « Aller au
+  contenu » (2.4.1) ; `aria-current` sur la navigation (2.4.8) ;
+  `aria-pressed` sur tous les toggles (1.4.1) ; noms accessibles sur les
+  boutons icône et le close des dialogs (4.1.2) ; tri de table annoncé
+  (`aria-sort`, fin des ▲/▼ à 9px) ; focus des champs en menthe pleine
+  (fin des `outline-none` invisibles — 2.4.7) ; tables défilables
+  (1.4.10 reflow 320px) ; vrais `thead`/`scope` ; `CardTitle` (h3) sur les
+  7 cartes des paramètres ; h1 par page ; autocomplete complet
+  (`new-password`, `one-time-code`, `current-password`) ; révélé au
+  clavier (l'œil n'est plus `tabIndex={-1}`) ; reduced-motion/transparency/
+  contrast maintenus (déjà exemplaires).
+
+  **Gestion des erreurs (Nielsen H9 : 3 → solide)** : `friendly()` mappe
+  statuts et codes métier vers des messages localisés actionnables — fin
+  des « HTTP 500 » et « Failed to fetch » ; login distingue 401/429/5xx ;
+  2FA distingue code invalide et serveur injoignable ; recherche ≠
+  « aucun résultat » en cas d'erreur ; boot du coffre : 404 (pas de coffre)
+  ≠ réseau (écran d'erreur + retry) ; plus aucun `catch(() => {})` sur les
+  charges visibles ; skeleton/loading sur toutes les pages (fin des
+  `return null`).
+
+  **i18n (en mode EN, l'app affichait ~40 % de FR)** : ~90 clés nouvelles,
+  ~25 chaînes corrigées (vouvoiement systématique, conséquences des
+  confirmations, guillemets EN, pluriels en fonctions) ; en-têtes de
+  tableaux et dialogs bilingues (8 clés mortes réutilisées — la moitié du
+  travail était déjà écrite) ; dates localisées automatiquement ;
+  fichiers téléchargés (codes de récupération, kit, clé API) bilingues ;
+  ErrorBoundary bilingue ; actions d'audit traduites (40+ libellés).
+
+  **Design system** : 18 composants extraits (`ConfirmDialog`,
+  `SegmentedControl` — remplace 12 réécritures aux 4 états actifs
+  divergents, `Table/Th/SortTh`, `Alert`, `Loading/Skeleton`, `SearchInput`,
+  `CodeReveal`, `EmptyState`, `Tooltip`, `PageHeader`, `Select`, `Textarea`,
+  `QRCode`, `BrandBlock` — le bloc marque était dupliqué entre
+  sidebar/login/wizard avec des tailles divergentes, `RowActions` —
+  actions de ligne en boutons inline (md+) avec tooltips et menu kebab
+  accessible (Radix DropdownMenu, libellés + icônes) sous md sur les
+  tables denses secrets et coffre) ; échelle typo réelle (`text-2xs`
+  11px, fin des 67 `text-[Npx]` et du texte utile à 9-10px) ; sidebar →
+  drawer sous lg + barre mobile + largeur de contenu bornée
+  (`max-w-6xl`) + `grid-cols-2 md:grid-cols-4` au dashboard ; hover
+  secondary corrigé ; keyframes mortes supprimées ; Toaster unique.
+
+  **Audit** : pagination réelle (limit/offset du backend, détection de
+  page suivante), filtre source + filtre par agent, export CSV (RFC 4180,
+  BOM UTF-8), compteur annoncé (`role="status"`).
+
+  **Gouvernance (ne peut plus régresser silencieusement)** : `npm run
+  build` exécute deux gardes — `check-i18n.mjs` (parité FR/EN + chaque
+  `t.*` utilisé existe — le bug « undefined » casse le build) et
+  `check-contrast.mjs` (**APCA 0.1.9 officielle pour le thème sombre**
+  — le WCAG 2.x surestime le contraste des couleurs sombres — avec
+  planchers par rôle Lc 75/60/45/30, **WCAG 2.2 AA pour le thème
+  clair** — le bug « accent 1,37:1 en light » casse le build).
+  `ui/README.md` (règles du dossier, overlays sans animation),
+  `docs/GLOSSAIRE-FR-EN.md` (arbitrage coffre-fort / vault / Coffre).
+  Extension : teintes d'accent en `color-mix(var(--accent))` (plus
+  aucun rgba codé dur), choix dark-only documenté.
+
 ## v1.8.5 (2026-11-07)
 
 - **Registre de templates : 58 → 100 types de credentials, 15 catégories.**

@@ -17,6 +17,9 @@ export function LangProvider({ children }: { children: React.ReactNode }) {
     localStorage.setItem('kerviavault-lang', l)
     setLangState(l)
   }
+  // WCAG 3.1.1 : la langue du document suit la langue choisie — sinon les
+  // lecteurs d'écran vocalisent l'anglais avec les règles du français.
+  React.useEffect(() => { document.documentElement.lang = lang }, [lang])
   return <LangCtx.Provider value={{ lang, setLang }}>{children}</LangCtx.Provider>
 }
 

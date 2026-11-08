@@ -79,6 +79,9 @@ func (s *Server) Router(authSvc *auth.Service, admin *AdminServer, adminExtender
 	// ---- liens de partage éphémères (one-time) : création session-guardée ;
 	// la vue publique est montée sur le mux racine ci-dessous ----
 	adminMux.HandleFunc("POST /admin/secrets/{id}/share", admin.ShareSecret)
+	// v1.8.6 : gestion des liens vivants (liste + révocation avant expiration)
+	adminMux.HandleFunc("GET /admin/shares", admin.AdminListShares)
+	adminMux.HandleFunc("DELETE /admin/shares/{id}", admin.AdminRevokeShare)
 
 	// ---- export DR chiffré (bundle KVX1 passphrase-scellé) ----
 	adminMux.HandleFunc("POST /admin/export", admin.ExportHandler)

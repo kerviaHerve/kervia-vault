@@ -93,6 +93,46 @@ func (a *AdminServer) ShareSecret(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// AdminListShares (v1.8.6) : GET /admin/shares?secret_id=… — liens vivants
+// d'un secret, pour la dialog de partage de la webui. Le token n'est JAMAIS
+// renvoyé : on ne peut pas ré-obtenir une URL déjà affichée, seulement voir
+// ce qui est encore vivant et le couper.
+func (a *AdminServer) AdminListShares(w http.ResponseWriter, r *http.Request) {
+	secretID := r.URL.Query().Get("secret_id")
+	if secretID == "" {
+		writeErr(w, 400, "invalid_request", "")
+		return
+	}
+	if _, _, _, err := a.store.GetSecretByID(secretID); err != nil {
+		writeErr(w, 404, "secret_not_found", "")
+		return
+	}
+	shares, err := a.store.ListActiveShares(secretID)
+	if err != nil {
+		writeErr(w, 500, "internal", "")
+		return
+	}
+	writeJSON(w, 200, shares)
+}
+
+// AdminRevokeShare (v1.8.6) : DELETE /admin/shares/{id} — un lien perdu ou
+// compromis peut être tué AVANT son expiration (l'id est un uuid serveur,
+// non devinable ; révoquer un id déjà mort/absent = no-op idempotent, réponse
+// honnête pour que l'UI resynchronise son état réel).
+func (a *AdminServer) AdminRevokeShare(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	if id == "" {
+		writeErr(w, 400, "invalid_request", "")
+		return
+	}
+	if err := a.store.RevokeShare(id); err != nil {
+		writeErr(w, 500, "internal", "")
+		return
+	}
+	_ = a.store.AppendAudit("admin", model.AuditShareRevoke, "share/"+id, requestAuditInfo(r, 200).IP)
+	writeJSON(w, 200, map[string]any{"revoked": true})
+}
+
 // ViewShare (public) : GET /share/{token} — page autonome sans JS.
 func (a *AdminServer) ViewShare(w http.ResponseWriter, r *http.Request) {
 	// anti-flood par IP : même réponse (page générique), pas d'oracle

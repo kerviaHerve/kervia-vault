@@ -10,6 +10,7 @@ import {
 import { Badge } from '@/components/ui'
 import { cn } from '@/lib/utils'
 import { useLang } from '@/i18n'
+import { copyText } from '@/lib/clipboard'
 import * as C from '@/lib/coffre'
 import type { CategoryId } from '@/lib/coffre-schema'
 
@@ -23,30 +24,92 @@ export const CAT_ICON: Record<CategoryId, LucideIcon> = {
 
 // classe tailwind (fond teinté + texte) — la palette du design system
 export const CAT_COLOR: Record<CategoryId, string> = {
-  login: 'bg-accent/12 text-accent',
+  login: 'bg-accent/12 text-accent-fg',
   note: 'bg-muted text-fg-2',
   card: 'bg-info/12 text-info',
   bank: 'bg-warn/12 text-warn',
-  identity: 'bg-accent/12 text-accent',
+  identity: 'bg-accent/12 text-accent-fg',
   passport: 'bg-warn/12 text-warn',
   crypto: 'bg-warn/12 text-warn',
   ssh: 'bg-muted text-fg-2',
   server: 'bg-info/12 text-info',
   db: 'bg-warn/12 text-warn',
-  wifi: 'bg-accent/12 text-accent',
+  wifi: 'bg-accent/12 text-accent-fg',
   license: 'bg-info/12 text-info',
-  membership: 'bg-accent/12 text-accent',
+  membership: 'bg-accent/12 text-accent-fg',
   otp: 'bg-danger/12 text-danger',
 }
 
 // ---- copie presse-papier + effacement auto (30 s) ----
+// K4 : le toast PROMET « effacement auto dans 30 s ». Avant, le clear ne
+// se faisait que si l'onglet avait le focus à l'instant T+30 s pile —
+// un onglet en arrière-plan gardait le secret indéfiniment. Le contrat :
+// à T+30 s on efface si l'onglet a le focus, sinon des listeners
+// focus/visibilitychange effacent DÈS qu'il le redevient.
+async function wipeClipboard() {
+  try {
+    if (navigator.clipboard && window.isSecureContext) { await navigator.clipboard.writeText(''); return }
+  } catch { /* fallback execCommand (contexte HTTP) */ }
+  try {
+    const ta = document.createElement('textarea')
+    ta.value = ''
+    ta.setAttribute('readonly', '')
+    ta.style.position = 'fixed'
+    ta.style.top = '-1000px'
+    ta.style.opacity = '0'
+    document.body.appendChild(ta)
+    ta.focus()
+    ta.select()
+    document.execCommand('copy')
+    document.body.removeChild(ta)
+  } catch { /* best effort */ }
+}
+
+function scheduleClipWipe() {
+  const due = Date.now() + 30_000
+  const onVis = () => { if (document.visibilityState === 'visible') wipeIfDue() }
+  const cleanup = () => {
+    window.clearTimeout(timer)
+    window.removeEventListener('focus', wipeIfDue)
+    document.removeEventListener('visibilitychange', onVis)
+  }
+  const wipeIfDue = () => {
+    if (Date.now() < due) return        // pas encore le délai promis
+    if (!document.hasFocus()) return    // on attend le retour du focus
+    cleanup()
+    void wipeClipboard()
+  }
+  const timer = window.setTimeout(wipeIfDue, 30_000)
+  window.addEventListener('focus', wipeIfDue)
+  document.addEventListener('visibilitychange', onVis)
+}
+
 export function useCopy() {
   const { t } = useLang()
   return (v: string) => {
-    navigator.clipboard.writeText(v).catch(() => {})
-    toast.success(String(t.cofCopied), { description: String(t.cofAutoClear) })
-    window.setTimeout(() => { if (document.hasFocus()) navigator.clipboard.writeText('').catch(() => {}) }, 30000)
+    void copyText(v).then(ok => {
+      if (!ok) { toast.error(String(t.copyFailed)); return }
+      toast.success(String(t.cofCopied), { description: String(t.cofAutoClear) })
+      scheduleClipWipe()
+    })
   }
+}
+
+// ---- K5 : ouverture des liens d'items ----
+// Plus de <a href> direct : n'importe quel schéma (file:, javascript:,
+// data:…) devenait navigable. Seuls http/https passent la validation
+// de new URL() ; tout le reste est refusé (l'appelant affiche le toast
+// t.cofUriBlocked et rien ne s'ouvre).
+export function openExternalLink(raw: string): boolean {
+  let u: URL
+  try { u = new URL(raw) } catch { return false }
+  if (u.protocol !== 'http:' && u.protocol !== 'https:') return false
+  const a = document.createElement('a')
+  a.href = u.href
+  a.target = '_blank'
+  a.rel = 'noopener noreferrer'
+  a.click()
+  return true
 }
 
 // ---- ticker global partagé (perf gros coffres) ----
@@ -90,9 +153,11 @@ export function TotpLive({ value }: { value: string }) {
   if (bad || !s) return <Badge variant="warn">{t.cofTotpBad}</Badge>
   const half = Math.ceil(s.digits / 2)
   return (
-    <span className="inline-flex items-center gap-2 font-mono text-sm tracking-wider text-accent">
+    // role=timer + aria-live=off : le code vit mais n'est PAS répété à
+    // chaque seconde (sinon le lecteur d'écran devient inutilisable).
+    <span role="timer" aria-live="off" className="inline-flex items-center gap-2 font-mono text-sm tracking-wider text-accent-fg">
       {s.code.slice(0, half)} {s.code.slice(half)}
-      <span className="text-[10px] text-fg-3 not-italic">{s.remaining}s</span>
+      <span className="text-2xs text-fg-3 not-italic">{s.remaining}s</span>
     </span>
   )
 }
@@ -112,7 +177,7 @@ export function Strength({ pw }: { pw: string }) {
       <div className="h-1.5 w-24 rounded-full bg-muted overflow-hidden">
         <div className={cn('h-full rounded-full transition-all', colors[st.label])} style={{ width: `${Math.min(100, st.bits)}%` }} />
       </div>
-      <span className="text-[11px] text-fg-3">{labels[st.label]} · {st.bits} bits</span>
+      <span className="text-2xs text-fg-3">{labels[st.label]} · {st.bits} bits</span>
     </div>
   )
 }
@@ -123,8 +188,8 @@ export function CatBadge({ cat, className }: { cat: CategoryId; className?: stri
   const Icon = CAT_ICON[cat]
   const label = t['cofCat' + cat[0].toUpperCase() + cat.slice(1)] as string
   return (
-    <span className={cn('inline-flex items-center gap-1 text-[11px] font-medium px-2 h-6 rounded-md', CAT_COLOR[cat], className)}>
-      <Icon size={12} />{String(label)}
+    <span className={cn('inline-flex items-center gap-1 text-2xs font-medium px-2 h-6 rounded-md', CAT_COLOR[cat], className)}>
+      <Icon size={12} aria-hidden="true" />{String(label)}
     </span>
   )
 }

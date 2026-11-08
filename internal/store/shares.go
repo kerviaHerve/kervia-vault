@@ -62,3 +62,44 @@ func (s *Store) GetVaultNameByID(id string) (string, error) {
 	err := s.db.QueryRow(`SELECT name FROM vaults WHERE id = ?`, id).Scan(&name)
 	return name, err
 }
+
+// ActiveShare : un lien vivant d'un secret (id + expiration — JAMAIS le token,
+// seul son hash est stocké ; l'admin ne peut pas ré-obtenir l'URL, seulement
+// couper un lien perdu/compromis).
+type ActiveShare struct {
+	ID        string `json:"id"`
+	SecretID  string `json:"secret_id"`
+	ExpiresAt string `json:"expires_at"`
+	CreatedAt string `json:"created_at"`
+}
+
+// ListActiveShares : liens vivants (non consommés, non expirés) d'un secret.
+// Jamais le token_hash : il ne sort pas de la base.
+func (s *Store) ListActiveShares(secretID string) ([]*ActiveShare, error) {
+	rows, err := s.db.Query(`SELECT id, secret_id, expires_at, created_at FROM shares
+		WHERE secret_id = ? AND consumed_at IS NULL AND expires_at > ?
+		ORDER BY created_at DESC`, secretID, nowRFC())
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []*ActiveShare{}
+	for rows.Next() {
+		s := &ActiveShare{}
+		if err := rows.Scan(&s.ID, &s.SecretID, &s.ExpiresAt, &s.CreatedAt); err != nil {
+			return nil, err
+		}
+		out = append(out, s)
+	}
+	return out, rows.Err()
+}
+
+// RevokeShare tue un lien avant son expiration naturelle : la colonne
+// consumed_at est posée exactement comme une consultation — le lien devient
+// mort pour ViewShare, sans en avoir « utilisé » la valeur. La clause
+// consumed_at IS NULL rend l'idempotence sûre (re-révoquer = no-op).
+func (s *Store) RevokeShare(id string) error {
+	_, err := s.db.Exec(`UPDATE shares SET consumed_at = ?
+		WHERE id = ? AND consumed_at IS NULL`, nowRFC(), id)
+	return err
+}

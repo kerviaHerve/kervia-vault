@@ -8,9 +8,9 @@ export function LangSwitch({ className }: { className?: string }) {
     <button
       onClick={() => setLang(lang === 'fr' ? 'en' : 'fr')}
       className={cn(
-        'flex items-center gap-2 px-3 h-8 rounded-lg text-[11px] font-bold cursor-pointer transition-colors border w-full',
+        'flex items-center gap-2 px-3 h-8 rounded-lg text-2xs font-bold cursor-pointer transition-colors border w-full',
         lang === 'fr'
-          ? 'bg-accent/12 border-accent/50 text-accent'
+          ? 'bg-accent/12 border-accent/50 text-accent-fg'
           : 'bg-card-2 border-border text-fg-2 hover:text-fg',
         className,
       )}

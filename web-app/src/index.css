@@ -26,6 +26,7 @@
   --color-border: #3A483F;      /* border-subtle */
   --color-border-2: #7C9082;    /* border-control */
   --color-accent: #B8E263;      /* action-bg — citron : actions et sélections */
+  --color-accent-fg: #B8E263;   /* action-fg — citron utilisé COMME TEXTE (lisible en dark) */
   --color-accent-hover: #C8EC83;/* action-hover */
   --color-accent-pressed: #A8D451;
   --color-accent-text: #19251A; /* action-text — texte sur citron */
@@ -43,6 +44,10 @@
   --color-selection-text: #D0EE96;
   --font-sans: "Space Grotesk", system-ui, sans-serif;
   --font-mono: "JetBrains Mono Variable", ui-monospace, monospace;
+  /* Échelle de texte réelle (v1.8.6) — remplace les text-[11px] arbitraires.
+     Interdits pour du texte utile : 9-10px (illisible, surtout en thème clair). */
+  --text-2xs: 0.6875rem;    /* 11px — badges, hints, compteurs */
+  --text-2xs--line-height: 1rem;
 }
 
 /* Thème clair — mêmes rôles, valeurs light de kervia.tokens.json. */
@@ -56,7 +61,8 @@ html[data-theme="light"] {
   --color-fg-3: #586A5D;
   --color-border: #D3DDD1;
   --color-border-2: #738574;
-  --color-accent: #B8E263;
+  --color-accent: #B8E263;      /* fonds d'accent identiques au dark */
+  --color-accent-fg: #4E6B14;   /* olive foncé — citron comme TEXTE : 5.5:1 sur blanc (AA) */
   --color-accent-hover: #C8EC83;
   --color-accent-pressed: #A8D451;
   --color-accent-text: #19251A;
@@ -101,24 +107,13 @@ code, kbd, pre, .font-mono { font-synthesis: none; }
 
 /* ── Motion (skill apple-design) ─────────────────────────────────────────────
    Courbe « sheet » Apple pour les entrées ; sortie en miroir exact le long du
-   même chemin (§7 cohérence spatiale). Le scrim se matérialise — le blur
-   anime AVEC l'opacité, la surface lit comme un vrai matériau qui arrive
-   (§12 materialize, don't just fade). */
+   même chemin (§7 cohérence spatiale).
+   NOTE v1.8.6 : popin/popout/scrim-* ont été retirés — depuis la règle
+   « overlays sans animation d'entrée » (v1.7.2, bug de peinture Firefox),
+   aucun composant ne les utilisait plus. Règle d'or : un overlay Radix
+   ne doit JAMAIS avoir d'animation d'entrée (il se peint à l'état final). */
 @keyframes fadein { from { opacity: 0 } }
 @keyframes fadeout { to { opacity: 0 } }
-
-@keyframes popin {
-  from { opacity: 0; transform: translate(-50%, -48%) scale(.96) }
-}
-@keyframes popout {
-  to { opacity: 0; transform: translate(-50%, -48%) scale(.96) }
-}
-@keyframes scrim-in {
-  from { opacity: 0; backdrop-filter: blur(0px) }
-}
-@keyframes scrim-out {
-  to { opacity: 0; backdrop-filter: blur(0px) }
-}
 
 /* ── Accessibilité (skill §14) ──────────────────────────────────────────────
    Reduced-motion : équivalent doux, pas l'absence — le feedback couleur/opacité

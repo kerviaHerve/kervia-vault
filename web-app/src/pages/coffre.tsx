@@ -8,13 +8,16 @@ import * as React from 'react'
 import { motion } from 'framer-motion'
 import { toast } from 'sonner'
 import {
-  Lock, Plus, Search, Star, Copy, Eye, Trash2, RotateCcw, KeyRound,
+  Lock, Plus, Star, Copy, Eye, Trash2, RotateCcw, KeyRound,
   LoaderCircle, Download, Upload, Settings2, Wand2, Clock, ExternalLink,
   ShieldCheck, AlertTriangle,
 } from 'lucide-react'
 import { useLang } from '@/i18n'
-import { api } from '@/lib/api'
-import { Button, Badge, Dialog, DialogContent, Input, PasswordInput, Field } from '@/components/ui'
+import { api, friendly, ApiError } from '@/lib/api'
+import {
+  Button, Badge, Dialog, DialogContent, PasswordInput, Field, Alert,
+  Loading, SearchInput, SegmentedControl, Select, ConfirmDialog, RowActions,
+} from '@/components/ui'
 import { cn, fmtDateTime } from '@/lib/utils'
 import * as C from '@/lib/coffre'
 import {
@@ -23,9 +26,9 @@ import {
 } from '@/lib/coffre-schema'
 import ItemDialog from '@/components/coffre/ItemDialog'
 import { GeneratorDialog, ImportDialog, ExportDialog, SettingsDialog } from '@/components/coffre/dialogs'
-import { CAT_ICON, CAT_COLOR, Strength, TotpLive } from '@/components/coffre/parts'
+import { CAT_ICON, CAT_COLOR, Strength, TotpLive, useCopy, openExternalLink } from '@/components/coffre/parts'
 
-type Phase = 'loading' | 'setup' | 'locked' | 'unlocked'
+type Phase = 'loading' | 'error' | 'setup' | 'locked' | 'unlocked'
 type DialogState =
   | null
   | { kind: 'picker' }
@@ -34,6 +37,11 @@ type DialogState =
   | { kind: 'import' }
   | { kind: 'export' }
   | { kind: 'settings' }
+
+// K8 : libellés « identifiant » par langue (FR+EN, casse ignorée). Un item
+// créé en interface EN (« Username ») doit garder son bouton copier-identifiant
+// — même approche que les pwLabels de mainPasswordField.
+const USER_LABELS = ['identifiant', 'utilisateur', 'username', 'user', 'login', 'email']
 
 export default function Coffre() {
   const { t, lang } = useLang()
@@ -47,6 +55,12 @@ export default function Coffre() {
   const [folder, setFolder] = React.useState('')
   const [autoLockMin, setAutoLockMin] = React.useState<number>(() => Number(localStorage.getItem('kerviavault-coffre-autolock')) || 5)
   const lastActivity = React.useRef(Date.now())
+  const [bootErr, setBootErr] = React.useState('')
+  // confirmations K2 : purge d'un item / purge de toute la corbeille
+  const [confirmPurge, setConfirmPurge] = React.useState<C.DecryptedItem | null>(null)
+  const [confirmPurgeAll, setConfirmPurgeAll] = React.useState(false)
+  const [purgeBusy, setPurgeBusy] = React.useState(false)
+  const [trashBusy, setTrashBusy] = React.useState(false)
 
   // ---- chargement initial : le coffre existe-t-il ? ----
   React.useEffect(() => { void boot() }, [])
@@ -56,8 +70,13 @@ export default function Coffre() {
       setHeader(h)
       setPhase(C.coffreUnlocked() ? 'unlocked' : 'locked')
       if (C.coffreUnlocked()) void reload()
-    } catch {
-      setPhase('setup')
+    } catch (e) {
+      // K1 : seul un 404 « coffre_not_created » signifie « pas encore de
+      // coffre » → écran de création. Tout autre échec (réseau, session,
+      // 5xx) est une ERREUR — jamais déguisée en état vide.
+      if (e instanceof ApiError && e.status === 404) { setPhase('setup'); return }
+      setBootErr(friendly(e))
+      setPhase('error')
     }
   }
 
@@ -79,7 +98,7 @@ export default function Coffre() {
         }
       }
       setItems(dec)
-    } catch (e: any) { toast.error(e.message) } finally { setListLoading(false) }
+    } catch (e) { toast.error(friendly(e)) } finally { setListLoading(false) }
   }
 
   const lock = (auto = false) => {
@@ -150,43 +169,61 @@ export default function Coffre() {
           ? { ...data, id: existing.id, version: rec.version, created_at: rec.created_at, updated_at: rec.updated_at, deleted_at: rec.deleted_at || null, _search: itemSearchText(data) }
           : i))
         toast.success(String(t.cofSaved))
-      } catch (e: any) {
-        if (e.message && String(e.message).includes('HTTP 409')) toast.error(String(t.cofSaveConflict))
-        else toast.error(e.message)
+      } catch (e) {
+        if (e instanceof ApiError && e.status === 409) toast.error(String(t.cofSaveConflict))
+        else toast.error(friendly(e))
         throw e
       }
     } else {
-      const rec: any = await api('POST', '/admin/coffre/items', { blob_b64: blob })
-      setItems(prev => [{ ...data, id: rec.id, version: rec.version, created_at: rec.created_at, updated_at: rec.updated_at, deleted_at: rec.deleted_at || null, _search: itemSearchText(data) }, ...prev])
-      toast.success(String(t.cofSaved))
+      try {
+        const rec: any = await api('POST', '/admin/coffre/items', { blob_b64: blob })
+        setItems(prev => [{ ...data, id: rec.id, version: rec.version, created_at: rec.created_at, updated_at: rec.updated_at, deleted_at: rec.deleted_at || null, _search: itemSearchText(data) }, ...prev])
+        toast.success(String(t.cofSaved))
+      } catch (e) {
+        toast.error(friendly(e))
+        throw e
+      }
     }
   }
   const setLocalDeleted = (id: string, deleted_at: string | null) =>
     setItems(prev => prev.map(i => i.id === id ? { ...i, deleted_at } : i))
   const trashItem = async (id: string) => {
-    try { await api('DELETE', `/admin/coffre/items/${id}`, undefined); toast.success(String(t.cofDeletedOk)); setLocalDeleted(id, new Date().toISOString()) } catch (e: any) { toast.error(e.message) }
+    try { await api('DELETE', `/admin/coffre/items/${id}`, undefined); toast.success(String(t.cofDeletedOk)); setLocalDeleted(id, new Date().toISOString()) } catch (e) { toast.error(friendly(e)) }
   }
   const restoreItem = async (id: string) => {
-    try { await api('POST', `/admin/coffre/items/${id}/restore`); toast.success(String(t.cofRestoredOk)); setLocalDeleted(id, null) } catch (e: any) { toast.error(e.message) }
+    try { await api('POST', `/admin/coffre/items/${id}/restore`); toast.success(String(t.cofRestoredOk)); setLocalDeleted(id, null) } catch (e) { toast.error(friendly(e)) }
   }
   const purgeItem = async (id: string) => {
-    try { await api('POST', `/admin/coffre/items/${id}/purge`); toast.success(String(t.cofPurgedOk)); setItems(prev => prev.filter(i => i.id !== id)) } catch (e: any) { toast.error(e.message) }
+    try { await api('POST', `/admin/coffre/items/${id}/purge`); toast.success(String(t.cofPurgedOk)); setItems(prev => prev.filter(i => i.id !== id)) } catch (e) { toast.error(friendly(e)) }
   }
   const purgeTrash = async () => {
-    if (!window.confirm(String(t.cofPurgeTrashConfirm))) return
-    try { const d = await api('POST', '/admin/coffre/trash/purge'); toast.success(String(t.cofTrashEmptied).replace('{n}', String(d.purged))); setItems(prev => prev.filter(i => !i.deleted_at)) } catch (e: any) { toast.error(e.message) }
+    try { const d: any = await api('POST', '/admin/coffre/trash/purge'); toast.success(String(t.cofTrashEmptied(Number(d.purged)))); setItems(prev => prev.filter(i => !i.deleted_at)) } catch (e) { toast.error(friendly(e)) }
   }
 
-  const copy = (v: string) => {
-    navigator.clipboard.writeText(v).catch(() => {})
-    toast.success(String(t.cofCopied), { description: String(t.cofAutoClear) })
-    window.setTimeout(() => { if (document.hasFocus()) navigator.clipboard.writeText('').catch(() => {}) }, 30000)
-  }
+  // copie + effacement auto 30 s (helper partagé, mécanisme corrigé K4)
+  const copy = useCopy()
 
   // ================= écrans =================
 
   if (phase === 'loading') {
-    return <div className="grid place-items-center py-24"><LoaderCircle className="animate-spin text-fg-3" /></div>
+    return <div className="py-6"><Loading label={String(t.cofLoading)} /></div>
+  }
+
+  // K1 : échec de chargement ≠ coffre inexistant — bannière + réessayer.
+  if (phase === 'error') {
+    return (
+      <div className="max-w-md mx-auto py-16">
+        <Alert tone="danger">
+          <p className="font-semibold">{String(t.loadFailed)}</p>
+          {bootErr && <p className="mt-1">{bootErr}</p>}
+        </Alert>
+        <div className="mt-4 flex justify-center">
+          <Button variant="secondary" size="sm" onClick={() => { setPhase('loading'); void boot() }}>
+            <RotateCcw size={14} aria-hidden="true" />{String(t.retry)}
+          </Button>
+        </div>
+      </div>
+    )
   }
 
   if (phase === 'setup') return <SetupScreen onDone={() => { void boot() }} />
@@ -204,127 +241,123 @@ export default function Coffre() {
       <div className="flex flex-wrap items-end justify-between gap-3 mb-6">
         <div>
           <h1 className="text-xl font-bold tracking-tight flex items-center gap-2">
-            {t.cofTitle} <Badge variant="ok"><ShieldCheck size={11} />E2E</Badge>
+            {t.cofTitle} <Badge variant="ok"><ShieldCheck size={11} aria-hidden="true" />E2E</Badge>
           </h1>
           <p className="text-sm text-fg-3 mt-1">{t.cofSub}</p>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="ghost" size="sm" onClick={() => setDialog({ kind: 'import' })}><Upload size={14} />{t.cofImport}</Button>
-          <Button variant="ghost" size="sm" onClick={() => setDialog({ kind: 'export' })}><Download size={14} />{t.cofExport}</Button>
-          <Button variant="ghost" size="sm" onClick={() => setDialog({ kind: 'generator' })}><Wand2 size={14} />{t.cofGen}</Button>
-          <Button variant="ghost" size="sm" onClick={() => setDialog({ kind: 'settings' })}><Settings2 size={14} />{t.cofSettings}</Button>
-          <Button variant="primary" size="sm" onClick={() => setDialog({ kind: 'picker' })}><Plus size={14} />{t.cofNew}</Button>
-          <Button variant="secondary" size="sm" onClick={() => lock()} title={t.cofLock}><Lock size={14} /></Button>
+          <Button variant="ghost" size="sm" onClick={() => setDialog({ kind: 'import' })}><Upload size={14} aria-hidden="true" />{t.cofImport}</Button>
+          <Button variant="ghost" size="sm" onClick={() => setDialog({ kind: 'export' })}><Download size={14} aria-hidden="true" />{t.cofExport}</Button>
+          <Button variant="ghost" size="sm" onClick={() => setDialog({ kind: 'generator' })}><Wand2 size={14} aria-hidden="true" />{t.cofGen}</Button>
+          <Button variant="ghost" size="sm" onClick={() => setDialog({ kind: 'settings' })}><Settings2 size={14} aria-hidden="true" />{t.cofSettings}</Button>
+          <Button variant="primary" size="sm" onClick={() => setDialog({ kind: 'picker' })}><Plus size={14} aria-hidden="true" />{t.cofNew}</Button>
+          <Button variant="secondary" size="sm" onClick={() => lock()} title={String(t.cofLock)} aria-label={String(t.cofLock)}><Lock size={14} aria-hidden="true" /></Button>
         </div>
       </div>
 
       {/* barre de filtres */}
       <div className="flex flex-wrap items-center gap-2 mb-4">
-        <div className="relative">
-          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-fg-3" />
-          <Input value={search} onChange={e => setSearch(e.target.value)} placeholder={String(t.cofSearchPh)}
-            className="w-64 pl-9" />
-        </div>
-        <div className="flex rounded-lg border border-border overflow-hidden">
-          {([['all', t.cofAll, live], ['fav', t.cofFavorites, items.filter(i => i.favorite && !i.deleted_at).length], ['trash', t.cofTrash, trashN]] as const).map(([id, label, n]) => (
-            <button key={id} onClick={() => setView(id as any)}
-              className={cn('px-3 h-9 text-xs flex items-center gap-1.5 transition-colors cursor-pointer',
-                view === id ? 'bg-accent/12 text-accent font-semibold' : 'text-fg-2 hover:bg-card-2')}>
-              {label}{n > 0 && <span className="opacity-60">{n}</span>}
-            </button>
-          ))}
-        </div>
-        <select value={catF} onChange={e => setCatF(e.target.value as any)}
-          className="h-9 bg-bg border border-border rounded-lg px-2 text-xs text-fg max-w-44">
+        <SearchInput value={search} onChange={setSearch} placeholder={String(t.cofSearchPh)} className="w-64" />
+        <SegmentedControl
+          ariaLabel={String(t.viewMode)}
+          value={view}
+          onChange={v => setView(v)}
+          options={[
+            { value: 'all' as const, label: <>{String(t.cofAll)}{live > 0 && <span className="opacity-60 ml-1">{live}</span>}</> },
+            { value: 'fav' as const, label: <>{String(t.cofFavorites)}{items.filter(i => i.favorite && !i.deleted_at).length > 0 && <span className="opacity-60 ml-1">{items.filter(i => i.favorite && !i.deleted_at).length}</span>}</> },
+            { value: 'trash' as const, label: <>{String(t.cofTrash)}{trashN > 0 && <span className="opacity-60 ml-1">{trashN}</span>}</> },
+          ]}
+        />
+        <Select value={catF} onChange={e => setCatF(e.target.value as any)} aria-label={String(t.cofTypeAll)}
+          className="w-auto h-9 text-xs max-w-44">
           <option value="all">{t.cofTypeAll}</option>
           {CATEGORY_ORDER.map(c => <option key={c} value={c}>{String(t['cofCat' + c[0].toUpperCase() + c.slice(1)] as any)}</option>)}
-        </select>
+        </Select>
         {folders.length > 0 && (
-          <select value={folder} onChange={e => setFolder(e.target.value)}
-            className="h-9 bg-bg border border-border rounded-lg px-2 text-xs text-fg max-w-40">
+          <Select value={folder} onChange={e => setFolder(e.target.value)} aria-label={String(t.cofFolderAll)}
+            className="w-auto h-9 text-xs max-w-40">
             <option value="">{t.cofFolderAll}</option>
             {folders.map(f => <option key={f} value={f}>{f}</option>)}
-          </select>
+          </Select>
         )}
         {view === 'trash' && trashN > 0 && (
-          <Button variant="destructive" size="sm" onClick={purgeTrash}><Trash2 size={13} />{t.cofPurgeTrash}</Button>
+          <Button variant="destructive" size="sm" onClick={() => setConfirmPurgeAll(true)}><Trash2 size={13} aria-hidden="true" />{t.cofPurgeTrash}</Button>
         )}
       </div>
 
-      {/* liste */}
+      {/* liste — ul/li : la « div-soup » était une liste muette pour les
+          lecteurs d'écran (audit a11y) */}
       <div className="border border-border rounded-xl bg-card overflow-hidden">
         {listLoading ? (
-          <div className="py-16 text-center text-sm text-fg-3 flex items-center justify-center gap-2">
-            <LoaderCircle size={16} className="animate-spin" /> {t.cofLoading}
-          </div>
+          <div className="p-4"><Loading label={String(t.cofLoading)} /></div>
         ) : shown.length === 0 ? (
           <div className="py-16 text-center text-sm text-fg-3">
             {view === 'trash' ? t.cofEmptyTrash : t.cofEmpty}
           </div>
-        ) : shown.map(it => {
-          const Icon = CAT_ICON[it.type]
-          const pw = mainPasswordField(it)
-          const totp = firstTotp(it)
-          const user = it.fields.find(x => x.l === 'Identifiant' || x.l === 'Utilisateur')?.v
-          const link = it.fields.find(x => x.k === 'link' && x.v)?.v
-          return (
-            <div key={it.id} className={cn('flex items-center gap-3 px-4 py-3 border-b border-border last:border-b-0 hover:bg-card-2/50 transition-colors', it._broken && 'opacity-60')}>
-              <div className={cn('w-9 h-9 rounded-lg grid place-items-center shrink-0', CAT_COLOR[it.type])}>
-                {it._broken ? <AlertTriangle size={16} /> : <Icon size={16} />}
-              </div>
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <span className="font-medium text-sm truncate">{it.name}</span>
-                  {it.favorite && <Star size={12} className="text-warn fill-warn shrink-0" />}
-                  {it.folder && <Badge variant="neutral" className="shrink-0">{it.folder}</Badge>}
-                  {(it.tags || []).slice(0, 2).map(tg => <Badge key={tg} variant="neutral" className="shrink-0">#{tg}</Badge>)}
-                  {it._broken && <Badge variant="danger">{t.cofBroken}</Badge>}
-                </div>
-                <div className="text-xs text-fg-3 truncate">
-                  {it._broken ? '—' : itemSubtitle(it) || (it.notes || '—')}
-                </div>
-              </div>
-              {!it._broken && totp && <div className="hidden md:block"><TotpLive value={totp.v} /></div>}
-              <span className="hidden lg:block text-[11px] text-fg-3 w-28 text-right shrink-0">{fmtDateTime(it.updated_at)}</span>
-              <div className="flex items-center gap-0.5 shrink-0">
-                {!it._broken && user && (
-                  <Button variant="ghost" size="icon" title={t.cofCopyUser} onClick={() => copy(user)}><Copy size={14} /></Button>
-                )}
-                {!it._broken && pw?.v && (
-                  <Button variant="ghost" size="icon" title={t.cofCopyPass} onClick={() => copy(pw.v)}><KeyRound size={14} /></Button>
-                )}
-                {!it._broken && link && (
-                  <a href={link} target="_blank" rel="noreferrer"
-                    className="h-8 w-8 grid place-items-center rounded-md text-fg-2 hover:text-fg hover:bg-card-2 cursor-pointer" title={t.cofOpenUri}>
-                    <ExternalLink size={14} />
-                  </a>
-                )}
-                <Button variant="ghost" size="icon" onClick={() => setDialog({ kind: 'item', item: it })}><Eye size={14} /></Button>
-                {view === 'trash' ? (
-                  <>
-                    <Button variant="ghost" size="icon" title={t.cofRestore} onClick={() => restoreItem(it.id)}><RotateCcw size={14} /></Button>
-                    <Button variant="destructive" size="icon" title={t.cofPurge} onClick={() => purgeItem(it.id)}><Trash2 size={14} /></Button>
-                  </>
-                ) : (
-                  <Button variant="ghost" size="icon" title={t.cofDelete} onClick={() => trashItem(it.id)}><Trash2 size={14} /></Button>
-                )}
-              </div>
-            </div>
-          )
-        })}
+        ) : (
+          <ul>
+            {shown.map(it => {
+              const Icon = CAT_ICON[it.type]
+              const pw = mainPasswordField(it)
+              const totp = firstTotp(it)
+              const user = it.fields.find(x => USER_LABELS.includes((x.l || '').trim().toLowerCase()))?.v
+              const link = it.fields.find(x => x.k === 'link' && x.v)?.v
+              return (
+                <li key={it.id} className={cn('flex items-center gap-3 px-4 py-3 border-b border-border last:border-b-0 hover:bg-card-2/50 transition-colors', it._broken && 'opacity-60')}>
+                  <div className={cn('w-9 h-9 rounded-lg grid place-items-center shrink-0', CAT_COLOR[it.type])}>
+                    {it._broken ? <AlertTriangle size={16} aria-hidden="true" /> : <Icon size={16} aria-hidden="true" />}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-medium text-sm truncate">{it.name}</span>
+                      {/* favori : l'état ne doit pas être porté par la couleur seule */}
+                      {it.favorite && (
+                        <span role="img" aria-label={String(t.cofFavorite)} className="shrink-0 inline-flex text-warn">
+                          <Star size={12} aria-hidden="true" className="fill-warn" />
+                        </span>
+                      )}
+                      {it.folder && <Badge variant="neutral" className="shrink-0">{it.folder}</Badge>}
+                      {(it.tags || []).slice(0, 2).map(tg => <Badge key={tg} variant="neutral" className="shrink-0">#{tg}</Badge>)}
+                      {it._broken && <Badge variant="danger">{t.cofBroken}</Badge>}
+                    </div>
+                    <div className="text-xs text-fg-3 truncate">
+                      {it._broken ? '—' : itemSubtitle(it) || (it.notes || '—')}
+                    </div>
+                  </div>
+                  {!it._broken && totp && <div className="hidden md:block"><TotpLive value={totp.v} /></div>}
+                  <span className="hidden lg:block text-2xs text-fg-3 w-28 text-right shrink-0">{fmtDateTime(it.updated_at)}</span>
+                  {/* v1.8.6 responsive : inline (md+) avec tooltips, kebab
+                      accessible sous md — 6-7 actions ne tiennent pas à 320px */}
+                  <RowActions actions={[
+                    ...(!it._broken && user ? [{ icon: Copy, label: String(t.cofCopyUser), onClick: () => copy(user) }] : []),
+                    ...(!it._broken && pw?.v ? [{ icon: KeyRound, label: String(t.cofCopyPass), onClick: () => copy(pw.v) }] : []),
+                    ...(!it._broken && link ? [{ icon: ExternalLink, label: String(t.cofOpenUri), onClick: () => { if (!openExternalLink(link)) toast.error(String(t.cofUriBlocked)) } }] : []),
+                    { icon: Eye, label: String(t.viewMode), onClick: () => setDialog({ kind: 'item', item: it }) },
+                    ...(view === 'trash'
+                      ? [
+                          { icon: RotateCcw, label: String(t.cofRestore), onClick: () => restoreItem(it.id) },
+                          { icon: Trash2, label: String(t.cofPurge), onClick: () => setConfirmPurge(it), destructive: true },
+                        ]
+                      : [{ icon: Trash2, label: String(t.cofDelete), onClick: () => trashItem(it.id) }]),
+                  ]} />
+                </li>
+              )
+            })}
+          </ul>
+        )}
       </div>
 
       {hiddenCount > 0 && (
         <div className="mt-3 text-center">
           <Button variant="secondary" size="sm" onClick={() => setLimit(l => l + 500)}>
-            {String(t.cofShowMore).replace('{n}', String(Math.min(500, hiddenCount)))}
+            {String(t.cofShowMore(Math.min(500, hiddenCount)))}
             <span className="text-fg-3 ml-1.5">({hiddenCount})</span>
           </Button>
         </div>
       )}
 
-      <p className="text-[11px] text-fg-3 mt-4 flex items-center gap-1.5">
-        <ShieldCheck size={12} /> {t.cofE2E} <Clock size={12} className="ml-3" /> {t.cofAutolock} : {autoLockMin > 0 ? `${autoLockMin} min` : t.cofAutolockOff}
+      <p className="text-2xs text-fg-3 mt-4 flex items-center gap-1.5">
+        <ShieldCheck size={12} aria-hidden="true" /> {t.cofE2E} <Clock size={12} aria-hidden="true" className="ml-3" /> {t.cofAutolock} : {autoLockMin > 0 ? `${autoLockMin} min` : t.cofAutolockOff}
       </p>
 
       {dialog?.kind === 'picker' && (
@@ -344,6 +377,39 @@ export default function Coffre() {
           onRekeyed={async env => { setHeader(env); toast.success(String(t.cofChangePwDone)) }}
           onClose={() => setDialog(null)} />
       )}
+
+      {/* K2 : purge d'un élément de corbeille — irréversible, le rituel
+          ConfirmDialog est obligatoire (avant : suppression à sec) */}
+      <ConfirmDialog
+        open={!!confirmPurge}
+        onOpenChange={o => { if (!o) setConfirmPurge(null) }}
+        title={String(t.cofPurge)}
+        message={String(t.cofPurgeItemConfirm(confirmPurge?.name ?? ''))}
+        confirmLabel={String(t.cofPurge)}
+        busy={purgeBusy}
+        onConfirm={async () => {
+          if (!confirmPurge) return
+          setPurgeBusy(true)
+          await purgeItem(confirmPurge.id)
+          setPurgeBusy(false)
+          setConfirmPurge(null)
+        }}
+      />
+      {/* K2 : vider toute la corbeille — le confirm() natif devient un
+          ConfirmDialog dans la charte (focus Annuler, conséquence écrite) */}
+      <ConfirmDialog
+        open={confirmPurgeAll}
+        onOpenChange={setConfirmPurgeAll}
+        title={String(t.cofPurgeTrash)}
+        message={String(t.cofPurgeTrashConfirm)}
+        confirmLabel={String(t.cofPurgeTrash)}
+        busy={trashBusy}
+        onConfirm={async () => {
+          setTrashBusy(true)
+          await purgeTrash()
+          setTrashBusy(false)
+        }}
+      />
     </div>
   )
 }
@@ -363,7 +429,7 @@ function CategoryPicker({ lang, onPick, onClose }: { lang: 'fr' | 'en'; onPick: 
             return (
               <button key={c} onClick={() => onPick(c)}
                 className="flex items-center gap-2.5 rounded-xl border border-border p-3 text-left transition-colors hover:border-accent hover:bg-accent/6 cursor-pointer group">
-                <span className={cn('w-9 h-9 rounded-lg grid place-items-center shrink-0', CAT_COLOR[c])}><Icon size={16} /></span>
+                <span className={cn('w-9 h-9 rounded-lg grid place-items-center shrink-0', CAT_COLOR[c])}><Icon size={16} aria-hidden="true" /></span>
                 <span className="text-xs font-medium text-fg-2 group-hover:text-fg truncate">
                   {String(lang === 'en' ? def.en : def.fr)}
                 </span>
@@ -394,20 +460,17 @@ function SetupScreen({ onDone }: { onDone: () => void }) {
       await api('POST', '/admin/coffre', env)
       toast.success(String(t.cofSetupDone))
       onDone()
-    } catch (e: any) { toast.error(e.message) }
+    } catch (e) { toast.error(friendly(e)) }
     setBusy(false)
   }
 
   return (
     <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="max-w-md mx-auto py-16">
       <div className="border border-border rounded-2xl bg-card p-8">
-        <div className="w-12 h-12 rounded-xl bg-accent/12 text-accent grid place-items-center mb-5"><Lock size={22} /></div>
+        <div className="w-12 h-12 rounded-xl bg-accent/12 text-accent-fg grid place-items-center mb-5"><Lock size={22} aria-hidden="true" /></div>
         <h1 className="text-lg font-bold">{t.cofSetupTitle}</h1>
         <p className="text-sm text-fg-2 mt-2 leading-relaxed">{t.cofSetupIntro}</p>
-        <div className="flex gap-2 text-xs text-fg-3 my-4 rounded-lg bg-card-2 border border-border p-3">
-          <AlertTriangle size={14} className="text-warn shrink-0 mt-0.5" />
-          <span className="leading-relaxed">{t.cofSetupWarning}</span>
-        </div>
+        <Alert tone="warn" className="my-4">{t.cofSetupWarning}</Alert>
         <Field label={t.cofMasterPw}>
           <PasswordInput value={pw} onChange={e => setPw(e.target.value)} autoFocus autoComplete="new-password" />
         </Field>
@@ -416,7 +479,7 @@ function SetupScreen({ onDone }: { onDone: () => void }) {
           <PasswordInput value={pw2} onChange={e => setPw2(e.target.value)} onKeyDown={e => e.key === 'Enter' && create()} />
         </Field>
         <Button variant="primary" className="w-full mt-6" disabled={busy || !pw || !pw2} onClick={create}>
-          {busy ? <LoaderCircle className="animate-spin" /> : <ShieldCheck size={15} />} {t.cofSetupBtn}
+          {busy ? <LoaderCircle className="animate-spin" aria-hidden="true" /> : <ShieldCheck size={15} aria-hidden="true" />} {t.cofSetupBtn}
         </Button>
       </div>
     </motion.div>
@@ -447,17 +510,18 @@ function LockScreen({ header, onUnlock }: { header: C.CoffreEnvelope; onUnlock: 
   return (
     <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="max-w-sm mx-auto py-20">
       <div className="border border-border rounded-2xl bg-card p-8 text-center">
-        <div className="w-12 h-12 rounded-xl bg-muted text-fg-2 grid place-items-center mx-auto mb-5"><Lock size={22} /></div>
+        <div className="w-12 h-12 rounded-xl bg-muted text-fg-2 grid place-items-center mx-auto mb-5"><Lock size={22} aria-hidden="true" /></div>
         <h1 className="text-lg font-bold">{t.cofUnlock}</h1>
         <p className="text-xs text-fg-3 mt-1.5">{t.cofE2E}</p>
-        <Field label={t.cofMasterPw} className="text-left mt-5">
+        {/* échec de déverrouillage : pattern Field error (aria-invalid +
+            message lié role=alert) — avant : bordure rouge seule */}
+        <Field label={t.cofMasterPw} className="text-left mt-5" error={fail ? String(t.cofUnlockFail) : undefined}>
           <PasswordInput value={pw} onChange={e => setPw(e.target.value)}
             onKeyDown={e => e.key === 'Enter' && unlock()} autoFocus
             className={fail ? 'border-danger' : ''} />
         </Field>
-        {fail && <p className="text-xs text-danger mt-2">{t.cofUnlockFail}</p>}
         <Button variant="primary" className="w-full mt-5" disabled={busy || !pw} onClick={unlock}>
-          {busy ? <LoaderCircle className="animate-spin" /> : <KeyRound size={15} />} {busy ? t.cofUnlocking : t.cofUnlockBtn}
+          {busy ? <LoaderCircle className="animate-spin" aria-hidden="true" /> : <KeyRound size={15} aria-hidden="true" />} {busy ? t.cofUnlocking : t.cofUnlockBtn}
         </Button>
       </div>
     </motion.div>

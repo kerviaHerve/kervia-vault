@@ -2,14 +2,17 @@
 // Steps: language → terms of use → admin password → recovery codes → first agent → done.
 import * as React from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { LoaderCircle, Download, Check, ArrowRight, KeyRound, ShieldCheck, Bot, Languages, Scale } from 'lucide-react'
+import { LoaderCircle, Download, Check, ArrowRight, ArrowLeft, KeyRound, ShieldCheck, Bot, Languages, Scale } from 'lucide-react'
 import { toast } from 'sonner'
-import { api } from '@/lib/api'
-import { Button, Input, Field } from '@/components/ui'
+import { api, friendly } from '@/lib/api'
+import { Button, Input, Field, PasswordInput, Alert, BrandBlock } from '@/components/ui'
+import { Strength } from '@/components/coffre/parts'
 import { useLang } from '@/i18n'
-import { useTheme } from '@/theme'
-import kerviaLogoDark from '@/assets/kervia-logo-dark.svg'
-import kerviaLogoClair from '@/assets/kervia-logo-clair.svg'
+import { LangSwitch } from '@/i18n/LangSwitch'
+
+// Version affichée au footer — synchronisée avec le CHANGELOG lors des
+// releases (pas d'accès API ici : le wizard tourne avant l'auth).
+const WIZARD_VERSION = 'v1.8.6'
 
 // Step texts are kept bilingual inline: the wizard's FIRST step picks the
 // language, so it must render both before any choice exists.
@@ -44,13 +47,14 @@ const T = {
     dlKey: "Télécharger la clé",
     dlSkill: "Télécharger le skill",
     skillHintT: "Que faire du skill ?",
-    skillHint: "Le SKILL.md contient les URLs de CETTE installation et les commandes d'installation MCP — mais AUCUNE clé (par sécurité : une clé dans un fichier est une clé compromise). Pose-le selon ton agent :",
+    skillHint: "Le SKILL.md contient les URLs de CETTE installation et les commandes d'installation MCP — mais AUCUNE clé (par sécurité : une clé dans un fichier est une clé compromise). Posez-le selon votre agent :",
     skillHintOC: "OpenCode : ~/.config/opencode/skills/kervia-vault/SKILL.md",
     skillHintH: "Hermes : ~/.hermes/skills/devops/kervia-vault/SKILL.md",
     skillHintEnd: "L'agent demandera la clé (fichier .txt ci-dessus) au moment de l'installation — dans le prompt masqué du client, jamais dans un fichier.",
     finish: "Terminé",
     finishH: "Kervia-vault est prêt. Connectez-vous avec votre nouveau mot de passe.",
     goLogin: "Ouvrir Kervia-vault",
+    keyAck: "J'ai enregistré la clé API en lieu sûr",
     weak: "Trop court (12 caractères minimum)",
     mismatch: "Les mots de passe ne correspondent pas",
     stepOf: "Étape",
@@ -93,6 +97,7 @@ const T = {
     finish: "Done",
     finishH: "Kervia-vault is ready. Sign in with your new password.",
     goLogin: "Open Kervia-vault",
+    keyAck: "I have stored the API key somewhere safe",
     weak: "Too short (12 characters minimum)",
     mismatch: "Passwords do not match",
     stepOf: "Step",
@@ -101,9 +106,9 @@ const T = {
 }
 
 export default function Wizard({ onDone }: { onDone: () => void }) {
-  const { lang, setLang } = useLang()
-  const { theme } = useTheme()
-  const logo = theme === 'dark' ? kerviaLogoDark : kerviaLogoClair
+  // i18n = traductions globales (t.back, t.codesSaved… du contrat v1.8.6) ;
+  // t = dico inline ci-dessus, documenté et assumé pour le wizard.
+  const { t: i18n, lang, setLang } = useLang()
   const t = T[lang] || T.fr
   // 0=language (ALWAYS first — the user must pick before reading anything),
   // 1=terms, 2=password, 3=codes, 4=agent, 5=done
@@ -111,10 +116,35 @@ export default function Wizard({ onDone }: { onDone: () => void }) {
   const [accepted, setAccepted] = React.useState(false)
   const [pw, setPw] = React.useState('')
   const [pw2, setPw2] = React.useState('')
+  const pwMismatch = pw2 !== '' && pw !== pw2
   const [codes, setCodes] = React.useState<string[] | null>(null)
+  // B1c : accusé de réception des codes avant de quitter l'étape 3.
+  const [codesSaved, setCodesSaved] = React.useState(false)
   const [agentName, setAgentName] = React.useState('')
   const [agent, setAgent] = React.useState<any | null>(null)
   const [busy, setBusy] = React.useState(false)
+  // B4 : l'auto-login a échoué — on ouvre l'issue « Passer cette étape ».
+  const [loginFailed, setLoginFailed] = React.useState(false)
+  // B1d : sortie de l'étape 5 seulement après téléchargement de la clé
+  // (bouton) ou confirmation explicite (case).
+  const [keyAck, setKeyAck] = React.useState(false)
+
+  // B1a : les codes (étape 3) et la clé API (étape 5) sont affichés UNE
+  // SEULE fois — un refresh les détruit pour toujours. Garde-fou bloquant
+  // pendant les étapes qui portent une donnée à usage unique. exitRef =
+  // sortie volontaire (bouton final / skip) : on ne retient pas quelqu'un
+  // qui part exprès.
+  const exitRef = React.useRef(false)
+  React.useEffect(() => {
+    if (step < 3) return
+    const guard = (e: BeforeUnloadEvent) => {
+      if (exitRef.current) return
+      e.preventDefault()
+      e.returnValue = ''
+    }
+    window.addEventListener('beforeunload', guard)
+    return () => window.removeEventListener('beforeunload', guard)
+  }, [step])
 
   const dl = (content: string, filename: string) => {
     const blob = new Blob([content], { type: 'text/plain' })
@@ -137,7 +167,7 @@ export default function Wizard({ onDone }: { onDone: () => void }) {
       const d = await api('POST', '/setup/init', { admin_password: pw })
       setCodes(d.recovery_codes)
       setStep(3)
-    } catch (e: any) { toast.error(e.message) }
+    } catch (e) { toast.error(friendly(e)) }
     setBusy(false)
   }
 
@@ -155,18 +185,31 @@ export default function Wizard({ onDone }: { onDone: () => void }) {
       })
       loggedIn = res.ok
     } catch { /* network error — fall through */ }
-    if (!loggedIn) { toast.error(t.loginFailed); setBusy(false); return }
+    if (!loggedIn) { toast.error(t.loginFailed); setLoginFailed(true); setBusy(false); return }
     try {
       const d = await api('POST', '/admin/agents', { name: agentName.trim() })
       setAgent(d)
       setStep(5)
-    } catch (e: any) { toast.error(e.message) }
+    } catch (e) { toast.error(friendly(e)) }
     setBusy(false)
   }
 
-  const codesText = codes ? ['Kervia-vault — CODES DE RÉCUPÉRATION', '='.repeat(30), '',
-    'Chaque code réinitialise le mot de passe admin. Usage unique.',
-    '', ...codes.map((c, i) => `${i + 1}. ${c}`)].join('\n') : ''
+  // Fichier de codes bilingue (B1/i18n) — même pattern que K ci-dessous :
+  // avant, le contenu téléchargé était en FR codé dur quelle que soit la
+  // langue choisie.
+  const C = {
+    fr: {
+      title: 'Kervia-vault — CODES DE RÉCUPÉRATION',
+      use: 'Chaque code réinitialise le mot de passe admin. Usage unique.',
+    },
+    en: {
+      title: 'Kervia-vault — RECOVERY CODES',
+      use: 'Each code resets the admin password. Single use.',
+    },
+  }
+  const c = C[lang] || C.fr
+  const codesText = codes ? [c.title, '='.repeat(30), '', c.use, '',
+    ...codes.map((x, i) => `${i + 1}. ${x}`)].join('\n') : ''
 
   const K = {
     fr: {
@@ -176,7 +219,7 @@ export default function Wizard({ onDone }: { onDone: () => void }) {
         'STOCKAGE SÉCURISÉ (ce fichier est le SEUL endroit où la clé doit',
         'vivre — ne la recopiez ni dans un skill, ni dans un chat, ni dans',
         'un config, ni dans une commande en ligne):',
-        '  chmod 600 ce-fichier  # ou rangez-la dans le magasin de votre',
+        '  chmod 600 ce-fichier  # ou rangez-la dans le coffre de votre',
         '                        # client (~/.hermes/.env, keychain…)',
         "  Les skills/docs n'embarquent JAMAIS la clé: les installateurs",
         '  la demandent au moment voulu (prompt masqué ou fichier 0600).',
@@ -210,12 +253,32 @@ export default function Wizard({ onDone }: { onDone: () => void }) {
   const progress = { 1: '1/5', 2: '2/5', 3: '3/5', 4: '4/5', 5: '5/5' } as const
 
   return (
-    <div className="grid place-items-center min-h-screen relative">
-      {/* progress */}
+    // app.tsx rend le wizard HORS du shell (pas de <main>) — la page fournit
+    // elle-même son landmark principal.
+    <main className="grid place-items-center min-h-screen relative">
+      {/* retour discret (B3) — uniquement où rebrousser chemin est sûr :
+          2→1 et 4→3. Les autres retours casseraient un setup déjà consommé
+          (3→2 : /setup/init déjà appelé ; 5→4 : agent déjà créé). */}
+      {(step === 2 || step === 4) && (
+        <Button variant="ghost" size="sm" className="absolute top-4 left-4"
+          onClick={() => setStep(step === 2 ? 1 : 3)}>
+          <ArrowLeft size={14} aria-hidden="true" /> {String(i18n.back)}
+        </Button>
+      )}
+
+      {/* B3 : la langue était figée après l'étape 0 — le switch officiel
+          reste accessible en coin à partir de l'étape 1. */}
+      {step >= 1 && <LangSwitch className="absolute top-4 right-4 !w-auto" />}
+
+      {/* progress — a11y : la barre porte son rôle et ses valeurs */}
       <div className="absolute top-5 flex items-center gap-3 text-xs text-fg-3">
         {step >= 1 && <>
-          <span className="font-bold text-accent">{t.stepOf} {progress[step as 1]}</span>
-          <span className="w-40 h-1 bg-muted rounded-full overflow-hidden">
+          <span className="font-bold text-accent-fg">{t.stepOf} {progress[step as 1]}</span>
+          <span
+            className="w-40 h-1 bg-muted rounded-full overflow-hidden"
+            role="progressbar" aria-valuemin={1} aria-valuemax={5} aria-valuenow={step}
+            aria-label={`${t.stepOf} ${progress[step as 1]}`}
+          >
             <motion.span className="block h-full bg-accent rounded-full" animate={{ width: `${step / 5 * 100}%` }} />
           </span>
         </>}
@@ -225,30 +288,36 @@ export default function Wizard({ onDone }: { onDone: () => void }) {
         initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }}
         className="w-[480px] bg-card border border-border rounded-2xl p-8 shadow-2xl"
       >
-        {/* logo */}
-        <div className="flex flex-col items-center gap-2 mb-6">
-          <img src={logo} alt="Kervia-vault" className="h-16" />
-          {step > 1 && <>
-            <p className="text-xs text-fg-2 mt-1">{t.welcome}</p>
-            <p className="text-[11px] text-fg-3">{t.sub}</p>
-          </>}
-        </div>
+        {/* bloc marque — BrandBlock (v1.8.6) : logo + nom + slogan, une seule
+            implémentation partagée avec login et la sidebar */}
+        <BrandBlock
+          size="lg"
+          centered
+          className="mb-6"
+          tagline={step > 1 ? <>{t.welcome}<span className="text-fg-3"> {t.sub}</span></> : undefined}
+        />
+
+        {/* B1b : une donnée à usage unique est à l'écran (codes, clé API) —
+            bannière bloquante tant qu'elle n'est pas sauvegardée. */}
+        {step >= 3 && (
+          <Alert tone="warn" className="mb-4">{String(i18n.wizardDontClose)}</Alert>
+        )}
 
         <AnimatePresence mode="wait">
           {/* ── 0. language ── */}
           {step === 0 && (
             <motion.div key="0" initial={{ opacity: 0, x: 12 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -12 }}>
               <div className="flex items-center gap-2 mb-4">
-                <Languages size={16} className="text-accent" />
-                <span className="text-sm font-semibold">{t.langTitle}</span>
+                <Languages size={16} className="text-accent-fg" aria-hidden="true" />
+                <h1 className="text-sm font-semibold">{t.langTitle}</h1>
               </div>
               <div className="flex flex-col gap-2">
                 <button onClick={() => pickLang('fr')}
-                  className={`px-4 h-11 rounded-lg border text-sm font-medium transition-colors cursor-pointer ${lang === 'fr' ? 'border-accent bg-accent/10 text-accent' : 'border-border bg-card-2 hover:border-fg-3'}`}>
+                  className={`px-4 h-11 rounded-lg border text-sm font-medium transition-colors cursor-pointer ${lang === 'fr' ? 'border-accent bg-accent/10 text-accent-fg' : 'border-border bg-card-2 hover:border-fg-3'}`}>
                   Français
                 </button>
                 <button onClick={() => pickLang('en')}
-                  className={`px-4 h-11 rounded-lg border text-sm font-medium transition-colors cursor-pointer ${lang === 'en' ? 'border-accent bg-accent/10 text-accent' : 'border-border bg-card-2 hover:border-fg-3'}`}>
+                  className={`px-4 h-11 rounded-lg border text-sm font-medium transition-colors cursor-pointer ${lang === 'en' ? 'border-accent bg-accent/10 text-accent-fg' : 'border-border bg-card-2 hover:border-fg-3'}`}>
                   English
                 </button>
               </div>
@@ -259,13 +328,19 @@ export default function Wizard({ onDone }: { onDone: () => void }) {
           {step === 1 && (
             <motion.div key="1" initial={{ opacity: 0, x: 12 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -12 }}>
               <div className="flex items-center gap-2 mb-3">
-                <Scale size={16} className="text-accent" />
-                <span className="text-sm font-semibold">{t.termsTitle}</span>
+                <Scale size={16} className="text-accent-fg" aria-hidden="true" />
+                <h1 className="text-sm font-semibold">{t.termsTitle}</h1>
               </div>
-              <div className="text-[11px] leading-relaxed space-y-2 mb-4 text-fg-2">
-                {t.termsBody.map((p: any, i: number) => 'li' in p
-                  ? <p key={i} className="pl-3 border-l-2 border-border">• {p.li}</p>
-                  : <p key={i} className="font-semibold text-fg-1">{p.b}</p>)}
+              <div className="text-2xs leading-relaxed space-y-2 mb-4 text-fg-2">
+                {t.termsBody.map((p: any, i: number) => 'b' in p
+                  ? <p key={i} className="font-semibold text-fg">{p.b}</p>
+                  : null)}
+                {/* vraie liste (a11y) — avant : des <p> préfixées « • » à la main */}
+                <ul className="space-y-2">
+                  {t.termsBody.map((p: any, i: number) => 'li' in p
+                    ? <li key={i} className="pl-3 border-l-2 border-border">{p.li}</li>
+                    : null)}
+                </ul>
               </div>
               <label className="flex items-start gap-2.5 cursor-pointer select-none mb-4">
                 <input type="checkbox" checked={accepted}
@@ -273,8 +348,8 @@ export default function Wizard({ onDone }: { onDone: () => void }) {
                   className="mt-0.5 accent-[var(--color-accent)] w-4 h-4 cursor-pointer" />
                 <span className="text-xs font-medium">{t.accept}</span>
               </label>
-              <Button variant="primary" className="w-full" disabled={!accepted} onClick={() => setStep(2)}>
-                {t.next} <ArrowRight size={14} />
+              <Button variant="primary" size="lg" className="w-full" disabled={!accepted} onClick={() => setStep(2)}>
+                {t.next} <ArrowRight size={14} aria-hidden="true" />
               </Button>
             </motion.div>
           )}
@@ -283,20 +358,21 @@ export default function Wizard({ onDone }: { onDone: () => void }) {
           {step === 2 && (
             <motion.div key="2" initial={{ opacity: 0, x: 12 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -12 }}>
               <div className="flex items-center gap-2 mb-3">
-                <ShieldCheck size={16} className="text-accent" />
-                <span className="text-sm font-semibold">{t.stepPw}</span>
+                <ShieldCheck size={16} className="text-accent-fg" aria-hidden="true" />
+                <h1 className="text-sm font-semibold">{t.stepPw}</h1>
               </div>
               <p className="text-xs text-fg-2 mb-4">{t.stepPwH}</p>
               <Field label={t.pw}>
-                <Input type="password" value={pw} autoFocus onChange={e => setPw(e.target.value)} />
+                <PasswordInput value={pw} autoFocus autoComplete="new-password" onChange={e => setPw(e.target.value)} />
+                {/* B2 : jauge de force — le seul mot de passe du coffre mérite un feedback */}
+                <div className="mt-1.5">{pw && <Strength pw={pw} />}</div>
               </Field>
-              <Field label={t.pw2}>
-                <Input type="password" value={pw2} onChange={e => setPw2(e.target.value)}
-                  className={pw2 && pw !== pw2 ? 'border-danger' : ''} />
+              <Field label={t.pw2} error={pwMismatch ? t.mismatch : undefined}>
+                <PasswordInput value={pw2} autoComplete="new-password" onChange={e => setPw2(e.target.value)}
+                  className={pwMismatch ? 'border-danger' : ''} />
               </Field>
-              {pw2 && pw !== pw2 && <p className="text-xs text-danger -mt-2 mb-3">{t.mismatch}</p>}
-              <Button variant="primary" className="w-full" onClick={initSetup} disabled={pw.length < 12 || pw !== pw2 || busy}>
-                {busy ? <LoaderCircle size={16} className="animate-spin" /> : <>{t.next} <ArrowRight size={14} /></>}
+              <Button variant="primary" size="lg" className="w-full" onClick={initSetup} disabled={pw.length < 12 || pw !== pw2 || busy} aria-busy={busy}>
+                {busy ? <LoaderCircle size={16} className="animate-spin" aria-hidden="true" /> : <>{t.next} <ArrowRight size={14} aria-hidden="true" /></>}
               </Button>
             </motion.div>
           )}
@@ -305,17 +381,27 @@ export default function Wizard({ onDone }: { onDone: () => void }) {
           {step === 3 && codes && (
             <motion.div key="3" initial={{ opacity: 0, x: 12 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -12 }}>
               <div className="flex items-center gap-2 mb-3">
-                <KeyRound size={16} className="text-accent" />
-                <span className="text-sm font-semibold">{t.stepCodes}</span>
+                <KeyRound size={16} className="text-accent-fg" aria-hidden="true" />
+                <h1 className="text-sm font-semibold">{t.stepCodes}</h1>
               </div>
               <p className="text-xs text-fg-2 mb-4">{t.stepCodesH}</p>
               <div className="bg-bg border border-accent/40 rounded-lg p-3.5 font-mono text-xs space-y-1 mb-4">
-                {codes.map((c, i) => <div key={i} className="text-accent">{String(i + 1).padStart(2, '0')} · {c}</div>)}
+                {codes.map((x, i) => <div key={i} className="text-accent-fg">{String(i + 1).padStart(2, '0')} · {x}</div>)}
               </div>
               <Button variant="primary" className="w-full" onClick={() => dl(codesText, 'kervia-vault-recovery-codes.txt')}>
-                <Download size={14} /> {t.dlCodes}
+                <Download size={14} aria-hidden="true" /> {t.dlCodes}
               </Button>
-              <Button className="w-full mt-2" onClick={() => setStep(4)}>{t.next} <ArrowRight size={14} /></Button>
+              {/* B1c : accusé de réception obligatoire avant de continuer —
+                  ces codes ne seront plus JAMAIS affichés. */}
+              <label className="flex items-start gap-2.5 cursor-pointer select-none mt-3 mb-2">
+                <input type="checkbox" checked={codesSaved}
+                  onChange={e => setCodesSaved(e.target.checked)}
+                  className="mt-0.5 accent-[var(--color-accent)] w-4 h-4 cursor-pointer" />
+                <span className="text-xs font-medium">{String(i18n.codesSaved)}</span>
+              </label>
+              <Button size="lg" className="w-full mt-2" disabled={!codesSaved} onClick={() => setStep(4)}>
+                {t.next} <ArrowRight size={14} aria-hidden="true" />
+              </Button>
             </motion.div>
           )}
 
@@ -323,17 +409,25 @@ export default function Wizard({ onDone }: { onDone: () => void }) {
           {step === 4 && (
             <motion.div key="4" initial={{ opacity: 0, x: 12 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -12 }}>
               <div className="flex items-center gap-2 mb-3">
-                <Bot size={16} className="text-accent" />
-                <span className="text-sm font-semibold">{t.stepAgent}</span>
+                <Bot size={16} className="text-accent-fg" aria-hidden="true" />
+                <h1 className="text-sm font-semibold">{t.stepAgent}</h1>
               </div>
               <p className="text-xs text-fg-2 mb-4">{t.stepAgentH}</p>
               <Field label={t.agentName}>
                 <Input value={agentName} autoFocus onChange={e => setAgentName(e.target.value)}
                   onKeyDown={e => e.key === 'Enter' && createAgent()} />
               </Field>
-              <Button variant="primary" className="w-full" onClick={createAgent} disabled={!agentName.trim() || busy}>
-                {busy ? <LoaderCircle size={15} className="animate-spin" /> : t.createAgent}
+              <Button variant="primary" size="lg" className="w-full" onClick={createAgent} disabled={!agentName.trim() || busy} aria-busy={busy}>
+                {busy ? <LoaderCircle size={15} className="animate-spin" aria-hidden="true" /> : t.createAgent}
               </Button>
+              {/* B4 : issue visible si l'auto-login échoue — le setup est déjà
+                  terminé côté serveur, on peut rejoindre le login normal. */}
+              {loginFailed && (
+                <Button variant="link" className="w-full mt-3 text-xs"
+                  onClick={() => { exitRef.current = true; onDone() }}>
+                  {String(i18n.skipStep)}
+                </Button>
+              )}
             </motion.div>
           )}
 
@@ -341,30 +435,41 @@ export default function Wizard({ onDone }: { onDone: () => void }) {
           {step === 5 && agent && (
             <motion.div key="5" initial={{ opacity: 0, x: 12 }} animate={{ opacity: 1, x: 0 }}>
               <div className="flex items-center gap-2 mb-3">
-                <Check size={16} className="text-accent" />
-                <span className="text-sm font-semibold">{t.finish}</span>
+                <Check size={16} className="text-accent-fg" aria-hidden="true" />
+                <h1 className="text-sm font-semibold">{t.finish}</h1>
               </div>
               <p className="text-xs text-fg-2 mb-4">{t.finishH}</p>
-              <div className="bg-bg border border-accent rounded-lg p-3.5 font-mono text-xs text-accent break-all mb-4">
+              <div className="bg-bg border border-accent rounded-lg p-3.5 font-mono text-xs text-accent-fg break-all mb-4">
                 {agent.api_key}
               </div>
               <div className="flex flex-col gap-2 mb-3">
-                <Button onClick={() => dl(keyText, `kervia-vault-key-${agent.agent.name}.txt`)}>
-                  <Download size={14} /> {t.dlKey}
+                {/* B1d : le téléchargement de la clé vaut confirmation de
+                    sauvegarde (le SKILL.md, lui, ne contient aucune clé). */}
+                <Button onClick={() => { dl(keyText, `kervia-vault-key-${agent.agent.name}.txt`); setKeyAck(true) }}>
+                  <Download size={14} aria-hidden="true" /> {t.dlKey}
                 </Button>
                 <Button onClick={() => dl(skillText, 'SKILL.md')}>
-                  <Download size={14} /> {t.dlSkill}
+                  <Download size={14} aria-hidden="true" /> {t.dlSkill}
                 </Button>
               </div>
-              <div className="bg-bg border border-border rounded-lg p-3.5 mb-4 text-[11px] leading-relaxed">
-                <p className="font-semibold text-fg-1 mb-1.5">{t.skillHintT}</p>
+              <div className="bg-bg border border-border rounded-lg p-3.5 mb-4 text-2xs leading-relaxed">
+                <p className="font-semibold text-fg mb-1.5">{t.skillHintT}</p>
                 <p className="text-fg-2 mb-2">{t.skillHint}</p>
                 <p className="font-mono text-fg-3 mb-1 break-all">{t.skillHintOC}</p>
                 <p className="font-mono text-fg-3 mb-2 break-all">{t.skillHintH}</p>
                 <p className="text-fg-2">{t.skillHintEnd}</p>
               </div>
-              <Button variant="primary" className="w-full" onClick={onDone}>
-                {t.goLogin} <ArrowRight size={14} />
+              {/* B1d : la clé n'est plus jamais affichée — sortie uniquement
+                  après téléchargement ou confirmation explicite. */}
+              <label className="flex items-start gap-2.5 cursor-pointer select-none mb-4">
+                <input type="checkbox" checked={keyAck}
+                  onChange={e => setKeyAck(e.target.checked)}
+                  className="mt-0.5 accent-[var(--color-accent)] w-4 h-4 cursor-pointer" />
+                <span className="text-xs font-medium">{t.keyAck}</span>
+              </label>
+              <Button variant="primary" size="lg" className="w-full" disabled={!keyAck}
+                onClick={() => { exitRef.current = true; onDone() }}>
+                {t.goLogin} <ArrowRight size={14} aria-hidden="true" />
               </Button>
             </motion.div>
           )}
@@ -372,13 +477,13 @@ export default function Wizard({ onDone }: { onDone: () => void }) {
       </motion.div>
 
       {/* footer */}
-      <div className="absolute bottom-4 flex items-center gap-4 text-[11px] text-fg-3">
-        <span>v1.0</span>
+      <div className="absolute bottom-4 flex items-center gap-4 text-2xs text-fg-3">
+        <span>{WIZARD_VERSION}</span>
         <a href="https://kervia.ch" target="_blank" rel="noreferrer" className="hover:text-fg-2 transition-colors">kervia.ch</a>
         <span>by <span className="text-fg-2">kervia</span></span>
         <a href="https://www.gnu.org/licenses/agpl-3.0.html" target="_blank" rel="noreferrer" className="hover:text-fg-2 transition-colors">AGPL-3.0</a>
       </div>
-    </div>
+    </main>
   )
 }
 

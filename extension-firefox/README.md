@@ -5,6 +5,18 @@ et **sans aucune injection dans les pages** : le remplissage n'agit que sur
 ton clic (bouton « Remplir » ou `Ctrl+Shift+L`), jamais automatiquement,
 jamais d'icône dans les champs, jamais de bulle flottante.
 
+## Design (v1.8.6)
+
+Le popup est **dark-only** : choix assumé — un popup doit se peindre
+instantanément (pas de flash de thème), et son cycle de vie (ouvert/fermé en
+quelques secondes) ne justifie pas de persistance de thème. Les tokens sont
+doublés localement (`--bg`, `--fg`, `--accent`…) avec les **valeurs exactes**
+de `kervia-vault/web-app/src/index.css` (thème dark) ; si la palette WebUI
+change, il faut resynchroniser ces variables. Les teintes d'accent dérivent
+de `var(--accent)` via `color-mix` (plus aucun `rgba()` codé en dur — si
+l'accent bouge, l'extension suit). Le focus des champs utilise le **menthe**
+du kit (`--focus`), aligné sur la WebUI v1.8.6.
+
 ## Installation
 
 1. **webui → Paramètres → Extension Firefox** → *Télécharger l'extension (.xpi)*.

@@ -91,6 +91,7 @@ const (
 const (
 	AuditShareCreate = "share_create" // admin minted a one-time link (ttl in the detail)
 	AuditShareView   = "share_view"   // link consumed — value disclosed once
+	AuditShareRevoke = "share_revoke" // admin killed a live link before expiry (v1.8.6)
 )
 
 // AuditExport — the DR bundle export action (passphrase-sealed, all vaults).

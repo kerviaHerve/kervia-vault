@@ -14,10 +14,10 @@ export function ThemeToggle({ className }: { className?: string }) {
       aria-pressed={!dark}
       title={dark ? String(t.toLight) : String(t.toDark)}
       className={cn(
-        'flex items-center gap-2 px-3 h-8 rounded-lg text-[11px] font-bold cursor-pointer transition-colors border w-full',
+        'flex items-center gap-2 px-3 h-8 rounded-lg text-2xs font-bold cursor-pointer transition-colors border w-full',
         dark
           ? 'bg-card-2 border-border text-fg-2 hover:text-fg'
-          : 'bg-accent/12 border-accent/50 text-accent',
+          : 'bg-accent/12 border-accent/50 text-accent-fg',
         className,
       )}
     >

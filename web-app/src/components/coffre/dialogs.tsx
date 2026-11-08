@@ -4,25 +4,23 @@ import * as React from 'react'
 import { toast } from 'sonner'
 import {
   Wand2, Copy, LoaderCircle, Download, Upload, X, KeyRound, Trash2,
-  AlertTriangle, ShieldCheck,
+  ShieldCheck,
 } from 'lucide-react'
 import { useLang } from '@/i18n'
-import { api } from '@/lib/api'
-import { Button, Dialog, DialogContent, Input, PasswordInput, Field, Label } from '@/components/ui'
+import { api, friendly } from '@/lib/api'
+import { Button, Dialog, DialogContent, Input, PasswordInput, Field, Label, Alert, SegmentedControl } from '@/components/ui'
 import { cn } from '@/lib/utils'
 import * as C from '@/lib/coffre'
 import { detectAndParse, itemsToBitwarden, itemsToKervia, type DetectedImport } from '@/lib/coffre-import'
 import type { CoffreEnvelope } from '@/lib/coffre'
 import type { DecryptedItem } from '@/lib/coffre-schema'
+import { useCopy } from './parts'
 
 // ================= générateur =================
 
 export function GeneratorDialog({ onClose }: { onClose: () => void }) {
   const { t } = useLang()
-  const copy = (v: string) => {
-    navigator.clipboard.writeText(v).catch(() => {})
-    toast.success(String(t.cofCopied), { description: String(t.cofAutoClear) })
-  }
+  const copy = useCopy() // copie fiable (HTTP inclus) + effacement auto 30 s réellement planifié
   const [mode, setMode] = React.useState<'chars' | 'phrase'>('chars')
   const [len, setLen] = React.useState(20)
   const [opt, setOpt] = React.useState({ upper: true, lower: true, digits: true, symbols: true })
@@ -39,15 +37,16 @@ export function GeneratorDialog({ onClose }: { onClose: () => void }) {
   return (
     <Dialog open onOpenChange={o => { if (!o) onClose() }}>
       <DialogContent title={t.cofGenTitle}>
-        <div className="grid grid-cols-2 gap-2 mb-4">
-          {(['chars', 'phrase'] as const).map(m => (
-            <button key={m} onClick={() => setMode(m)}
-              className={cn('h-9 rounded-lg border text-xs font-medium transition-colors cursor-pointer',
-                mode === m ? 'border-accent bg-accent/12 text-accent' : 'border-border text-fg-2 hover:bg-card-2')}>
-              {m === 'chars' ? t.cofGenChars : t.cofGenPassphrase}
-            </button>
-          ))}
-        </div>
+        <SegmentedControl
+          className="w-full mb-4"
+          ariaLabel={String(t.cofGenTitle)}
+          value={mode}
+          onChange={setMode}
+          options={[
+            { value: 'chars' as const, label: String(t.cofGenChars) },
+            { value: 'phrase' as const, label: String(t.cofGenPassphrase) },
+          ]}
+        />
         <div className="rounded-lg bg-card-2 border border-border p-4 text-center">
           <p className="font-mono text-sm break-all select-all">{value}</p>
           <div className="mt-2 flex justify-center"><CStrength value={value} /></div>
@@ -57,12 +56,16 @@ export function GeneratorDialog({ onClose }: { onClose: () => void }) {
             <Field label={`${t.cofGenLen} : ${len}`}>
               <input type="range" min={8} max={64} value={len} onChange={e => setLen(Number(e.target.value))} className="w-full accent-[var(--color-accent)]" />
             </Field>
+            {/* jeux de caractères : toggles INDÉPENDANTS (non exclusifs) —
+                SegmentedControl est réservé aux choix exclusifs (contrat
+                FOUNDATION §3) ; ici chaque chip porte son état aria-pressed */}
             <div className="flex gap-2 flex-wrap">
               {([['upper', 'A-Z'], ['lower', 'a-z'], ['digits', '0-9'], ['symbols', t.cofGenSymbols]] as const).map(([k, lbl]) => (
-                <button key={k} onClick={() => setOpt(o => ({ ...o, [k]: !(o as any)[k] }))}
+                <button key={k} onClick={() => setOpt(o => ({ ...o, [k]: !(o as any)[k] }))} aria-pressed={!!(opt as any)[k]}
+                  aria-label={String(lbl)}
                   className={cn('h-8 px-3 rounded-lg border text-xs transition-colors cursor-pointer',
-                    (opt as any)[k] ? 'border-accent bg-accent/12 text-accent' : 'border-border text-fg-3 hover:bg-card-2')}>
-                  {lbl}
+                    (opt as any)[k] ? 'border-accent bg-accent/12 text-accent-fg' : 'border-border text-fg-3 hover:bg-card-2')}>
+                  {String(lbl)}
                 </button>
               ))}
             </div>
@@ -75,10 +78,10 @@ export function GeneratorDialog({ onClose }: { onClose: () => void }) {
           </div>
         )}
         <div className="flex justify-between mt-5">
-          <Button variant="ghost" onClick={regen}><Wand2 size={14} />{t.cofGenRegen}</Button>
+          <Button variant="ghost" onClick={regen}><Wand2 size={14} aria-hidden="true" />{t.cofGenRegen}</Button>
           <div className="flex gap-2">
             <Button variant="ghost" onClick={onClose}>{t.cofCancel}</Button>
-            <Button variant="primary" onClick={() => { copy(value); onClose() }}><Copy size={14} />{t.cofGenCopy}</Button>
+            <Button variant="primary" onClick={() => { copy(value); onClose() }}><Copy size={14} aria-hidden="true" />{t.cofGenCopy}</Button>
           </div>
         </div>
       </DialogContent>
@@ -100,19 +103,25 @@ function CStrength({ value }: { value: string }) {
       <div className="h-1.5 w-24 rounded-full bg-muted overflow-hidden">
         <div className={cn('h-full rounded-full transition-all', colors[st.label])} style={{ width: `${Math.min(100, st.bits)}%` }} />
       </div>
-      <span className="text-[11px] text-fg-3">{labels[st.label]} · {st.bits} bits</span>
+      <span className="text-2xs text-fg-3">{labels[st.label]} · {st.bits} bits</span>
     </div>
   )
 }
 
 // ================= import multi-format =================
 
-const FMT_LABEL: Record<DetectedImport['format'], string> = {
-  bitwarden: 'Bitwarden / Vaultwarden (JSON)',
-  csv: 'CSV (Chrome, Firefox, Safari, LastPass, KeePass…)',
-  '1pux': '1Password (export .1pux)',
-  '1pif': '1Password (1PIF, 1Password 7)',
-  kervia: 'Kervia (sauvegarde complète)',
+// Libellés des formats détectés — localisés via les clés d'export (elles
+// existent déjà, avant : texte FR codé en dur quel que soit la langue).
+// « 1Password (.1pux) / (1PIF) » : nom propre + extension de fichier,
+// identiques en FR et EN.
+function fmtLabel(f: DetectedImport['format'], t: any): string {
+  switch (f) {
+    case 'kervia': return String(t.cofExportKervia)
+    case 'bitwarden': return String(t.cofExportBitwarden)
+    case 'csv': return String(t.cofExportCsv)
+    case '1pux': return '1Password (.1pux)'
+    default: return '1Password (1PIF)'
+  }
 }
 
 export function ImportDialog({ onClose, onImported }: { onClose: () => void; onImported: () => Promise<void> }) {
@@ -120,6 +129,9 @@ export function ImportDialog({ onClose, onImported }: { onClose: () => void; onI
   const [parsed, setParsed] = React.useState<DetectedImport | null>(null)
   const [fname, setFname] = React.useState('')
   const [busy, setBusy] = React.useState(false)
+  // K6 : progression du (re)chiffrement par lots — avant : spinner muet
+  // pendant de longues secondes sur un gros import.
+  const [progress, setProgress] = React.useState<{ done: number; total: number } | null>(null)
 
   const pick = async (f: File) => {
     try {
@@ -135,18 +147,21 @@ export function ImportDialog({ onClose, onImported }: { onClose: () => void; onI
   const run = async () => {
     if (!parsed || busy) return
     setBusy(true)
+    const total = parsed.items.length
+    setProgress({ done: 0, total })
     try {
       // chiffre chaque item localement puis envoie en lots de 500 max
-      for (let i = 0; i < parsed.items.length; i += 500) {
+      for (let i = 0; i < total; i += 500) {
         const chunk = parsed.items.slice(i, i + 500)
         const blobs: { blob_b64: string }[] = []
         for (const it of chunk) blobs.push({ blob_b64: await C.encryptItem(it) })
         await api('POST', '/admin/coffre/items/batch', { items: blobs })
+        setProgress({ done: Math.min(i + 500, total), total })
       }
-      toast.success(String(t.cofImportDone).replace('{n}', String(parsed.items.length)))
+      toast.success(String(t.cofImportDone(total)))
       await onImported()
       onClose()
-    } catch (e: any) { toast.error(e.message) }
+    } catch (e) { toast.error(friendly(e)) }
     setBusy(false)
   }
 
@@ -157,23 +172,28 @@ export function ImportDialog({ onClose, onImported }: { onClose: () => void; onI
         <label className="block border border-dashed border-border rounded-xl p-8 text-center cursor-pointer hover:bg-card-2/50 transition-colors">
           <input type="file" accept=".json,.csv,.1pux,.1pif,.txt" className="hidden"
             onChange={e => { const f = e.target.files?.[0]; if (f) void pick(f) }} />
-          <Upload size={20} className="mx-auto text-fg-3 mb-2" />
+          <Upload size={20} aria-hidden="true" className="mx-auto text-fg-3 mb-2" />
           <span className="text-sm text-fg-2">{fname || t.cofImportPick}</span>
         </label>
         {parsed && (
           <div className="mt-4 space-y-2">
-            <div className="rounded-lg bg-accent/8 border border-accent/25 p-3 text-sm text-accent flex items-center gap-2">
-              <ShieldCheck size={14} /> {String(t.cofImportCount).replace('{n}', String(parsed.items.length))}
+            <div className="rounded-lg bg-accent/8 border border-accent/25 p-3 text-sm text-accent-fg flex items-center gap-2">
+              <ShieldCheck size={14} aria-hidden="true" /> {String(t.cofImportCount(parsed.items.length))}
             </div>
-            <div className="text-xs text-fg-3">{t.cofImportDetected} : <span className="text-fg-2 font-medium">{FMT_LABEL[parsed.format]}</span></div>
+            <div className="text-xs text-fg-3">{t.cofImportDetected} : <span className="text-fg-2 font-medium">{fmtLabel(parsed.format, t)}</span></div>
           </div>
         )}
         <div className="flex justify-end gap-2 mt-5">
           <Button variant="ghost" onClick={onClose}>{t.cofCancel}</Button>
           <Button variant="primary" disabled={!parsed || busy} onClick={run}>
-            {busy ? <LoaderCircle className="animate-spin" /> : null} {t.cofImportBtn}
+            {busy ? <LoaderCircle className="animate-spin" aria-hidden="true" /> : null} {t.cofImportBtn}
           </Button>
         </div>
+        {busy && progress && (
+          <p className="text-xs text-fg-3 mt-3 text-center" role="status">
+            {String(t.cofImportProgress(progress.done, progress.total))}
+          </p>
+        )}
       </DialogContent>
     </Dialog>
   )
@@ -201,30 +221,27 @@ export function ExportDialog({ items, onClose }: { items: DecryptedItem[]; onClo
   return (
     <Dialog open onOpenChange={o => { if (!o) onClose() }}>
       <DialogContent title={t.cofExportTitle} className="max-w-md">
-        <div className="flex gap-2 text-xs text-fg-3 my-4 rounded-lg bg-card-2 border border-border p-3">
-          <AlertTriangle size={14} className="text-warn shrink-0 mt-0.5" />
-          <span className="leading-relaxed">{t.cofExportWarning}</span>
-        </div>
+        <Alert tone="warn" className="my-4">{t.cofExportWarning}</Alert>
         <Label className="mb-2 block">{t.cofExportFmt}</Label>
-        <div className="space-y-2">
-          {([['kervia', t.cofExportKervia], ['bitwarden', t.cofExportBitwarden]] as const).map(([k, lbl]) => (
-            <button key={k} onClick={() => setFmt(k)}
-              className={cn('w-full text-left rounded-lg border p-3 text-xs leading-relaxed transition-colors cursor-pointer',
-                fmt === k ? 'border-accent bg-accent/8 text-fg' : 'border-border text-fg-2 hover:bg-card-2')}>
-              <span className="flex items-center gap-2 font-medium">
-                <span className={cn('w-2.5 h-2.5 rounded-full', fmt === k ? 'bg-accent' : 'bg-muted')} />
-                {String(lbl)}
-              </span>
-            </button>
-          ))}
-        </div>
+        <SegmentedControl
+          className="w-full"
+          ariaLabel={String(t.cofExportFmt)}
+          value={fmt}
+          onChange={setFmt}
+          options={[
+            { value: 'kervia' as const, label: String(t.cofExportKervia) },
+            { value: 'bitwarden' as const, label: String(t.cofExportBitwarden) },
+          ]}
+        />
+        {/* type-to-confirm conservé (mécanisme validé par l'audit) :
+            l'export est en CLAIR, l'irréversibilité est écrite */}
         <Field label={t.cofExportType} className="mt-4">
           <Input value={confirm} onChange={e => setConfirm(e.target.value.toUpperCase())} placeholder="EXPORT" />
         </Field>
         <div className="flex justify-end gap-2 mt-5">
           <Button variant="ghost" onClick={onClose}>{t.cofCancel}</Button>
           <Button variant="destructive" disabled={confirm !== 'EXPORT'} onClick={exportNow}>
-            <Download size={14} /> {t.cofExportBtn}
+            <Download size={14} aria-hidden="true" /> {t.cofExportBtn}
           </Button>
         </div>
       </DialogContent>
@@ -264,7 +281,8 @@ export function SettingsDialog({ header, autoLockMin, setAutoLockMin, onRekeyed,
       await onRekeyed(env)
       setCur(''); setNpw(''); setNpw2('')
     } catch (e: any) {
-      toast.error(e.message === 'wrong_password' ? String(t.cofChangePwWrong) : e.message)
+      // wrong_password : échec LOCAL de déverrouillage (pas une ApiError)
+      toast.error(e?.message === 'wrong_password' ? String(t.cofChangePwWrong) : friendly(e))
     }
     setPwBusy(false)
   }
@@ -275,7 +293,7 @@ export function SettingsDialog({ header, autoLockMin, setAutoLockMin, onRekeyed,
     try {
       await api('DELETE', '/admin/coffre', { confirm: 'DESTROY' })
       onDestroyed()
-    } catch (e: any) { toast.error(e.message) }
+    } catch (e) { toast.error(friendly(e)) }
     setDBusy(false)
   }
 
@@ -285,41 +303,37 @@ export function SettingsDialog({ header, autoLockMin, setAutoLockMin, onRekeyed,
         <div className="max-h-[65vh] overflow-auto pr-1 space-y-6">
           <div>
             <Label className="mb-2 block">{t.cofAutolock}</Label>
-            <div className="flex gap-2">
-              {[1, 5, 15, 60, 0].map(m => (
-                <button key={m} onClick={() => { setAutoLockMin(m); localStorage.setItem('kerviavault-coffre-autolock', String(m)) }}
-                  className={cn('h-8 px-3 rounded-lg border text-xs transition-colors cursor-pointer',
-                    autoLockMin === m ? 'border-accent bg-accent/12 text-accent font-semibold' : 'border-border text-fg-2 hover:bg-card-2')}>
-                  {m === 0 ? t.cofAutolockOff : `${m} min`}
-                </button>
-              ))}
-            </div>
+            <SegmentedControl
+              ariaLabel={String(t.cofAutolock)}
+              value={autoLockMin}
+              onChange={m => { setAutoLockMin(m); localStorage.setItem('kerviavault-coffre-autolock', String(m)) }}
+              options={[1, 5, 15, 60, 0].map(m => ({ value: m, label: m === 0 ? String(t.cofAutolockOff) : `${m} min` }))}
+            />
           </div>
           <div className="border-t border-border pt-5">
             <Label className="mb-2 block">{t.cofChangePw}</Label>
-            <Field label={t.cofCurPw}><PasswordInput value={cur} onChange={e => setCur(e.target.value)} /></Field>
+            <Field label={t.cofCurPw}><PasswordInput value={cur} onChange={e => setCur(e.target.value)} autoComplete="current-password" /></Field>
             <Field label={t.cofNewPw} className="mt-3"><PasswordInput value={npw} onChange={e => setNpw(e.target.value)} autoComplete="new-password" /></Field>
-            <Field label={t.cofNewPw2} className="mt-3"><PasswordInput value={npw2} onChange={e => setNpw2(e.target.value)} /></Field>
+            <Field label={t.cofNewPw2} className="mt-3"><PasswordInput value={npw2} onChange={e => setNpw2(e.target.value)} autoComplete="new-password" /></Field>
             <Button variant="secondary" className="mt-4" disabled={pwBusy || !cur || !npw} onClick={changePw}>
-              {pwBusy ? <LoaderCircle className="animate-spin" /> : <KeyRound size={14} />} {t.cofChangePwBtn}
+              {pwBusy ? <LoaderCircle className="animate-spin" aria-hidden="true" /> : <KeyRound size={14} aria-hidden="true" />} {t.cofChangePwBtn}
             </Button>
           </div>
           <div className="border-t border-danger/20 pt-5">
             <Label className="mb-2 block text-danger">{t.cofDestroyTitle}</Label>
-            <div className="flex gap-2 text-xs text-fg-3 rounded-lg bg-card-2 border border-danger/20 p-3">
-              <AlertTriangle size={14} className="text-danger shrink-0 mt-0.5" />
-              <span className="leading-relaxed">{t.cofDestroyWarning}</span>
-            </div>
+            <Alert tone="danger" className="mb-3">{t.cofDestroyWarning}</Alert>
+            {/* type-to-confirm conservé (mécanisme validé par l'audit) :
+                destruction totale du coffre, irrécupérable par conception */}
             <Field label={t.cofDestroyType} className="mt-3">
               <Input value={destroy} onChange={e => setDestroy(e.target.value.toUpperCase())} placeholder="DESTROY" />
             </Field>
             <Button variant="destructive" className="mt-3" disabled={destroy !== 'DESTROY' || dBusy} onClick={destroyNow}>
-              {dBusy ? <LoaderCircle className="animate-spin" /> : <Trash2 size={14} />} {t.cofDestroyBtn}
+              {dBusy ? <LoaderCircle className="animate-spin" aria-hidden="true" /> : <Trash2 size={14} aria-hidden="true" />} {t.cofDestroyBtn}
             </Button>
           </div>
         </div>
         <div className="flex justify-end mt-5">
-          <Button variant="ghost" onClick={onClose}><X size={14} />{t.cofClose}</Button>
+          <Button variant="ghost" onClick={onClose}><X size={14} aria-hidden="true" />{t.cofClose}</Button>
         </div>
       </DialogContent>
     </Dialog>

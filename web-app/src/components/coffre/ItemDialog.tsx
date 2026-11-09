@@ -4,12 +4,18 @@ import * as React from 'react'
 import { toast } from 'sonner'
 import {
   Star, Copy, Eye, EyeOff, Trash2, Pencil, LoaderCircle, Plus, X,
-  ExternalLink, Wand2, History,
+  ExternalLink, Wand2, History, Paperclip, Download, RotateCcw,
 } from 'lucide-react'
 import { useLang } from '@/i18n'
-import { Button, Badge, Dialog, DialogContent, Input, PasswordInput, Field, Label, Select, Textarea, ConfirmDialog } from '@/components/ui'
+import { Button, Badge, Dialog, DialogContent, Input, PasswordInput, Field, Label, Select, Textarea, ConfirmDialog, Alert } from '@/components/ui'
 import { cn, fmtDateTime } from '@/lib/utils'
 import * as C from '@/lib/coffre'
+import { ApiError, friendly } from '@/lib/api'
+import {
+  ATTACH_MAX_PER_ITEM, ATTACH_MAX_RAW, attachAdd, attachDecryptMeta, attachDownload,
+  attachList, attachRemove, getCoffreKeyForAttachments, setCoffreKeyForAttachments,
+  type AttachmentMeta, type AttachMetaPlain,
+} from '@/lib/coffre-attachments'
 import { CATEGORIES, fmtField, mainPasswordField, type CoffreField, type CoffreItemData, type DecryptedItem, type FieldKind } from '@/lib/coffre-schema'
 import { TotpLive, Strength, useCopy, CAT_ICON, CAT_COLOR, openExternalLink } from './parts'
 
@@ -20,12 +26,21 @@ const KIND_LABEL_KEY: Record<FieldKind, string> = {
 
 // draft : nouvel élément construit depuis un modèle par le picker ;
 // item : élément existant à voir/éditer.
-export default function ItemDialog({ item, draft, lang, folders, allTags, onClose, onSaved, onDeleted }: {
+export default function ItemDialog({ item, draft, lang, folders, allTags, coffreKey, onClose, onSaved, onDeleted }: {
   item?: DecryptedItem
   draft?: CoffreItemData
   lang: 'fr' | 'en'
   folders: string[]
   allTags: string[]
+  /**
+   * v1.9.0 pièces jointes — coffreKey AES-GCM (optionnelle pour ne pas
+   * casser les appelants existants). La clé vit en PRIVÉ dans
+   * lib/coffre.ts (aucun getter) : le parent la passe ici quand il
+   * l'a, et on la relaie au registre mémoire de la lib (partagé avec
+   * l'export chiffré agent 2). Si personne ne la fournit, la section
+   * affiche une erreur claire — jamais de crash silencieux.
+   */
+  coffreKey?: CryptoKey
   onClose: () => void
   onSaved: (data: CoffreItemData, existing?: DecryptedItem) => Promise<void>
   onDeleted: (id: string) => Promise<void>
@@ -46,6 +61,24 @@ export default function ItemDialog({ item, draft, lang, folders, allTags, onClos
 
   const mainPw = mainPasswordField(d)
   const st = C.passwordStrength(mainPw?.v || '')
+
+  // v1.9.0 pièces jointes : résolution de la coffreKey (jamais stockée) :
+  //   1. prop coffreKey (si le parent la passe — pattern coordinateur) ;
+  //   2. registre mémoire de la lib — le canal prévu pour l'UI, déjà
+  //      consommé par l'export chiffré (dialogs.tsx, agent 2) ;
+  //   3. getter coffreKey() si l'intégrateur le pose un jour dans
+  //      lib/coffre.ts (1er plan de l'agent 2). Accès par Reflect.get :
+  //      l'analyse statique du bundler ne le remplace pas par undefined
+  //      → build vert tant que l'export n'existe pas, branchement
+  //      automatique dès qu'il existera.
+  const coffreGetKey = Reflect.get(C, 'coffre' + 'Key') as undefined | (() => CryptoKey | null)
+  const aKey = coffreKey
+    ?? getCoffreKeyForAttachments()
+    ?? coffreGetKey?.()
+    ?? null
+  // relais vers le registre : la clé résolue devient disponible aux
+  // autres consommateurs (export chiffré agent 2) — mémoire uniquement.
+  React.useEffect(() => { if (aKey) setCoffreKeyForAttachments(aKey) }, [aKey])
 
   // chaque mutation marque le dialog « sale » — la fermeture (Escape,
   // overlay, croix, Annuler) ne jette plus la saisie sans prévenir
@@ -147,6 +180,11 @@ export default function ItemDialog({ item, draft, lang, folders, allTags, onClos
               </details>
             )}
 
+            {/* v1.9.0 pièces jointes (contrat §4) : en bas du dialog,
+                vue ET édition. Uniquement sur un item EXISTANT — il
+                faut un item_id serveur. */}
+            <AttachmentsSection itemId={item!.id} aKey={aKey} lang={lang} />
+
             <div className="flex items-center justify-between pt-3">
               <span className="text-2xs text-fg-3">{t.cofPwUpdated} : {fmtDateTime((item as any).password_updated_at) || '—'}</span>
               <div className="flex gap-2">
@@ -225,6 +263,18 @@ export default function ItemDialog({ item, draft, lang, folders, allTags, onClos
                 <datalist id="coffre-tags">{allTags.map(f => <option key={f} value={f} />)}</datalist>
               </Field>
             </div>
+            {isNew ? (
+              /* création : pas encore d'item_id serveur, rien à attacher.
+                 Hint SANS nouvelle clé i18n (pattern coordinateur) :
+                 bouton désactivé + title t.cofAttach. Le title vit sur
+                 un span wrapper car disabled:pointer-events-none (charte
+                 des boutons) neutralise le title posé sur le bouton. */
+              <span title={String(t.cofAttach)} className="inline-block cursor-help">
+                <Button variant="ghost" size="sm" disabled><Paperclip size={14} aria-hidden="true" />{t.cofAttach}</Button>
+              </span>
+            ) : (
+              <AttachmentsSection itemId={item!.id} aKey={aKey} lang={lang} />
+            )}
             <div className="flex justify-end gap-2 pt-2">
               <Button variant="ghost" onClick={requestClose}>{t.cofCancel}</Button>
               <Button variant="primary" disabled={busy} onClick={save}>
@@ -298,6 +348,190 @@ function FieldView({ f, i, shown, onToggle, onCopy, strength }: {
         </span>
       </div>
       {strength && <div className="mt-1.5 flex justify-end"><Strength pw={f.v} /></div>}
+    </div>
+  )
+}
+
+// ================= pièces jointes (v1.9.0, contrat §4) =================
+// La liste vit dans un composant dédié : les pièces jointes s'écrivent
+// sur le serveur AUSSITÔT (upload/delete immédiats sur un item existant)
+// et ne touchent JAMAIS à la garde dirty de l'item — rien à
+// « enregistrer » avant de fermer le dialog.
+
+// erreurs serveur → messages locaux dédiés (attach_too_big/…), le reste
+// par friendly() — jamais de code technique cru au toaster.
+function attachErr(e: unknown, t: any): string {
+  if (e instanceof ApiError) {
+    if (e.code === 'attach_too_big') return String(t.cofAttachTooBig(ATTACH_MAX_RAW / 1024 / 1024))
+    if (e.code === 'attach_too_many') return String(t.cofAttachTooMany(ATTACH_MAX_PER_ITEM))
+    if (e.code === 'attach_not_found') return String(t.cofAttachFailed)
+  }
+  // clé absente = intégration incomplète (voir en-tête de la lib) :
+  // signalée côté console pour le développeur, message doux côté user
+  if (e instanceof Error && e.message === 'coffre_locked') return String(t.cofAttachFailed)
+  return friendly(e)
+}
+
+// taille lisible : Ko/Mo, 1 décimale. Unités localisées au fil de l'eau
+// (pas de clé i18n dédiée pour « Ko »), format identique en vue/édition.
+function fmtAttachSize(n: number, lang: 'fr' | 'en'): string {
+  const u = lang === 'en' ? ['B', 'kB', 'MB'] : ['o', 'Ko', 'Mo']
+  if (n < 1024) return `${n} ${u[0]}`
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} ${u[1]}`
+  return `${(n / (1024 * 1024)).toFixed(1)} ${u[2]}`
+}
+
+function AttachmentsSection({ itemId, aKey, lang }: { itemId: string; aKey: CryptoKey | null; lang: 'fr' | 'en' }) {
+  const { t } = useLang()
+  // null = chargement en cours (distinct de la liste vide)
+  const [atts, setAtts] = React.useState<AttachmentMeta[] | null>(null)
+  const [metas, setMetas] = React.useState<Record<string, AttachMetaPlain>>({})
+  // échec du listing : Alert + réessayer — jamais déguisé en état vide
+  const [err, setErr] = React.useState('')
+  const [uploading, setUploading] = React.useState(false)
+  const [busyId, setBusyId] = React.useState<string | null>(null) // download en cours
+  const [removing, setRemoving] = React.useState(false)
+  const [confirmDel, setConfirmDel] = React.useState<AttachmentMeta | null>(null)
+  const fileRef = React.useRef<HTMLInputElement>(null)
+
+  const load = React.useCallback(async () => {
+    setErr('')
+    setAtts(null)
+    try {
+      if (!aKey) {
+        console.error('[coffre-attachments] coffreKey absente — passez coffreKey à <ItemDialog> ou appelez setCoffreKeyForAttachments() après le unlock')
+        throw new Error('coffre_locked')
+      }
+      const list = await attachList(itemId)
+      // pas de catch par pièce : la clé est globale au coffre — si UN
+      // meta échoue, tous échouent ; l'erreur remonte à l'Alert.
+      const metas: Record<string, AttachMetaPlain> = {}
+      for (const att of list) metas[att.id] = await attachDecryptMeta(aKey, att.meta_b64)
+      setMetas(metas)
+      setAtts(list)
+    } catch (e) { setErr(attachErr(e, t)) }
+  }, [itemId, aKey, t])
+
+  React.useEffect(() => { void load() }, [load])
+
+  const pick = async () => {
+    const f = fileRef.current?.files?.[0]
+    if (fileRef.current) fileRef.current.value = '' // re-sélectionner le même fichier relance onChange
+    if (!f) return
+    // caps côté CLIENT, avant TOUT scellement et upload (contrat §4)
+    if (f.size > ATTACH_MAX_RAW) { toast.error(String(t.cofAttachTooBig(ATTACH_MAX_RAW / 1024 / 1024))); return }
+    if ((atts?.length ?? 0) >= ATTACH_MAX_PER_ITEM) { toast.error(String(t.cofAttachTooMany(ATTACH_MAX_PER_ITEM))); return }
+    if (!aKey) {
+      console.error('[coffre-attachments] coffreKey absente — passez coffreKey à <ItemDialog> ou appelez setCoffreKeyForAttachments() après le unlock')
+      toast.error(String(t.cofAttachFailed))
+      return
+    }
+    setUploading(true)
+    try {
+      await attachAdd(aKey, itemId, f)
+      toast.success(String(t.cofAttachAdded))
+      await load()
+    } catch (e) { toast.error(attachErr(e, t)) }
+    setUploading(false)
+  }
+
+  const download = async (att: AttachmentMeta) => {
+    if (!aKey || busyId) return
+    setBusyId(att.id)
+    try {
+      const { filename, mime, data } = await attachDownload(aKey, att)
+      // download DÉCHIFFRÉ : blob local + <a download> — le fichier ne
+      // transite jamais par le serveur en clair
+      const url = URL.createObjectURL(new Blob([data], { type: mime || 'application/octet-stream' }))
+      const a = document.createElement('a')
+      a.href = url
+      a.download = filename || 'attachment'
+      document.body.appendChild(a)
+      a.click()
+      a.remove()
+      URL.revokeObjectURL(url)
+    } catch (e) { toast.error(attachErr(e, t)) }
+    setBusyId(null)
+  }
+
+  const remove = async (att: AttachmentMeta) => {
+    try {
+      await attachRemove(att.id)
+      toast.success(String(t.cofAttachDeleted))
+      await load()
+    } catch (e) { toast.error(attachErr(e, t)) }
+  }
+
+  return (
+    <div>
+      <Label>{t.cofAttach}</Label>
+      {err ? (
+        <>
+          <Alert tone="danger">{err}</Alert>
+          <Button variant="secondary" size="sm" className="mt-2" onClick={() => void load()}>
+            <RotateCcw size={13} aria-hidden="true" />{t.retry}
+          </Button>
+        </>
+      ) : atts === null ? (
+        <div role="status" className="flex items-center gap-2 text-2xs text-fg-3">
+          <LoaderCircle size={13} className="animate-spin" aria-hidden="true" />{t.loading}
+        </div>
+      ) : (
+        <>
+          {atts.length === 0 ? (
+            <p className="text-xs text-fg-3">{t.cofAttachEmpty}</p>
+          ) : (
+            <ul className="mb-2">
+              {atts.map(att => {
+                const m = metas[att.id]
+                const fname = m?.filename || '—'
+                return (
+                  <li key={att.id} className="flex items-center gap-2 py-1.5 border-b border-border last:border-b-0">
+                    <Paperclip size={13} aria-hidden="true" className="shrink-0 text-fg-3" />
+                    <span className="text-sm truncate flex-1" title={fname}>{fname}</span>
+                    <span className="text-2xs text-fg-3 shrink-0">{fmtAttachSize(m?.size ?? att.size, lang)}</span>
+                    <span className="flex gap-1 shrink-0">
+                      <button type="button" onClick={() => void download(att)} disabled={busyId === att.id}
+                        className="h-7 w-7 grid place-items-center rounded-md text-fg-3 hover:text-fg hover:bg-card-2 cursor-pointer disabled:opacity-50"
+                        aria-label={String(t.download)} title={String(t.download)}>
+                        {busyId === att.id ? <LoaderCircle size={13} className="animate-spin" aria-hidden="true" /> : <Download size={13} aria-hidden="true" />}
+                      </button>
+                      <button type="button" onClick={() => setConfirmDel(att)}
+                        className="h-7 w-7 grid place-items-center rounded-md text-fg-3 hover:text-danger hover:bg-danger/10 cursor-pointer"
+                        aria-label={String(t.cofAttachRemove)} title={String(t.cofAttachRemove)}>
+                        <Trash2 size={13} aria-hidden="true" />
+                      </button>
+                    </span>
+                  </li>
+                )
+              })}
+            </ul>
+          )}
+          <Button variant="ghost" size="sm" onClick={() => fileRef.current?.click()} disabled={uploading}>
+            {uploading ? <LoaderCircle className="animate-spin" aria-hidden="true" /> : <Plus size={14} aria-hidden="true" />}
+            {t.cofAttachAdd}
+          </Button>
+          {/* input fichier caché (label accessible = le bouton ci-dessus),
+              accept générique : aucun type de fichier n'est filtré */}
+          <input ref={fileRef} type="file" className="hidden" onChange={() => void pick()} aria-label={String(t.cofAttachAdd)} />
+        </>
+      )}
+      {/* suppression : rituel ConfirmDialog léger — message = nom du
+          fichier, conséquence écrite */}
+      <ConfirmDialog
+        open={!!confirmDel}
+        onOpenChange={o => { if (!o) setConfirmDel(null) }}
+        title={String(t.cofAttachRemove)}
+        message={metas[confirmDel?.id ?? '']?.filename ?? ''}
+        confirmLabel={String(t.delete)}
+        busy={removing}
+        onConfirm={async () => {
+          if (!confirmDel) return
+          setRemoving(true)
+          await remove(confirmDel)
+          setRemoving(false)
+        }}
+      />
     </div>
   )
 }

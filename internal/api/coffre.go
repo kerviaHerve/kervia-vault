@@ -16,6 +16,7 @@ package api
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"time"
 
@@ -209,6 +210,13 @@ func (a *AdminServer) CoffreDestroy(w http.ResponseWriter, r *http.Request) {
 // entry: the server cannot know which items the client decrypts, and
 // the generic access log already records the call.
 func (a *AdminServer) CoffreListItems(w http.ResponseWriter, _ *http.Request) {
+	// v1.9.0 : rétention de la corbeille — purge paresseuse des items en
+	// corbeille depuis > 30 jours (best-effort, jamais bloquant ; l'UI
+	// annonce « conservés 30 jours puis purgés »).
+	if n, err := a.store.SweepCoffreTrash(coffreTrashRetentionDays); err == nil && n > 0 {
+		_ = a.store.AppendAudit("admin", model.AuditCoffreTrashSweep,
+			fmt.Sprintf("coffre/trash/sweep/%d", n), "")
+	}
 	items, err := a.store.ListCoffreItems()
 	if err != nil {
 		writeErr(w, 500, "internal", "")

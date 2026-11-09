@@ -12,6 +12,10 @@
 //     officiel non chiffré) et 1PIF (legacy 1Password 7)
 //   - Kervia : notre format complet (round-trip fidèle : tags, champs
 //     personnalisés, historiques)
+//   - Kervia scellé (.kvc, KVCS1) : notre sauvegarde chiffrée par
+//     passphrase (PBKDF2 600k + AES-256-GCM) — items v2 + pièces
+//     jointes ; la passphrase est demandée par le dialog, le parse
+//     rend la main tant qu'elle manque
 // À l'export : Kervia JSON (fidelity maximale) et Bitwarden JSON
 // (ré-importable dans Vaultwarden).
 //
@@ -20,6 +24,7 @@
 
 import type { CoffreField, CoffreItemData, FieldKind } from './coffre-schema'
 import { normalizeItem } from './coffre-schema'
+import { isSealedBackup, KVCS1, unsealVault, type SealedAttachment } from './coffre-seal'
 
 // ================= helpers =================
 
@@ -501,24 +506,65 @@ export function kerviaToItems(json: any): CoffreItemData[] {
 // ================= 6. détection automatique =================
 
 export interface DetectedImport {
-  format: 'bitwarden' | 'csv' | '1pux' | '1pif' | 'kervia'
+  format: 'bitwarden' | 'csv' | '1pux' | '1pif' | 'kervia' | 'kervia-sealed'
   items: CoffreItemData[]
   skippedEncrypted?: boolean
+  // kvcs1 : pièces jointes extraites du scellé, PARALLÈLES à items
+  // (même index). Dépouillées des items avant chiffrement — elles ne
+  // doivent jamais finir DANS un blob — elles sont re-uploadées après
+  // création via la lib pièces jointes.
+  attachments?: SealedAttachment[][]
+}
+
+// sealedToImport : déscelle un KVCS1 → items v2 + pièces jointes
+// séparées. Les items du scellé portent « attachments » EN PLUS des
+// champs du blob : on le retire AVANT normalizeItem et on le rend en
+// tableau parallèle (même index) pour l'upload post-création.
+async function sealedToImport(fileText: string, passphrase: string): Promise<DetectedImport> {
+  const { items } = await unsealVault(passphrase, fileText)
+  const clean: CoffreItemData[] = []
+  const attachments: SealedAttachment[][] = []
+  for (const raw of items) {
+    const { attachments: atts, ...rest } = raw || {}
+    clean.push(normalizeItem(rest))
+    attachments.push(Array.isArray(atts) ? atts.filter((a: any) => a && typeof a.filename === 'string') : [])
+  }
+  return { format: 'kervia-sealed', items: clean, attachments }
 }
 
 // detectAndParse : lit le fichier (Uint8Array + nom) et choisit le
-// parseur. Aucune donnée ne quitte le navigateur.
-export async function detectAndParse(bytes: Uint8Array, filename = ''): Promise<DetectedImport> {
+// parseur. `passphrase` n'est requis que pour KVCS1 : sans elle, le
+// parse lève 'needs_passphrase' (le dialog affiche le champ dédié
+// puis rappelle avec). Aucune donnée ne quitte le navigateur.
+export async function detectAndParse(bytes: Uint8Array, filename = '', passphrase?: string): Promise<DetectedImport> {
   const head = bytes.subarray(0, 4)
   const isZip = head[0] === 0x50 && head[1] === 0x4b // PK
   if (isZip || /\.1pux$/i.test(filename)) {
     return { format: '1pux', items: await onepuxToItems(bytes) }
+  }
+  // KVCS1 : sniff AVANT la fenêtre de 8 Mo — une sauvegarde avec pièces
+  // jointes en base64 la dépasse allègrement, et un JSON tronqué ne se
+  // parse pas. Le sniff n'est qu'un indice : la vérité, c'est
+  // isSealedBackup sur le texte ENTIÈRement décodé.
+  if (/^\s*\{\s*"format"\s*:\s*"kvcs1"/.test(new TextDecoder().decode(bytes.subarray(0, 4096)))) {
+    const full = new TextDecoder().decode(bytes)
+    if (isSealedBackup(full)) {
+      if (!passphrase) throw new Error('needs_passphrase')
+      return sealedToImport(full, passphrase)
+    }
   }
   const text = new TextDecoder().decode(bytes.subarray(0, 8 << 20))
   const t = text.trimStart()
   if (t.startsWith('{') || t.startsWith('[')) {
     try {
       const json = JSON.parse(t)
+      // scellé KVCS1 tombé du sniff (format pas en première clé) : le
+      // fichier tient forcément dans la fenêtre, sinon le JSON tronqué
+      // aurait jeté ci-dessus
+      if (json?.format === KVCS1) {
+        if (!passphrase) throw new Error('needs_passphrase')
+        return sealedToImport(t, passphrase)
+      }
       if (json?.format === KERVIA_FORMAT) return { format: 'kervia', items: kerviaToItems(json) }
       // export.data brut (1PUX dézippé à la main) ?
       if (json?.accounts?.some?.((a: any) => a?.vaults)) {
@@ -528,7 +574,11 @@ export async function detectAndParse(bytes: Uint8Array, filename = ''): Promise<
         const { items, skippedEncrypted } = bitwardenToItems(json)
         return { format: 'bitwarden', items, skippedEncrypted }
       }
-    } catch {
+    } catch (e) {
+      // les échecs KVCS1 sont SIGNIFICATIFS (passphrase manquante ou
+      // fausse) : ils remontent à l'UI tels quels — seul le JSON
+      // invalide retombe sur CSV puis sur l'abandon
+      if (e instanceof Error && (e.message === 'needs_passphrase' || e.message === 'bad_passphrase')) throw e
       // JSON invalide → tenter CSV (certaines webuis exportent du
       // « json » cassé) puis abandonner
     }
@@ -537,4 +587,50 @@ export async function detectAndParse(bytes: Uint8Array, filename = ''): Promise<
   const items = csvToItems(text)
   if (items.length > 0) return { format: 'csv', items }
   throw new Error('format_not_recognized')
+}
+
+// ================= 7. doublons à l'import (contrat §3) =================
+
+// premier champ « identifiant » de l'item : champ texte portant un
+// libellé utilisateur connu (fr/en, casse ignorée) — même approche que
+// les USER_LABELS de la page coffre pour son bouton copier-identifiant.
+const USER_LABELS = ['identifiant', 'utilisateur', 'username', 'user', 'login', 'email', 'compte']
+
+export function firstUsername(it: CoffreItemData): string {
+  const f = (it?.fields || []).find(x => x.k === 'text' && USER_LABELS.includes((x.l || '').trim().toLowerCase()))
+  return f?.v || ''
+}
+
+// premier lien de l'item (premier champ link non vide)
+export function firstLink(it: CoffreItemData): string {
+  return (it?.fields || []).find(x => x.k === 'link' && x.v)?.v || ''
+}
+
+// hôte du premier lien ('' si absent ou irrécupérable — hôte vide == vide)
+function linkHost(v: string): string {
+  if (!v) return ''
+  try { return new URL(v).hostname.toLowerCase() } catch { /* pas un URI absolu */ }
+  try { return new URL('https://' + v).hostname.toLowerCase() } catch { return '' }
+}
+
+// findDuplicates : un doublon = même type + même nom (trim, casse
+// ignorée) + même identifiant + même hôte de lien. Identifiant et hôte
+// sont comparés sans casse eux aussi (« John@x » et « john@x » sont le
+// même compte dans la vraie vie) — et le dernier mot reste à
+// l'utilisateur (bannière « tout importer » dans le dialog).
+export function findDuplicates(items: any[], existing: any[]): { dup: number[]; fresh: number[] } {
+  const key = (it: any): string => [
+    it?.type || '',
+    (it?.name || '').trim().toLowerCase(),
+    firstUsername(it).trim().toLowerCase(),
+    linkHost(firstLink(it)),
+  ].join('\u0000')
+  const seen = new Set(existing.map(key))
+  const dup: number[] = []
+  const fresh: number[] = []
+  items.forEach((it, i) => {
+    if (seen.has(key(it))) dup.push(i)
+    else fresh.push(i)
+  })
+  return { dup, fresh }
 }

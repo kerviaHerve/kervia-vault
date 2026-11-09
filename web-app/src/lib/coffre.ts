@@ -12,6 +12,11 @@
 let session: { key: CryptoKey; raw: Uint8Array } | null = null
 
 export function coffreUnlocked(): boolean { return session !== null }
+// v1.9.0 : getter de la coffreKey en mémoire — consommé par le relais
+// pièces jointes (coffre-attachments) pour sceller/dévoiler les blobs,
+// et par l'export chiffré KVCS1. Jamais persistée, jamais exportée du
+// navigateur : ce getter reste le seul canal d'accès après déverrouillage.
+export function coffreKey(): CryptoKey | null { return session ? session.key : null }
 export function lockCoffre(): void {
   if (session) session.raw.fill(0) // zeroize — bonne hygiène
   session = null

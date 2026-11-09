@@ -31,6 +31,7 @@
 - 51 credential templates (OpenAI, PostgreSQL, SMTP, Cloudflare, GitHub…)
 - **Self-update** from the webui — sha256-verified releases, data untouched
 - **Zero-knowledge personal vault** (password manager) in the browser, invisible to agents — 14 templates (cards, identities, SSH…), Bitwarden/1Password/CSV import, multi-TOTP
+- **Vault health report** (v1.9.0) — weak, reused and old passwords, opt-in breach check (HIBP, k-anonymity), **encrypted backups** (passphrase-sealed `.kvc`), **sealed file attachments**, 30-day trash retention, duplicate detection on import
 - Security by design — AGPL-3.0
 
 ## Architecture

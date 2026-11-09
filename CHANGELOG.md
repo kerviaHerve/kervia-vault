@@ -1,5 +1,64 @@
 # Changelog
 
+## v1.9.0 (2026-11-09)
+
+- **Coffre personnel — le passage à un vrai gestionnaire de mots de
+  passe** (manques n° 1 à 9 de l'audit produit). Zero-knowledge INTACT :
+  tout le nouveau chiffrement vit côté navigateur, le serveur ne voit
+  toujours que des blobs opaques. Contrat de coordination :
+  `web-app/CONTRAT-COFFRE-v1.9.0.md`.
+
+  **Santé du coffre** (`lib/coffre-health.ts` — pur, self-testé)
+  - Rapport **faibles** (entropie < 50 bits), **réutilisés** (groupes par
+    mot de passe identique), **anciens** (> 180 jours sans rotation) —
+    chaque section cliquable vers l'item ; **score global** sur 100
+    (self-test contractuel : 2 faibles + 1 groupe + 3 anciens → 80).
+  - **Badge de force** sur chaque item de login de la liste (pastille
+    + libellé traduit + bits, mémoïsé) ; tri de la liste (nom, modifiés,
+    force) ; compteur par dossier.
+  - **Check compromis (HIBP) opt-in** : k-anonymité (seul un préfixe
+    SHA-1 de 5 caractères quitte le navigateur — jamais le mot de
+    passe), mots de passe uniques, max 300 requêtes/run, tolérant aux
+    pannes partielles, **résultats jamais persistés**. Hors score : un
+    état externe, pas une propriété du coffre.
+  - Raccourcis clavier : `N` nouvel élément, `/` recherche.
+
+  **Sauvegarde chiffrée KVCS1** (`lib/coffre-seal.ts`)
+  - Export `.kvc` scellé par passphrase : PBKDF2-SHA-256 600 000 +
+    AES-256-GCM (même pattern que l'enveloppe du coffre), items ET
+    pièces jointes déchiffrées inclus — enfin une sauvegarde stockable
+    sans risque. Itérations écrites dans le fichier (relèvement sans
+    casser les vieilles sauvegardes). Import : détection du format,
+    champ passphrase, mauvaise passphrase → message clair. Self-tests :
+    round-trip, hostile rejeté, mauvaise passphrase.
+  - **Détection de doublons à l'import** (tous formats) : même type +
+    nom + identifiant + hôte de site → bannière avec choix « ignorer /
+    tout importer », toast récapitulatif.
+
+  **Pièces jointes chiffrées** (nouveau backend + UI)
+  - Migration 007 : table `coffre_attachments` — DEUX blobs opaques
+    distincts (`meta` scellé {nom, mime, taille} pour l'affichage,
+    `data` scellé pour le contenu) : le serveur ne connaît ni nom, ni
+    type, ni contenu d'aucun fichier. Endpoints POST/GET/DELETE +
+    listing (sans le contenu), **quotas serveur** (2 Mo/fichier décodé,
+    5/item), suppression idempotente, parent inexistant → 404, audit
+    ids opaques uniquement.
+  - UI : section pièces jointes dans l'item (ajout vérifié côté client,
+    téléchargement déchiffré, suppression confirmée), inclusion dans
+    l'export chiffré, ré-import avec l'item. Test crypto node : 25/25
+    (zero-knowledge, caps avant tout fetch, mauvaise clé refusée).
+  - Clé : registre mémoire branché au déverrouillage, **vidé au
+    verrouillage** (pas de clé fantôme), getter `coffreKey()` dans la
+    lib (jamais persistée).
+
+  **Rétention de la corbeille** : purge paresseuse au listing — items en
+  corbeille > 30 jours supprimés **avec leurs pièces jointes** (même
+  transaction, jamais d'orphelins), audit `coffre_trash_sweep`, annoncé
+  dans l'UI. Test store : purge ciblée, survivant intact, idempotent.
+
+  Backend : `golangci-lint` 0 issues, tests d'intégration verts
+  (lifecycle pièces jointes + quotas + sweep), 8 packages Go OK.
+
 ## v1.8.7 (2026-11-08)
 
 - **Extension Firefox — overhaul complet** (audit utilisateur : « très

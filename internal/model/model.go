@@ -128,6 +128,9 @@ const (
 	AuditCoffreItemPurge  = "coffre_item_purge"    // hard delete of one item
 	AuditCoffreTrashPurge = "coffre_trash_purge"   // hard delete of all trash
 	AuditCoffreImport    = "coffre_import"        // batch create (import)
+	AuditCoffreAttachAdd    = "coffre_attach_add"    // sealed attachment stored (v1.9.0)
+	AuditCoffreAttachDelete = "coffre_attach_delete" // sealed attachment removed
+	AuditCoffreTrashSweep  = "coffre_trash_sweep"     // retention: 30-day-old trash auto-purged
 
 	AuditExtensionTokenCreate = "extension_token_create" // browser-extension token minted (hash stored)
 	AuditExtensionTokenRevoke = "extension_token_revoke" // browser-extension token deleted
@@ -161,4 +164,18 @@ type CoffreItem struct {
 	CreatedAt time.Time  `json:"created_at"`
 	UpdatedAt time.Time  `json:"updated_at"`
 	DeletedAt *time.Time `json:"deleted_at,omitempty"`
+}
+
+// CoffreAttachment is one sealed file attached to a coffre item (v1.9.0).
+// Two SEPARATE opaque blobs, both AES-256-GCM sealed client-side with the
+// coffre key: Meta = tiny {"filename","mime","size"} (decryptable alone for
+// display), Data = the binary content. Size = len(Data) (server-side
+// metadata, needed for quotas — it reveals nothing about the content).
+type CoffreAttachment struct {
+	ID        string    `json:"id"`
+	ItemID    string    `json:"item_id"`
+	Meta      []byte    `json:"meta_b64,omitempty"`
+	Data      []byte    `json:"data_b64,omitempty"`
+	Size      int       `json:"size"`
+	CreatedAt time.Time `json:"created_at"`
 }

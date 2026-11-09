@@ -182,6 +182,24 @@ export function Strength({ pw }: { pw: string }) {
   )
 }
 
+// ---- badge de force (v1.9.0) : pastille 8px dans les rangées de liste ----
+// Le libellé interne ('weak'…'excellent' issu de passwordStrength) est
+// traduit ICI via les clés existantes — l'appelant (coffre.tsx, ItemDialog)
+// ne passe que bits + label. Toute l'information vit dans title/aria-label :
+// la couleur seule ne porte rien (WCAG 1.4.1).
+export function StrengthBadge({ bits, label }: { bits: number; label: string }) {
+  const { t } = useLang()
+  const labels: Record<string, string> = {
+    weak: t.cofWeak, fair: t.cofFair, good: t.cofGood, strong: t.cofStrong, excellent: t.cofExcellent,
+  }
+  const dot = label === 'weak' ? 'bg-danger' : label === 'fair' ? 'bg-warn' : 'bg-accent'
+  const aria = `${String(t.cofStrengthAria)} : ${String(labels[label] ?? label)} · ${bits} bits`
+  return (
+    <span role="img" aria-label={aria} title={aria}
+      className={cn('inline-block w-2 h-2 rounded-full shrink-0', dot)} />
+  )
+}
+
 // ---- badge de catégorie (icône + libellé) ----
 export function CatBadge({ cat, className }: { cat: CategoryId; className?: string }) {
   const { t } = useLang()

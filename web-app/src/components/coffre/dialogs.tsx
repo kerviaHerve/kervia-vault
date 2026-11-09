@@ -1,5 +1,6 @@
-// Coffre v2 — dialogs secondaires : générateur, import multi-format,
-// export multi-format, réglages.
+// Coffre v2 — dialogs secondaires : générateur, import multi-format
+// (+ sauvegarde chiffrée KVCS1, détection de doublons), export
+// multi-format (+ scellé .kvc), réglages.
 import * as React from 'react'
 import { toast } from 'sonner'
 import {
@@ -8,10 +9,16 @@ import {
 } from 'lucide-react'
 import { useLang } from '@/i18n'
 import { api, friendly } from '@/lib/api'
-import { Button, Dialog, DialogContent, Input, PasswordInput, Field, Label, Alert, SegmentedControl } from '@/components/ui'
+import { Button, Badge, Dialog, DialogContent, Input, PasswordInput, Field, Label, Alert, SegmentedControl } from '@/components/ui'
 import { cn } from '@/lib/utils'
 import * as C from '@/lib/coffre'
-import { detectAndParse, itemsToBitwarden, itemsToKervia, type DetectedImport } from '@/lib/coffre-import'
+import { detectAndParse, findDuplicates, itemsToBitwarden, itemsToKervia, type DetectedImport } from '@/lib/coffre-import'
+import { sealVault } from '@/lib/coffre-seal'
+// lib pièces jointes (agent 3, contrat §4) : bundles export/import KVCS1
+// + relais de la coffreKey (registre mémoire rempli par l'hôte au
+// déverrouillage — la clé vit en privé dans lib/coffre.ts, jamais
+// persistée ; c'est le canal prévu pour l'UI).
+import { attachExportBundle, attachImportBundle, getCoffreKeyForAttachments } from '@/lib/coffre-attachments'
 import type { CoffreEnvelope } from '@/lib/coffre'
 import type { DecryptedItem } from '@/lib/coffre-schema'
 import { useCopy } from './parts'
@@ -117,6 +124,7 @@ function CStrength({ value }: { value: string }) {
 function fmtLabel(f: DetectedImport['format'], t: any): string {
   switch (f) {
     case 'kervia': return String(t.cofExportKervia)
+    case 'kervia-sealed': return String(t.cofSealExport)
     case 'bitwarden': return String(t.cofExportBitwarden)
     case 'csv': return String(t.cofExportCsv)
     case '1pux': return '1Password (.1pux)'
@@ -132,33 +140,108 @@ export function ImportDialog({ onClose, onImported }: { onClose: () => void; onI
   // K6 : progression du (re)chiffrement par lots — avant : spinner muet
   // pendant de longues secondes sur un gros import.
   const [progress, setProgress] = React.useState<{ done: number; total: number } | null>(null)
+  // v1.9.0 — scellé KVCS1 en attente de passphrase + doublons détectés
+  const [pending, setPending] = React.useState<{ bytes: Uint8Array; name: string } | null>(null)
+  const [pass, setPass] = React.useState('')
+  const [dups, setDups] = React.useState<{ dup: number[]; fresh: number[] } | null>(null)
+  const [dupMode, setDupMode] = React.useState<'skip' | 'all'>('skip')
+
+  // items actuels du coffre, déchiffrés localement pour le dedupe. La
+  // corbeille ne compte pas : un item supprimé n'est pas un « existant ».
+  const loadExisting = async (): Promise<any[]> => {
+    const raw: any[] = await api('GET', '/admin/coffre/items')
+    const out: any[] = []
+    for (const it of raw) {
+      if (it.deleted_at) continue
+      try { out.push(await C.decryptItem(it.blob_b64)) } catch { /* blob illisible : ignoré */ }
+    }
+    return out
+  }
 
   const pick = async (f: File) => {
+    const bytes = new Uint8Array(await f.arrayBuffer())
     try {
-      const bytes = new Uint8Array(await f.arrayBuffer())
       const det = await detectAndParse(bytes, f.name)
       if (det.skippedEncrypted) { toast.error(String(t.cofImportEncrypted)); return }
       if (det.items.length === 0) { toast.error(String(t.cofImportBad)); return }
+      setDups(findDuplicates(det.items, await loadExisting()))
+      setDupMode('skip')
       setParsed(det)
       setFname(f.name)
-    } catch { toast.error(String(t.cofImportBad)) }
+      setPending(null); setPass('')
+    } catch (e: any) {
+      // KVCS1 sans passphrase : pas une erreur — le dialog passe en
+      // mode « passphrase requise » (champ + badge), le contenu du
+      // fichier reste scellé.
+      if (e?.message === 'needs_passphrase') {
+        setPending({ bytes, name: f.name }); setPass(''); setParsed(null); setDups(null)
+        return
+      }
+      toast.error(String(t.cofImportBad))
+    }
   }
 
   const run = async () => {
-    if (!parsed || busy) return
-    setBusy(true)
-    const total = parsed.items.length
-    setProgress({ done: 0, total })
-    try {
-      // chiffre chaque item localement puis envoie en lots de 500 max
-      for (let i = 0; i < total; i += 500) {
-        const chunk = parsed.items.slice(i, i + 500)
-        const blobs: { blob_b64: string }[] = []
-        for (const it of chunk) blobs.push({ blob_b64: await C.encryptItem(it) })
-        await api('POST', '/admin/coffre/items/batch', { items: blobs })
-        setProgress({ done: Math.min(i + 500, total), total })
+    if (busy) return
+    // KVCS1 : premier clic = désceller. Le vrai import attend le clic
+    // suivant — les doublons éventuels doivent s'afficher AVANT, avec
+    // leur choix, sinon « ignorer les doublons » serait un leurre.
+    if (!parsed) {
+      if (!pending || !pass) return
+      setBusy(true)
+      try {
+        const det = await detectAndParse(pending.bytes, pending.name, pass)
+        if (det.items.length === 0) { toast.error(String(t.cofImportBad)); setBusy(false); return }
+        setDups(findDuplicates(det.items, await loadExisting()))
+        setDupMode('skip')
+        setParsed(det)
+        setFname(pending.name)
+      } catch (e: any) {
+        toast.error(e?.message === 'bad_passphrase' ? String(t.cofSealImportBad) : String(t.cofImportBad))
       }
-      toast.success(String(t.cofImportDone(total)))
+      setBusy(false)
+      return
+    }
+    setBusy(true)
+    // dedupe : « ignorer » (défaut) → seuls les items frais partent
+    const idxs = dups && dupMode === 'skip' ? dups.fresh : parsed.items.map((_, i) => i)
+    const total = idxs.length
+    const skipped = parsed.items.length - total
+    setProgress({ done: 0, total })
+    let done = 0
+    try {
+      // (a) items sans pièces jointes → batch existant (500 max)
+      const plain = idxs.filter(i => !(parsed.attachments?.[i]?.length))
+      for (let i = 0; i < plain.length; i += 500) {
+        const chunk = plain.slice(i, i + 500)
+        const blobs: { blob_b64: string }[] = []
+        for (const k of chunk) blobs.push({ blob_b64: await C.encryptItem(parsed.items[k]) })
+        await api('POST', '/admin/coffre/items/batch', { items: blobs })
+        done = Math.min(done + chunk.length, total)
+        setProgress({ done, total })
+      }
+      // (b) items AVEC pièces jointes → création unitaire (le batch ne
+      // renvoie pas les ids, l'upload en a besoin) puis upload chiffré
+      const withFiles = idxs.filter(i => !!(parsed.attachments?.[i]?.length))
+      if (withFiles.length > 0) {
+        const key = getCoffreKeyForAttachments()
+        if (!key) throw new Error('locked')
+        let attachFail = false
+        for (const i of withFiles) {
+          const rec: any = await api('POST', '/admin/coffre/items', { blob_b64: await C.encryptItem(parsed.items[i]) })
+          // échec d'UNE pièce ≠ échec de l'import : l'item existe déjà,
+          // on continue — mais on le dit à la fin, sans le déguiser
+          try {
+            const n = await attachImportBundle(key, rec.id, parsed.attachments![i])
+            if (n < parsed.attachments![i].length) attachFail = true
+          } catch { attachFail = true }
+          done++
+          setProgress({ done, total })
+        }
+        if (attachFail) toast.error(String(t.cofAttachFailed))
+      }
+      if (skipped > 0) toast.success(String(t.cofDupImported(total, skipped)))
+      else toast.success(String(t.cofImportDone(total)))
       await onImported()
       onClose()
     } catch (e) { toast.error(friendly(e)) }
@@ -170,11 +253,22 @@ export function ImportDialog({ onClose, onImported }: { onClose: () => void; onI
       <DialogContent title={t.cofImportTitle} className="max-w-md">
         <p className="text-xs text-fg-3 leading-relaxed mb-4">{t.cofImportHint}</p>
         <label className="block border border-dashed border-border rounded-xl p-8 text-center cursor-pointer hover:bg-card-2/50 transition-colors">
-          <input type="file" accept=".json,.csv,.1pux,.1pif,.txt" className="hidden"
+          <input type="file" accept=".json,.csv,.1pux,.1pif,.txt,.kvc" className="hidden"
             onChange={e => { const f = e.target.files?.[0]; if (f) void pick(f) }} />
           <Upload size={20} aria-hidden="true" className="mx-auto text-fg-3 mb-2" />
           <span className="text-sm text-fg-2">{fname || t.cofImportPick}</span>
         </label>
+        {pending && !parsed && (
+          <div className="mt-4">
+            <div className="mb-3">
+              <Badge variant="ok"><ShieldCheck size={12} aria-hidden="true" />{String(t.cofSealImportOk)}</Badge>
+            </div>
+            <Field label={t.cofSealImportPass}>
+              <PasswordInput value={pass} onChange={e => setPass(e.target.value)} autoComplete="off"
+                onKeyDown={e => { if (e.key === 'Enter') void run() }} />
+            </Field>
+          </div>
+        )}
         {parsed && (
           <div className="mt-4 space-y-2">
             <div className="rounded-lg bg-accent/8 border border-accent/25 p-3 text-sm text-accent-fg flex items-center gap-2">
@@ -183,9 +277,27 @@ export function ImportDialog({ onClose, onImported }: { onClose: () => void; onI
             <div className="text-xs text-fg-3">{t.cofImportDetected} : <span className="text-fg-2 font-medium">{fmtLabel(parsed.format, t)}</span></div>
           </div>
         )}
+        {parsed && dups && dups.dup.length > 0 && (
+          <div className="mt-3 space-y-2">
+            <Alert tone="warn">
+              <p className="font-semibold mb-0.5">{String(t.cofDupDetected(dups.dup.length))}</p>
+              {String(t.cofDupHint)}
+            </Alert>
+            <SegmentedControl
+              className="w-full"
+              ariaLabel={String(t.cofDupDetected(dups.dup.length))}
+              value={dupMode}
+              onChange={setDupMode}
+              options={[
+                { value: 'skip' as const, label: String(t.cofDupSkip) },
+                { value: 'all' as const, label: String(t.cofDupAll) },
+              ]}
+            />
+          </div>
+        )}
         <div className="flex justify-end gap-2 mt-5">
           <Button variant="ghost" onClick={onClose}>{t.cofCancel}</Button>
-          <Button variant="primary" disabled={!parsed || busy} onClick={run}>
+          <Button variant="primary" disabled={busy || (!parsed && (!pending || !pass))} onClick={run}>
             {busy ? <LoaderCircle className="animate-spin" aria-hidden="true" /> : null} {t.cofImportBtn}
           </Button>
         </div>
@@ -205,6 +317,12 @@ export function ExportDialog({ items, onClose }: { items: DecryptedItem[]; onClo
   const { t } = useLang()
   const [confirm, setConfirm] = React.useState('')
   const [fmt, setFmt] = React.useState<'kervia' | 'bitwarden'>('kervia')
+  // v1.9.0 — carte « sauvegarde chiffrée » : passphrase propre au
+  // fichier .kvc (indépendante du mot de passe maître). Elle ne vit que
+  // dans cet état local — jamais persistée, effacée à la fermeture.
+  const [sPass, setSPass] = React.useState('')
+  const [sPass2, setSPass2] = React.useState('')
+  const [sBusy, setSBusy] = React.useState(false)
 
   const exportNow = () => {
     const data = fmt === 'kervia' ? itemsToKervia(items) : JSON.stringify(itemsToBitwarden(items), null, 2)
@@ -216,6 +334,47 @@ export function ExportDialog({ items, onClose }: { items: DecryptedItem[]; onClo
     URL.revokeObjectURL(a.href)
     toast.success(String(t.cofExportDone))
     onClose()
+  }
+
+  // sealNow : scelle items v2 déchiffrés (reçus par props — le coffre
+  // est déverrouillé, l'état vit dans la page) + pièces jointes
+  // DÉCHIFFRÉES, puis télécharge le .kvc. Item sans pièces jointes →
+  // attachments: null ; pièce illisible → l'export ÉCHOUE (un scellé
+  // amputé en silence serait un faux sentiment de sécurité).
+  const sealNow = async () => {
+    if (sBusy || sPass.length < 12 || sPass !== sPass2) return
+    setSBusy(true)
+    try {
+      // relais de la coffreKey (registre mémoire de la lib pièces
+      // jointes, rempli par l'hôte au déverrouillage). Sans clé, PAS de
+      // scellé silencieusement amputé : la carte promet « éléments et
+      // pièces jointes » — on refuse plutôt que de mentir.
+      const key = getCoffreKeyForAttachments()
+      if (!key) throw new Error('locked')
+      const entries: any[] = []
+      for (const it of items) {
+        // sans pièces jointes → bundle vide → null. Une pièce illisible
+        // fait JETER par la lib (agent 3 : « un backup doit être
+        // complet, pas silencieusement partiel ») — l'export échoue
+        // avec un toast plutôt que d'amputer le scellé en silence.
+        const files = await attachExportBundle(key, it.id)
+        const attachments = files.length > 0 ? files : null
+        // l'objet v2 du blob SANS id (champs serveur et index de
+        // recherche retirés) — le .kvc ne doit rien révéler du coffre
+        // au-delà de son contenu
+        const { id, version, created_at, updated_at, deleted_at, _search, _broken, ...data } = it
+        entries.push({ ...data, attachments })
+      }
+      const kvc = await sealVault(sPass, { v: 1, exported_at: new Date().toISOString(), items: entries })
+      const a = document.createElement('a')
+      a.href = URL.createObjectURL(new Blob([kvc], { type: 'application/json' }))
+      a.download = `kervia-coffre-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}.kvc`
+      a.click()
+      URL.revokeObjectURL(a.href)
+      toast.success(String(t.cofSealDone))
+      onClose()
+    } catch (e) { toast.error(friendly(e)) }
+    setSBusy(false)
   }
 
   return (
@@ -238,6 +397,23 @@ export function ExportDialog({ items, onClose }: { items: DecryptedItem[]; onClo
         <Field label={t.cofExportType} className="mt-4">
           <Input value={confirm} onChange={e => setConfirm(e.target.value.toUpperCase())} placeholder="EXPORT" />
         </Field>
+        {/* v1.9.0 — sauvegarde chiffrée KVCS1 : s'AJOUTE aux exports en
+            clair (qui restent pour l'interopérabilité). Pas de
+            type-to-confirm ici : la passphrase EST la protection. */}
+        <div className="border-t border-border mt-5 pt-5">
+          <Label className="mb-2 block">{t.cofSealExport}</Label>
+          <p className="text-xs text-fg-3 leading-relaxed mb-3">{t.cofSealIntro}</p>
+          <Alert tone="warn" className="mb-4">{t.cofSealWarning}</Alert>
+          <Field label={t.cofSealPass}>
+            <PasswordInput value={sPass} onChange={e => setSPass(e.target.value)} autoComplete="new-password" />
+          </Field>
+          <Field label={t.cofSealPass2} error={sPass2 !== '' && sPass !== sPass2 ? String(t.backupMismatch) : undefined}>
+            <PasswordInput value={sPass2} onChange={e => setSPass2(e.target.value)} autoComplete="new-password" />
+          </Field>
+          <Button variant="primary" disabled={sBusy || sPass.length < 12 || sPass !== sPass2} onClick={sealNow}>
+            {sBusy ? <LoaderCircle className="animate-spin" aria-hidden="true" /> : <ShieldCheck size={14} aria-hidden="true" />} {t.cofSealBtn}
+          </Button>
+        </div>
         <div className="flex justify-end gap-2 mt-5">
           <Button variant="ghost" onClick={onClose}>{t.cofCancel}</Button>
           <Button variant="destructive" disabled={confirm !== 'EXPORT'} onClick={exportNow}>

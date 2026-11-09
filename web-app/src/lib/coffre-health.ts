@@ -261,20 +261,11 @@ export async function runSelfTests(): Promise<string[]> {
   return failures
 }
 
-// Auto-exécution directe : `node coffre-health.js` (après compilation CJS,
-// mini-runner du rapport). Dans le bundle navigateur (ESM), `require`
-// n'existe pas → typeof 'undefined' → bloc mort, jamais exécuté.
-declare const require: any
-declare const module: any
-if (typeof require !== 'undefined' && require.main === module) {
-  void runSelfTests().then(fails => {
-    for (const f of fails) console.error('✗ ' + f)
-    console.log(fails.length === 0 ? 'coffre-health : self-tests OK' : `coffre-health : ${fails.length} échec(s)`)
-    const p = (globalThis as any).process
-    if (p) p.exitCode = fails.length === 0 ? 0 : 1
-  }).catch(e => {
-    console.error(e)
-    const p = (globalThis as any).process
-    if (p) p.exitCode = 1
-  })
-}
+// Self-tests : exécutables via `runSelfTests()` (mini-runner CJS du
+// rapport d'audit). PLUS D'AUTO-EXÉCUTION dans ce fichier : le pattern
+// historique `typeof require !== 'undefined' && require.main === module`
+// est MORTEL sous bundler — rolldown réécrit `typeof X !== 'undefined'`
+// en `X !== void 0` (licencié par `declare const`), et la référence NU à
+// `module` jette ReferenceError au module scope ESM navigateur → tout
+// le bundle meurt avant React → splash bloquée (incident v1.9.1, corrigé
+// v1.9.2 + garde check-boot.mjs qui exécute le bundle réel).

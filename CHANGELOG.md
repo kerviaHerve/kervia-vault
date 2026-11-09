@@ -1,5 +1,28 @@
 # Changelog
 
+## v1.9.2 (2026-11-09)
+
+- **HOTFIX — la webui ne démarrait plus du tout** (incident v1.9.1 :
+  splash bloquée, aucun accès, même en fenêtre privée). Cause racine :
+  le bloc self-test de `lib/coffre-health.ts` (`typeof require !==
+  'undefined' && require.main === module` sous `declare const`) survit
+  à tsc et à vite build… puis rolldown réécrit `typeof X !== 'undefined'`
+  en référence NU `X !== void 0`, et la référence nue à `module` jette
+  `ReferenceError` au module scope ESM navigateur → **tout le bundle
+  meurt avant React** → splash verte bloquée, zéro requête partante.
+  tsc et le build n'exécutent pas le code : la CI était « tout vert »
+  pendant que la prod était down. Fix : bloc d'auto-exécution supprimé
+  (les self-tests restent exportés et appelables).
+- **NOUVELLE GARDE CI — `check-boot.mjs`** : exécute le VRAI bundle du
+  dist dans un DOM simulé (jsdom) et échoue si le bundle jette à
+  l'import, si React ne monte pas, ou si les fetches de boot ne partent
+  pas. Le bundle est copié en `.mjs` temporaire pour forcer le
+  chargement ESM comme le navigateur (en CJS, `module` existe et le
+  crash serait masqué — c'est précisément le piège de l'incident).
+  Câblé dans `npm run build` : `check-i18n → check-contrast → vite build
+  → check-boot`. Preuve dans le commit : le bundle v1.9.1 échoue (3
+  échecs), le bundle v1.9.2 passe.
+
 ## v1.9.1 (2026-11-09)
 
 - **Registre de templates : Zoom (Server-to-Server OAuth)** — les 3

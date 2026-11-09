@@ -38,6 +38,33 @@ command -v jq >/dev/null 2>&1 || { echo "ERREUR : jq requis"; exit 1; }
 [ -r "$AG_VAULT_KEY_FILE" ] || { echo "ERREUR : clé agent illisible : $AG_VAULT_KEY_FILE"; exit 1; }
 [ -f "$REPO_ROOT/extension-firefox/manifest.json" ] || { echo "ERREUR : extension-firefox/ introuvable (repo : $REPO_ROOT)"; exit 1; }
 
+# ---- 0. version : TOUJOURS celle de la release servie (v1.9.1) ----
+# Le workflow Release estampille le manifest avant de construire le XPI CI,
+# mais CE script signe le source-dir du repo — si sa version traîne (ex. 1.8.7
+# au moment de la release 1.9.1), le XPI signé servi en priorité par la webui
+# porte une version PLUS VIEILLE que celle qu'annonce updates.json → Firefox
+# re-propose la « même » mise à jour en boucle. On lit donc la version
+# annoncée par le serveur local (la source de vérité en prod) et on
+# estampille le manifest AVANT de signer. AMO_SIGN_VERSION écrase manuellement.
+ANNOUNCED="$(curl -sf --max-time 10 "$AG_VAULT_URL/ui/extension-updates.json" \
+  | jq -r '.addons["coffre@kervia-vault"].updates[0].version // empty' 2>/dev/null || true)"
+SIGN_VERSION="${AMO_SIGN_VERSION:-${ANNOUNCED:-}}"
+if [ -n "$SIGN_VERSION" ]; then
+  python3 - "$REPO_ROOT/extension-firefox/manifest.json" "$SIGN_VERSION" <<'EOF'
+import json, sys
+p, v = sys.argv[1], sys.argv[2]
+m = json.load(open(p))
+if m.get("version") != v:
+    m["version"] = v
+    with open(p, "w") as f:
+        json.dump(m, f, indent=2, ensure_ascii=False)
+        f.write("\n")
+    print(f"manifest estampillé : {v}")
+else:
+    print(f"manifest déjà à jour : {v}")
+EOF
+fi
+
 VAULT_KEY="$(cat "$AG_VAULT_KEY_FILE")"
 AUTH="Authorization: Bearer $VAULT_KEY"
 

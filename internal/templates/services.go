@@ -273,6 +273,21 @@ func init() {
 			},
 		},
 		Template{
+			// Zoom Server-to-Server OAuth : les 3 identifiants du panneau
+			// « App credentials » d'une S2S app (aucun user, aucun refresh
+			// token — le token API se mint depuis ces trois-là).
+			Key: "zoom", Name: "Zoom (Server-to-Server OAuth)", Category: "Messaging",
+			Description: "Zoom Server-to-Server OAuth app credentials (meetings, webinars, users API).",
+			Fields: []Field{
+				{Name: "account_id", Label: "Account ID", Type: TypeText, Required: true,
+					Placeholder: "123456789012",
+					Help: "App credentials panel — numeric account ID"},
+				{Name: "client_id", Label: "Client ID", Type: TypeText, Required: true,
+					Placeholder: "AbCdEfGhIjKlMnOpQrStUv"},
+				{Name: "client_secret", Label: "Client secret", Type: TypePassword, Required: true},
+			},
+		},
+		Template{
 			Key: "pushover", Name: "Pushover", Category: "Messaging",
 			Description: "Pushover notifications.",
 			Fields: []Field{

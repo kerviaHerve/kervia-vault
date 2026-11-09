@@ -55,6 +55,7 @@ const ALIASES: Record<string, string[]> = {
   ia: ['llm'], ai: ['llm'], gpt: ['llm'],
   stockage: ['storage'], hebergement: ['hosting'],
   vpn: ['network'], reseau: ['network'],
+  visio: ['zoom'], visioconference: ['zoom'], reunion: ['zoom'],
 }
 
 // Insensible aux accents/casse — « hebergement » trouve « Hébergement ».

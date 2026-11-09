@@ -1,5 +1,15 @@
 # Changelog
 
+## v1.9.1 (2026-11-09)
+
+- **Registre de templates : Zoom (Server-to-Server OAuth)** — les 3
+  identifiants du panneau « App credentials » d'une S2S app, tous requis :
+  `account_id` (numérique), `client_id`, `client_secret` (marqué secret).
+  Catégorie Messaging ; alias FR du picker : `visio`, `visioconference`,
+  `reunion`. Test de non-régression dédié (3 clés exactes, secret
+  masqué, validation vide → 3 erreurs). Le registre passe à 101
+  templates.
+
 ## v1.9.0 (2026-11-09)
 
 - **Coffre personnel — le passage à un vrai gestionnaire de mots de

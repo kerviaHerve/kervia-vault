@@ -78,7 +78,7 @@ func Build(deps Deps) *mcp.Server {
 
 	mcp.AddTool(srv, &mcp.Tool{
 		Name:        "get_secret",
-		Description: "Read a secret's decrypted value. Templated secrets return a structured object.",
+		Description: "Read a secret's decrypted value and note. Templated secrets return a structured object.",
 		Annotations: ro,
 	}, deps.toolGetSecret)
 
@@ -90,13 +90,13 @@ func Build(deps Deps) *mcp.Server {
 
 	mcp.AddTool(srv, &mcp.Tool{
 		Name:        "create_secret",
-		Description: "Create a secret in a vault you can write. Either free-form ({vault,key,value}) or templated ({vault,key,template,values}).",
+		Description: "Create a secret in a vault you can write. Either free-form ({vault,key,value}) or templated ({vault,key,template,values}). Optional 'note' field: free-form annotation (context, rotation, contact…).",
 		Annotations: nonDestructive,
 	}, deps.toolCreateSecret)
 
 	mcp.AddTool(srv, &mcp.Tool{
 		Name:        "update_secret",
-		Description: "Update a secret's value (creates a new version; history is kept).",
+		Description: "Update a secret's value (creates a new version; history is kept). Optional 'note' field: absent = preserved, empty = cleared, text = set.",
 		Annotations: idempotent,
 	}, deps.toolUpdateSecret)
 
@@ -211,6 +211,14 @@ func (d *Deps) toolGetSecret(ctx context.Context, _ *mcp.CallToolRequest, args g
 	if err != nil {
 		return nil, nil, fmt.Errorf("internal")
 	}
+	// note optionnelle (v1.9.3) : même surface de lecture que la valeur
+	note := ""
+	if nn, nc, nerr := d.Store.GetSecretNote(args.ID); nerr == nil {
+		nNote, derr := d.Enc.Decrypt(nn, nc)
+		if derr == nil && len(nn) > 0 {
+			note = string(nNote)
+		}
+	}
 	_ = d.Store.AppendAudit(agent.ID, model.AuditRead, "secret/"+args.ID, "")
 	// structured output for templated secrets
 	if sec.Template != "" {
@@ -218,12 +226,12 @@ func (d *Deps) toolGetSecret(ctx context.Context, _ *mcp.CallToolRequest, args g
 		if json.Unmarshal(value, &obj) == nil {
 			return textResult(mustJSON(map[string]any{
 				"id": sec.ID, "key": sec.Key, "template": sec.Template,
-				"version": sec.Version, "values": obj,
+				"version": sec.Version, "values": obj, "note": note,
 			})), nil, nil
 		}
 	}
 	return textResult(mustJSON(map[string]any{
-		"id": sec.ID, "key": sec.Key, "version": sec.Version, "value": string(value),
+		"id": sec.ID, "key": sec.Key, "version": sec.Version, "value": string(value), "note": note,
 	})), nil, nil
 }
 
@@ -237,6 +245,9 @@ type createSecretArgs struct {
 	Value    string         `json:"value,omitempty"`
 	Template string         `json:"template,omitempty"`
 	Values   map[string]any `json:"values,omitempty"`
+	// Note (v1.9.3) : annotation libre optionnelle — contexte, rotation,
+	// contact… Chiffrée côté serveur comme la valeur.
+	Note string `json:"note,omitempty"`
 }
 
 func (d *Deps) toolCreateSecret(ctx context.Context, _ *mcp.CallToolRequest, args createSecretArgs) (*mcp.CallToolResult, any, error) {
@@ -278,7 +289,17 @@ func (d *Deps) toolCreateSecret(ctx context.Context, _ *mcp.CallToolRequest, arg
 	if err != nil {
 		return nil, nil, fmt.Errorf("internal")
 	}
-	sec, err := d.Store.CreateSecret(newID(), vault.ID, args.Key, templateKey, nonce, ct, newID(), agent.ID)
+	// note optionnelle (v1.9.3) : même scellage que la valeur
+	var nNoteNonce, nNoteCt []byte
+	if len(args.Note) > 4096 {
+		return nil, nil, fmt.Errorf("note too long (max 4096 chars)")
+	}
+	if args.Note != "" {
+		if nNoteNonce, nNoteCt, err = d.Enc.Encrypt([]byte(args.Note)); err != nil {
+			return nil, nil, fmt.Errorf("internal")
+		}
+	}
+	sec, err := d.Store.CreateSecret(newID(), vault.ID, args.Key, templateKey, nonce, ct, nNoteNonce, nNoteCt, newID(), agent.ID)
 	if err != nil {
 		return nil, nil, fmt.Errorf("create failed (already exists?)")
 	}
@@ -289,6 +310,8 @@ func (d *Deps) toolCreateSecret(ctx context.Context, _ *mcp.CallToolRequest, arg
 type updateSecretArgs struct {
 	ID    string `json:"id"`
 	Value string `json:"value"`
+	// Note (v1.9.3) : ABSENTE = inchangée ; "" = effacée ; "texte" = posée.
+	Note *string `json:"note,omitempty"`
 }
 
 func (d *Deps) toolUpdateSecret(ctx context.Context, _ *mcp.CallToolRequest, args updateSecretArgs) (*mcp.CallToolResult, any, error) {
@@ -311,6 +334,23 @@ func (d *Deps) toolUpdateSecret(ctx context.Context, _ *mcp.CallToolRequest, arg
 	}
 	if err := d.Store.UpdateSecretValue(args.ID, nonce, ct, agent.ID, newID()); err != nil {
 		return nil, nil, fmt.Errorf("update failed")
+	}
+	// note (v1.9.3) : absente → préservée ; "" → effacée ; "texte" → posée
+	if args.Note != nil {
+		if len(*args.Note) > 4096 {
+			return nil, nil, fmt.Errorf("note too long (max 4096 chars)")
+		}
+		nNoteNonce, nNoteCt, err := d.Enc.Encrypt([]byte(*args.Note))
+		if err != nil {
+			return nil, nil, fmt.Errorf("internal")
+		}
+		if *args.Note == "" {
+			nNoteNonce, nNoteCt = nil, nil
+		}
+		if err := d.Store.SetSecretNote(args.ID, nNoteNonce, nNoteCt); err != nil {
+			return nil, nil, fmt.Errorf("note update failed")
+		}
+		_ = d.Store.AppendAudit(agent.ID, model.AuditUpdate, "secret/"+args.ID, "note")
 	}
 	_ = d.Store.AppendAudit(agent.ID, model.AuditUpdate, "secret/"+args.ID, "")
 	return textResult(mustJSON(map[string]any{"status": "updated", "id": args.ID})), nil, nil

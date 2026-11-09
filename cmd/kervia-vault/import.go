@@ -44,6 +44,7 @@ type exportedSecret2 struct {
 	Key       string `json:"key"`
 	Template  string `json:"template,omitempty"`
 	Value     string `json:"value"`
+	Note      string `json:"note,omitempty"` // decrypted note (v1.9.3) — re-sealed on import
 	CreatedBy string `json:"created_by"`
 	UpdatedAt string `json:"updated_at"`
 }
@@ -111,7 +112,15 @@ func runImport(args []string) {
 				fmt.Fprintln(os.Stderr, "chiffrement:", err)
 				os.Exit(1)
 			}
-			if _, err := st.CreateSecret(uuid.NewString(), vaultID, es.Key, es.Template, nonce, ct, uuid.NewString(), "import"); err != nil {
+			// note (v1.9.3) : restaurée si présente dans le bundle
+			var nNoteNonce, nNoteCt []byte
+			if es.Note != "" {
+				if nNoteNonce, nNoteCt, err = enc.Encrypt([]byte(es.Note)); err != nil {
+					fmt.Fprintln(os.Stderr, "chiffrement note:", err)
+					os.Exit(1)
+				}
+			}
+			if _, err := st.CreateSecret(uuid.NewString(), vaultID, es.Key, es.Template, nonce, ct, nNoteNonce, nNoteCt, uuid.NewString(), "import"); err != nil {
 				fmt.Fprintf(os.Stderr, "secret %q : %v\n", es.Key, err)
 				os.Exit(1)
 			}

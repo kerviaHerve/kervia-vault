@@ -38,7 +38,8 @@ type Secret struct {
 	VaultName string    `json:"vault_name,omitempty"`
 	Key       string    `json:"key"`
 	Template  string    `json:"template,omitempty"` // template key (null = free-form)
-	Value     string    `json:"value,omitempty"` // omitted in lists
+	Value     string    `json:"value,omitempty"`    // omitted in lists
+	Note      string    `json:"note,omitempty"`     // decrypted note (v1.9.3) — filled by read paths
 	Version   int       `json:"version"`
 	CreatedBy string    `json:"created_by"`
 	CreatedAt time.Time `json:"created_at"`

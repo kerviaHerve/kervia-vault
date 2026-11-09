@@ -151,6 +151,10 @@ func (s *Server) GetSecret(w http.ResponseWriter, r *http.Request, id string) {
 		return
 	}
 	sec.Value = string(value)
+	// note optionnelle (v1.9.3) : même surface de lecture que la valeur
+	if nn, nc, nerr := s.store.GetSecretNote(id); nerr == nil {
+		sec.Note = decryptNote(s.enc, nn, nc)
+	}
 	// Templated secrets: the agent receives a structured OBJECT, not a JSON string.
 	if sec.Template != "" {
 		var obj map[string]any
@@ -159,7 +163,7 @@ func (s *Server) GetSecret(w http.ResponseWriter, r *http.Request, id string) {
 				"id": sec.ID, "vault_id": sec.VaultID, "key": sec.Key,
 				"template": sec.Template, "version": sec.Version,
 				"created_by": sec.CreatedBy, "created_at": sec.CreatedAt,
-				"updated_at": sec.UpdatedAt, "values": obj,
+				"updated_at": sec.UpdatedAt, "values": obj, "note": sec.Note,
 			})
 			return
 		}
@@ -173,6 +177,33 @@ type createSecretReq struct {
 	Value    string         `json:"value,omitempty"`    // free-form value (no template)
 	Template string         `json:"template,omitempty"` // template key
 	Values   map[string]any `json:"values,omitempty"`   // template fields
+	Note     string         `json:"note,omitempty"`     // optional free note (v1.9.3)
+}
+
+// secretNoteMaxLen borne la note : c'est une annotation, pas un document.
+const secretNoteMaxLen = 4096
+
+// encryptNote scelle la note (AES-256-GCM comme la valeur). Note vide →
+// blobs nil = pas de note (le NULL reste la vérité terrain côté store).
+func encryptNote(enc *crypto.Encryptor, note string) ([]byte, []byte, error) {
+	if note == "" {
+		return nil, nil, nil
+	}
+	return enc.Encrypt([]byte(note))
+}
+
+// decryptNote dévoile la note si présents les blobs ; toute erreur de
+// déchiffrement → note vide : une note illisible ne doit jamais masquer
+// la valeur du secret.
+func decryptNote(enc *crypto.Encryptor, noteNonce, noteCt []byte) string {
+	if len(noteNonce) == 0 || len(noteCt) == 0 {
+		return ""
+	}
+	val, err := enc.Decrypt(noteNonce, noteCt)
+	if err != nil {
+		return ""
+	}
+	return string(val)
 }
 
 // CreateSecret stores a new secret in a vault the agent can write.
@@ -192,6 +223,10 @@ func (s *Server) CreateSecret(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, 400, "invalid_template", verr)
 		return
 	}
+	if len(req.Note) > secretNoteMaxLen {
+		writeErr(w, 400, "invalid_request", "note trop longue (max 4096 caractères)")
+		return
+	}
 	vault, err := s.store.GetVaultByName(req.Vault)
 	if err != nil {
 		writeErr(w, 404, "vault_not_found", "")
@@ -208,7 +243,13 @@ func (s *Server) CreateSecret(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, 500, "internal", "")
 		return
 	}
-	sec, err := s.store.CreateSecret(uuid.NewString(), vault.ID, req.Key, templateKey, nonce, ct, uuid.NewString(), agent.ID)
+	// note optionnelle : même scellage, colonnes dédiées (v1.9.3)
+	nNoteNonce, nNoteCt, err := encryptNote(s.enc, req.Note)
+	if err != nil {
+		writeErr(w, 500, "internal", "")
+		return
+	}
+	sec, err := s.store.CreateSecret(uuid.NewString(), vault.ID, req.Key, templateKey, nonce, ct, nNoteNonce, nNoteCt, uuid.NewString(), agent.ID)
 	if err != nil {
 		if errors.Is(err, store.ErrConflict) {
 			writeErr(w, 409, "already_exists", "a secret with this key already exists in the vault")
@@ -222,6 +263,9 @@ func (s *Server) CreateSecret(w http.ResponseWriter, r *http.Request) {
 
 type updateSecretReq struct {
 	Value string `json:"value"`
+	// Note (v1.9.3) : ABSENTE = inchangée ; "" = effacée ; "texte" = posée.
+	// Un ptr Go distingue l'absent de l'effacement explicite.
+	Note *string `json:"note,omitempty"`
 }
 
 // UpdateSecret writes a new version of a secret.
@@ -259,6 +303,23 @@ func (s *Server) UpdateSecret(w http.ResponseWriter, r *http.Request, id string)
 		}
 		writeErr(w, 500, "internal", "")
 		return
+	}
+	// note optionnelle (v1.9.3) : absente → préservée ; "" → effacée
+	if req.Note != nil {
+		if len(*req.Note) > secretNoteMaxLen {
+			writeErr(w, 400, "invalid_request", "note trop longue (max 4096 caractères)")
+			return
+		}
+		nNoteNonce, nNoteCt, nerr := encryptNote(s.enc, *req.Note)
+		if nerr != nil {
+			writeErr(w, 500, "internal", "")
+			return
+		}
+		if err := s.store.SetSecretNote(id, nNoteNonce, nNoteCt); err != nil {
+			writeErr(w, 500, "internal", "")
+			return
+		}
+		_ = s.store.AppendAudit(agent.ID, model.AuditUpdate, "secret/"+id, "note")
 	}
 	writeJSON(w, 200, map[string]string{"status": "updated"})
 }

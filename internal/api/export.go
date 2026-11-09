@@ -33,6 +33,7 @@ type exportedSecret struct {
 	Key       string `json:"key"`
 	Template  string `json:"template,omitempty"`
 	Value     string `json:"value"`
+	Note      string `json:"note,omitempty"` // decrypted note (v1.9.3) — sealed in the bundle
 	CreatedBy string `json:"created_by"`
 	UpdatedAt string `json:"updated_at"`
 }
@@ -68,10 +69,15 @@ func (a *AdminServer) ExportHandler(w http.ResponseWriter, r *http.Request) {
 			if err != nil {
 				continue
 			}
+			note := ""
+			if nn, nc, nerr := a.store.GetSecretNote(sec.ID); nerr == nil {
+				note = decryptNote(a.enc, nn, nc)
+			}
 			ev.Secrets = append(ev.Secrets, exportedSecret{
 				Key:       sec.Key,
 				Template:  sec.Template,
 				Value:     string(val),
+				Note:      note,
 				CreatedBy: sec.CreatedBy,
 				UpdatedAt: sec.UpdatedAt.UTC().Format(time.RFC3339Nano),
 			})

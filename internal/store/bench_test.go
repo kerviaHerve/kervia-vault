@@ -30,7 +30,7 @@ func BenchmarkRead(b *testing.B) {
 	s.CreateVault("v1", "bench")
 	s.CreateAgent("a1", "a", "h", "p")
 	nonce, ct, _ := enc.Encrypt([]byte("value"))
-	s.CreateSecret("s1", "v1", "KEY", "", nonce, ct, "sv1", "a1")
+	s.CreateSecret("s1", "v1", "KEY", "", nonce, ct, nil, nil, "sv1", "a1")
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
@@ -50,7 +50,7 @@ func BenchmarkWrite(b *testing.B) {
 	s.CreateVault("v1", "bench")
 	s.CreateAgent("a1", "a", "h", "p")
 	nonce, ct, _ := enc.Encrypt([]byte("v1"))
-	s.CreateSecret("s1", "v1", "KEY", "", nonce, ct, "sv1", "a1")
+	s.CreateSecret("s1", "v1", "KEY", "", nonce, ct, nil, nil, "sv1", "a1")
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
@@ -71,7 +71,7 @@ func BenchmarkCreate(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		n, c, _ := enc.Encrypt([]byte("value"))
 		id := fmt.Sprintf("s-%d", i)
-		if _, err := s.CreateSecret(id, "v1", "K"+id, "", n, c, id+"v", "a1"); err != nil {
+		if _, err := s.CreateSecret(id, "v1", "K"+id, "", n, c, nil, nil, id+"v", "a1"); err != nil {
 			b.Fatal(err)
 		}
 	}

@@ -38,7 +38,7 @@ func TestRevealIsAudited(t *testing.T) {
 	// a vault + a secret
 	v, _ := st.CreateVault("vault-web-1", "v-web")
 	nonce, ct, _ := enc.Encrypt([]byte(`{"api_key":"sekrit"}`))
-	sec, err := st.CreateSecret("sec-web-1", v.ID, "k-web", "api-key", nonce, ct, "ver-web-1", "admin")
+	sec, err := st.CreateSecret("sec-web-1", v.ID, "k-web", "api-key", nonce, ct, nil, nil, "ver-web-1", "admin")
 	if err != nil {
 		t.Fatalf("CreateSecret: %v", err)
 	}

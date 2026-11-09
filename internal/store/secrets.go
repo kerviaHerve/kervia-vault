@@ -15,16 +15,17 @@ import (
 )
 
 // CreateSecret inserts a secret (v1) and its first historical version
-// in one transaction.
-func (s *Store) CreateSecret(id, vaultID, key, tmpl string, nonce, ciphertext []byte, versionID, createdBy string) (*model.Secret, error) {
+// in one transaction. noteNonce/noteCt = the optional encrypted note
+// (v1.9.3) — nil = no note. The note is current-state only, NOT versioned.
+func (s *Store) CreateSecret(id, vaultID, key, tmpl string, nonce, ciphertext, noteNonce, noteCt []byte, versionID, createdBy string) (*model.Secret, error) {
 	ts := now()
 	tx, err := s.db.Begin()
 	if err != nil {
 		return nil, err
 	}
-	_, err = tx.Exec(`INSERT INTO secrets (id, vault_id, key, template, nonce, ciphertext, version, created_by, created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?, ?)`,
-		id, vaultID, key, tmpl, nonce, ciphertext, createdBy, ts, ts)
+	_, err = tx.Exec(`INSERT INTO secrets (id, vault_id, key, template, nonce, ciphertext, note_nonce, note_ct, version, created_by, created_at, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?)`,
+		id, vaultID, key, tmpl, nonce, ciphertext, noteNonce, noteCt, createdBy, ts, ts)
 	if err != nil {
 		_ = tx.Rollback()
 		if isUniqueViolation(err) {
@@ -82,6 +83,37 @@ func (s *Store) ListSecretsByVault(vaultID string) ([]*model.Secret, error) {
 		out = append(out, &sec)
 	}
 	return out, rows.Err()
+}
+
+// GetSecretNote fetches the encrypted note blobs of a secret (v1.9.3).
+// No note (NULL columns) → nil, nil, nil — the absence of a note is NOT
+// an error: most secrets don't have one.
+func (s *Store) GetSecretNote(id string) (noteNonce, noteCt []byte, err error) {
+	row := s.db.QueryRow(`SELECT note_nonce, note_ct FROM secrets WHERE id = ?`, id)
+	var nn, nc []byte
+	if err := row.Scan(&nn, &nc); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, nil, ErrNotFound
+		}
+		return nil, nil, err
+	}
+	return nn, nc, nil
+}
+
+// SetSecretNote replaces (or clears, nil blobs) the encrypted note.
+// Deliberately NOT versioned (the history tracks the VALUE only) and does
+// not bump version — updated_at still moves, the audit is the durable trace.
+func (s *Store) SetSecretNote(id string, noteNonce, noteCt []byte) error {
+	res, err := s.db.Exec(`UPDATE secrets SET note_nonce = ?, note_ct = ?, updated_at = ? WHERE id = ?`,
+		noteNonce, noteCt, now(), id)
+	if err != nil {
+		return err
+	}
+	n, _ := res.RowsAffected()
+	if n == 0 {
+		return ErrNotFound
+	}
+	return nil
 }
 
 // UpdateSecretValue writes a new version transactionally:

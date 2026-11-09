@@ -245,7 +245,16 @@ func (a *AdminServer) CreateSecret(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, 500, "internal", "")
 		return
 	}
-	sec, err := a.store.CreateSecret(uuid.NewString(), vault.ID, req.Key, templateKey, nonce, ct, uuid.NewString(), "admin")
+	if len(req.Note) > secretNoteMaxLen {
+		writeErr(w, 400, "invalid_request", "note trop longue (max 4096 caractères)")
+		return
+	}
+	nNoteNonce, nNoteCt, err := encryptNote(a.enc, req.Note)
+	if err != nil {
+		writeErr(w, 500, "internal", "")
+		return
+	}
+	sec, err := a.store.CreateSecret(uuid.NewString(), vault.ID, req.Key, templateKey, nonce, ct, nNoteNonce, nNoteCt, uuid.NewString(), "admin")
 	if err != nil {
 		if errors.Is(err, store.ErrConflict) {
 			writeErr(w, 409, "already_exists", "")
@@ -279,6 +288,7 @@ func (a *AdminServer) ListSecrets(w http.ResponseWriter, r *http.Request) {
 	type secretWithSecretValue struct {
 		model.Secret
 		Value string `json:"value"`
+		Note  string `json:"note"` // decrypted note (v1.9.3) — "" = none
 	}
 	out := make([]secretWithSecretValue, 0, len(secrets))
 	for _, sec := range secrets {
@@ -290,7 +300,11 @@ func (a *AdminServer) ListSecrets(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			continue
 		}
-		out = append(out, secretWithSecretValue{Secret: *sec, Value: string(val)})
+		note := ""
+		if nn, nc, nerr := a.store.GetSecretNote(sec.ID); nerr == nil {
+			note = decryptNote(a.enc, nn, nc)
+		}
+		out = append(out, secretWithSecretValue{Secret: *sec, Value: string(val), Note: note})
 	}
 	_ = a.store.AppendAudit("admin", model.AuditRead, "vault/"+vaultName, "")
 	writeJSON(w, 200, out)
@@ -431,6 +445,8 @@ func (a *AdminServer) UpdateSecret(w http.ResponseWriter, r *http.Request) {
 		Key    string          `json:"key,omitempty"`
 		Value  string          `json:"value,omitempty"`
 		Values json.RawMessage `json:"values,omitempty"`
+		// Note (v1.9.3) : ABSENTE = préservée ; "" = effacée ; "texte" = posée.
+		Note *string `json:"note,omitempty"`
 	}
 	// values (templated edit from the webui field form) → marshalled into the
 	// stored value; the template is NOT changed.
@@ -439,9 +455,31 @@ func (a *AdminServer) UpdateSecret(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	hasValues := len(req.Values) > 0 && string(req.Values) != "null"
-	if req.Key == "" && req.Value == "" && !hasValues {
-		writeErr(w, 400, "invalid_request", "key, value and/or values required")
+	if req.Key == "" && req.Value == "" && !hasValues && req.Note == nil {
+		writeErr(w, 400, "invalid_request", "key, value, values and/or note required")
 		return
+	}
+	// note seule : autorisée (v1.9.3) — une annotation ne force pas à
+	// réécrire la valeur
+	if req.Note != nil {
+		if len(*req.Note) > secretNoteMaxLen {
+			writeErr(w, 400, "invalid_request", "note trop longue (max 4096 caractères)")
+			return
+		}
+		nNoteNonce, nNoteCt, err := encryptNote(a.enc, *req.Note)
+		if err != nil {
+			writeErr(w, 500, "internal", "")
+			return
+		}
+		if err := a.store.SetSecretNote(id, nNoteNonce, nNoteCt); err != nil {
+			if errors.Is(err, store.ErrNotFound) {
+				writeErr(w, 404, "not_found", "")
+				return
+			}
+			writeErr(w, 500, "internal", "")
+			return
+		}
+		_ = a.store.AppendAudit("admin", model.AuditUpdate, "secret/"+id, "note")
 	}
 	// rename
 	if req.Key != "" {

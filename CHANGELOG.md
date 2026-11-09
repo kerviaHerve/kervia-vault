@@ -32,6 +32,16 @@
   `reunion`. Test de non-régression dédié (3 clés exactes, secret
   masqué, validation vide → 3 erreurs). Le registre passe à 101
   templates.
+- **Note par secret** — annotation libre (contexte, rotation, contact…)
+  attachée à chaque secret, chiffrée AES-256-GCM comme la valeur, NON
+  versionnée (l'historique reste celui de la valeur) et JAMAIS dévoilée
+  par les liens de partage. Éditable par les agents (API/MCP) et la
+  webui : création avec note, PATCH note seule (sans toucher la valeur),
+  sémantique absent=préservé / vide=effacé / texte=posé. Le GET sert la
+  note à côté de la valeur (agent, MCP, webui). L'export DR l'embarque
+  et le restore la re-scelle. Test d'intégration complet (création,
+  lecture, MAJ valeur préserve note, MAJ note seule, effacement,
+  non-fuite partage, garde-fou 4096).
 
 ## v1.9.0 (2026-11-09)
 

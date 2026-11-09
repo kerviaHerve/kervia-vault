@@ -31,6 +31,19 @@ function AgeBadge({ iso }: { iso: string }) {
   )
 }
 
+// SecretNoteView : la note d'un secret en consultation — annotation privée
+// (contexte, rotation, contact…), PAS un credential : affichage direct, sans
+// masquage ni œil. Jamais dévoilée par les liens de partage (le backend la
+// garde hors des partages). Pas de note → rien (pas d'état vide inutile).
+function SecretNoteView({ note, t }: { note: string; t: any }) {
+  return (
+    <div className="rounded-lg border border-border bg-bg p-3">
+      <p className="text-2xs uppercase tracking-wide text-fg-3">{String(t.secretNote)}</p>
+      <p className="mt-1 text-xs text-fg-2 whitespace-pre-wrap break-words">{note}</p>
+    </div>
+  )
+}
+
 interface Template {
   key: string; name: string; category: string; description?: string
   fields: { name: string; label: string; type: string; required: boolean; placeholder?: string; help?: string }[]
@@ -45,7 +58,7 @@ function SecretDialog({ secret, mode, onClose, onSaved, t, templates }: {
   secret: any; mode: 'reveal' | 'edit'; onClose: () => void;
   onSaved?: () => void; t: any; templates: any[]
 }) {
-  const [data, setData] = React.useState<any>(null)   // {fields, value, template}
+  const [data, setData] = React.useState<any>(null)   // {fields, value, template, note}
   const [edits, setEdits] = React.useState<Record<string, string>>({})
   const [snapshot, setSnapshot] = React.useState<Record<string, string>>({}) // état initial — garde dirty
   const [showMap, setShowMap] = React.useState<Record<string, boolean>>({})
@@ -62,6 +75,7 @@ function SecretDialog({ secret, mode, onClose, onSaved, t, templates }: {
       const e: Record<string, string> = {}
       if (d.fields?.length) { for (const f of (d.fields || [])) e[f.label] = f.value }
       else { e['__raw__'] = d.value ?? '' }
+      e['__note__'] = d.note ?? ''   // dans edits ET snapshot → la garde dirty la couvre
       setEdits(e)
       setSnapshot(e)
     }).catch(() => setLoadErr(true))   // bannière + retry dans le dialog, jamais un faux « vide »
@@ -101,6 +115,11 @@ function SecretDialog({ secret, mode, onClose, onSaved, t, templates }: {
         const raw = edits['__raw__'] ?? data?.value ?? ''
         if (raw !== '') body.value = raw
       }
+      // note : TOUJOURS envoyée en édition (le backend distingue via un ptr
+      // Go : absent = préservé, vide = effacée — ne l'envoyer que changée
+      // rendrait une note impossible à vider). Garde data : un save pendant
+      // le chargement ne doit rien envoyer du tout.
+      if (data) body.note = edits['__note__'] ?? ''
       if (Object.keys(body).length === 0) { onClose(); setBusy(false); return }
       await api('PATCH', `/admin/secrets/${secret.id}`, body)
       toast.success(String(t.secretUpdated))
@@ -231,6 +250,24 @@ function SecretDialog({ secret, mode, onClose, onSaved, t, templates }: {
               )}
             </div>
           )}
+          {/* note : sous la valeur, dans les DEUX modes. Édition → Textarea
+              (toujours envoyée, vide = effacée côté backend). Consultation →
+              bloc discret sans masquage (annotation, pas un credential) ;
+              absente → rien. mt-3 : DialogContent n'applique aucun gap
+              vertical entre ses enfants. */}
+          {data && (editMode ? (
+            <Field label={String(t.secretNote)} help={String(t.secretNoteHelp)} className="mt-3">
+              <Textarea
+                value={edits['__note__'] ?? ''}
+                onChange={(e: any) => setEdits((x: any) => ({ ...x, __note__: e.target.value }))}
+                className="h-24 resize-y"
+              />
+            </Field>
+          ) : data.note ? (
+            <div className="mt-3">
+              <SecretNoteView note={data.note} t={t} />
+            </div>
+          ) : null)}
           <div className="flex justify-end gap-2 pt-2">
             <Button onClick={() => { if (dirty) setAskDirty(true); else onClose() }}>{String(t.close)}</Button>
             {editMode && !loadErr && (
@@ -807,14 +844,15 @@ function CreateDialog({ open, setOpen, vault, templates, onCreated }: {
   const [pickerOpen, setPickerOpen] = React.useState(false)
   const [key, setKey] = React.useState('')
   const [value, setValue] = React.useState('')
+  const [note, setNote] = React.useState('')
   const [vals, setVals] = React.useState<Record<string, string>>({})
   const [busy, setBusy] = React.useState(false)
   const [valueErr, setValueErr] = React.useState(false)
   const [askDirty, setAskDirty] = React.useState(false)
   const tpl = templates.find(t => t.key === tplKey)
 
-  // garde dirty : tout champ entamé (type, nom, valeur) retient la fermeture
-  const dirty = key.trim() !== '' || value !== '' || tplKey !== '' || Object.values(vals).some(v => v !== '')
+  // garde dirty : tout champ entamé (type, nom, valeur, note) retient la fermeture
+  const dirty = key.trim() !== '' || value !== '' || note.trim() !== '' || tplKey !== '' || Object.values(vals).some(v => v !== '')
 
   const submit = async () => {
     if (!key.trim() || busy) return
@@ -828,8 +866,9 @@ function CreateDialog({ open, setOpen, vault, templates, onCreated }: {
       if (!value) { toast.error(String(t.valueRequired)); setValueErr(true); return }
       body.value = value
     }
+    if (note.trim()) body.note = note.trim()   // optionnelle : envoyée seulement si non vide
     setBusy(true)
-    try { await api('POST', '/admin/secrets', body); toast.success(String(t.secretCreated)); onCreated(); setKey(''); setValue(''); setVals({}); setTplKey('') }
+    try { await api('POST', '/admin/secrets', body); toast.success(String(t.secretCreated)); onCreated(); setKey(''); setValue(''); setVals({}); setTplKey(''); setNote('') }
     catch (e: any) { toast.error(friendly(e)) }
     setBusy(false)
   }
@@ -914,6 +953,11 @@ function CreateDialog({ open, setOpen, vault, templates, onCreated }: {
                 onKeyDown={e => e.key === 'Enter' && submit()} />
             </Field>
           )}
+
+          {/* note optionnelle : annotation privée, jamais dévoilée par les partages */}
+          <Field label={String(t.secretNote)} help={String(t.secretNoteHelp)}>
+            <Textarea value={note} onChange={e => setNote(e.target.value)} className="h-24 resize-y" />
+          </Field>
 
           <div className="flex justify-end gap-2 mt-2">
             <Button onClick={() => { if (dirty) setAskDirty(true); else setOpen(false) }}>{String(t.cancel)}</Button>

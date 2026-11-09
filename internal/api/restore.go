@@ -113,7 +113,12 @@ func (a *AdminServer) RestoreHandler(w http.ResponseWriter, r *http.Request) {
 			if err != nil {
 				continue // fail-safe sur l'entrée : on n'interrompt pas tout le vault
 			}
-			if _, err := a.store.CreateSecret(uuid.NewString(), vaultID, es.Key, es.Template, nonce, ct, uuid.NewString(), "restore"); err != nil {
+			// note (v1.9.3) : restaurée si présente dans le bundle
+			nNoteNonce, nNoteCt, err := encryptNote(a.enc, es.Note)
+			if err != nil {
+				nNoteNonce, nNoteCt = nil, nil // une note illisible ne bloque pas la valeur
+			}
+			if _, err := a.store.CreateSecret(uuid.NewString(), vaultID, es.Key, es.Template, nonce, ct, nNoteNonce, nNoteCt, uuid.NewString(), "restore"); err != nil {
 				continue
 			}
 			n++
